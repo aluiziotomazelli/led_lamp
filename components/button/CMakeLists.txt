@@ -3,6 +3,7 @@ idf_component_register(SRCS "button.c"
                     REQUIRES esp_driver_gpio 
                              esp_timer 
                              freertos
-                             driver)
+                             driver
+                             system_events)
 
                     

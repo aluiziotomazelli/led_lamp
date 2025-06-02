@@ -3,9 +3,23 @@
 #include "esp_timer.h"
 #include "freertos/task.h"
 #include "hal/gpio_types.h"
+#include "system_events.h"
 
 #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 static const char *TAG = "Button";
+
+// Função para mapear button_click_type_t para event_type_t
+static event_type_t map_button_to_system_event(button_click_type_t btn_type) {
+	switch (btn_type) {
+	case BUTTON_CLICK:     		  return EVENT_BUTTON_CLICK;
+	case BUTTON_DOUBLE_CLICK:  	  return EVENT_BUTTON_DOUBLE_CLICK;
+	case BUTTON_LONG_CLICK:    	  return EVENT_BUTTON_LONG_CLICK;
+	case BUTTON_VERY_LONG_CLICK:  return EVENT_BUTTON_VERY_LONG_CLICK;
+	case BUTTON_TIMEOUT:          return EVENT_BUTTON_TIMEOUT;
+	case BUTTON_ERROR:            return EVENT_BUTTON_ERROR;
+	default:                      return EVENT_NONE; // fallback
+	}
+}
 
 // Estado do botão
 typedef enum {
@@ -32,7 +46,7 @@ struct button_s {
 	uint32_t very_long_click_ms;
 	uint32_t timeout_ms;
 
-	QueueHandle_t queue;
+	//	QueueHandle_t queue;
 	TaskHandle_t task_handle;
 };
 
@@ -41,7 +55,7 @@ static uint32_t get_current_time_ms() { return esp_timer_get_time() / 1000; }
 
 // Função principal de detecção (igual antes, mas com ponteiro)
 static button_click_type_t button_get_click(button_t *btn) {
-//	uint32_t press_start_time = 0;
+	//	uint32_t press_start_time = 0;
 	uint32_t now = get_current_time_ms();
 
 	switch (btn->state) {
@@ -72,14 +86,14 @@ static button_click_type_t button_get_click(button_t *btn) {
 				return BUTTON_LONG_CLICK;
 			} else {
 				btn->last_time_ms = now;
-                btn->state = BUTTON_DEBOUNCE_RELEASE;
+				btn->state = BUTTON_DEBOUNCE_RELEASE;
 			}
 		} else if (now - btn->press_start_time_ms > btn->timeout_ms) {
 			btn->state = BUTTON_TIMEOUT_WAIT_FOR_RELEASE;
-//			fallback_start_time = now;
+			//			fallback_start_time = now;
 			btn->last_time_ms = now;
 			ESP_LOGD("FSM", "TIMEOUT WAIT FOR RELEASE");
-//			return BUTTON_TIMEOUT;
+			//			return BUTTON_TIMEOUT;
 		}
 		break;
 
@@ -92,8 +106,9 @@ static button_click_type_t button_get_click(button_t *btn) {
 
 	case BUTTON_WAIT_FOR_DOUBLE:
 		if (gpio_get_level(btn->pin) == 0 && !btn->first_click) {
-			btn->last_time_ms = now;     
-			btn->first_click = true;
+			// Detectou segundo clique
+			btn->last_time_ms = now;
+			btn->first_click = true; // Marca que teve segundo clique
 			btn->state = BUTTON_DEBOUNCE_PRESS;
 		} else if (now - btn->last_time_ms > btn->double_click_ms) {
 			btn->state = BUTTON_WAIT_FOR_PRESS;
@@ -109,16 +124,16 @@ static button_click_type_t button_get_click(button_t *btn) {
 	case BUTTON_TIMEOUT_WAIT_FOR_RELEASE:
 		if (gpio_get_level(btn->pin) == 1) {
 			if (now - btn->last_time_ms > btn->debounce_release_ms) {
-                btn->last_time_ms = now;
-                btn->state = BUTTON_WAIT_FOR_PRESS;
-			    ESP_LOGD("FSM", "TIMEOUT RELEASED");
+				btn->last_time_ms = now;
+				btn->state = BUTTON_WAIT_FOR_PRESS;
+				ESP_LOGD("FSM", "TIMEOUT RELEASED");
 				return BUTTON_TIMEOUT;
 			}
 		} else {
 			btn->last_time_ms = now;
 			if (now - btn->press_start_time_ms > 2 * btn->timeout_ms) {
 				btn->state = BUTTON_WAIT_FOR_PRESS;
-			    ESP_LOGD("FSM", "BUTTON ERROR");
+				ESP_LOGD("FSM", "BUTTON ERROR");
 				return BUTTON_ERROR;
 			}
 		}
@@ -131,7 +146,7 @@ static button_click_type_t button_get_click(button_t *btn) {
 // Task individual de cada botão
 static void button_task(void *param) {
 	button_t *btn = (button_t *)param;
-	button_event_t event;
+//	button_event_t event;
 	bool processing = false;
 
 	while (1) {
@@ -147,21 +162,25 @@ static void button_task(void *param) {
 			button_click_type_t click = button_get_click(btn);
 
 			if (click != BUTTON_NONE_CLICK) {
-				event.type = click;
+				//				event.type = click;
+				system_event_t sys_event = {
+					.type = map_button_to_system_event(click),
+					.data.button = {
+						.button_id = btn->pin // ou btn->id se tiver
+					}
+                };
 
-				if (xQueueSend(btn->queue, &event, pdMS_TO_TICKS(50))) {
-					ESP_LOGD(TAG, "Botão %d: click %d enfileirado", btn->pin,
-							 click);
-				} else {
-					ESP_LOGD(TAG, "Failed to queue, button: %d: click %d",
-							 btn->pin, click);
-				}
+                if (system_event_send(&sys_event)) {
+					ESP_LOGD(TAG, "Button %d: click %d send", btn->pin, click);
+                } else {
+					ESP_LOGD(TAG, "Failed to send, button: %d: click %d", btn->pin, click);
+                }
 				// Optional cleanup
 				// ulTaskNotifyTake(pdTRUE, 0);
 
 				// Re-enable ISR before clearing state (avoids race)
-				gpio_intr_enable(btn->pin);
 				processing = false;
+				gpio_intr_enable(btn->pin);
 				break;
 			}
 			vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -191,22 +210,22 @@ button_t *button_create(gpio_num_t pin) {
 
 	btn->pin = pin;
 	btn->state = BUTTON_WAIT_FOR_PRESS;
-    btn->press_start_time_ms = 0;
-    btn->last_time_ms = 0;
-    btn->first_click = false;
+	btn->press_start_time_ms = 0;
+	btn->last_time_ms = 0;
+	btn->first_click = false;
 
-    btn->debounce_press_ms = DEBOUNCE_PRESS_MS;
+	btn->debounce_press_ms = DEBOUNCE_PRESS_MS;
 	btn->debounce_release_ms = DEBOUNCE_RELEASE_MS;
 	btn->double_click_ms = DOUBLE_CLICK_MS;
 	btn->long_click_ms = LONG_CLICK_MS;
 	btn->very_long_click_ms = VERY_LONG_CLICK_MS;
 	btn->timeout_ms = VERY_LONG_CLICK_MS * 2;
 
-	btn->queue = xQueueCreate(5, sizeof(button_event_t));
-	if (!btn->queue) {
-		free(btn);
-		return NULL;
-	}
+	//	btn->queue = xQueueCreate(5, sizeof(button_event_t));
+	//	if (!btn->queue) {
+	//		free(btn);
+	//		return NULL;
+	//	}
 
 	gpio_config_t io_conf = {.pin_bit_mask = 1ULL << pin,
 							 .mode = GPIO_MODE_INPUT,
@@ -214,26 +233,33 @@ button_t *button_create(gpio_num_t pin) {
 							 .pull_down_en = GPIO_PULLDOWN_DISABLE,
 							 .intr_type = GPIO_INTR_NEGEDGE};
 	gpio_config(&io_conf);
-    
-    
 
-	gpio_install_isr_service(0); // Só uma vez no projeto
+	// Install ISR service with error handling
+	esp_err_t err = gpio_install_isr_service(0);
+	if (err == ESP_OK) {
+		ESP_LOGI(TAG, "ISR service installed successfully");
+	} else if (err == ESP_ERR_INVALID_STATE) {
+		ESP_LOGW(TAG,
+				 "ISR service already installed, reusing existing service");
+	} else {
+		ESP_LOGE(TAG, "Failed to install ISR service: %s",
+				 esp_err_to_name(err));
+		free(btn);				  // Para malloc/calloc
+
+		return NULL;
+	}
+
 	gpio_isr_handler_add(pin, button_isr_handler, btn);
 
 	BaseType_t res = xTaskCreate(button_task, "button_task", 2048, btn, 10,
 								 &btn->task_handle);
 	if (res != pdPASS) {
-		vQueueDelete(btn->queue);
 		free(btn);
 		return NULL;
 	}
 
 	ESP_LOGI(TAG, "Botão criado no pino %d", pin);
 	return btn;
-}
-
-QueueHandle_t button_get_event_queue(button_t *btn) {
-	return btn ? btn->queue : NULL;
 }
 
 void button_set_debounce(button_t *btn, uint16_t debounce_press_ms,
@@ -271,14 +297,7 @@ void button_delete(button_t *btn) {
 		} else {
 			ESP_LOGW(TAG, "Task do botão já deletada ou não inicializada");
 		}
-		if (btn->queue) {
-			vQueueDelete(btn->queue);
-			ESP_LOGI(TAG, "Fila do botão no pino %d deletada", btn->pin);
-		} else {
-			ESP_LOGW(TAG,
-					 "Fila do botão no pino %d já deletada ou não inicializada",
-					 btn->pin);
-		}
+		gpio_isr_handler_remove(btn->pin);
 		ESP_LOGI(TAG, "Botão no pino %d deletado", btn->pin);
 		free(btn);
 	}
