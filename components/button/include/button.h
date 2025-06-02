@@ -13,7 +13,7 @@
  *  tasks and queues for event handling.
  */
 
-// Definições padrão (pode ajustar)
+// Default definitions (can be adjusted)
 /** @def DEBOUNCE_PRESS_MS
  *  @brief Default debounce time in milliseconds after a button press is detected.
  *  Prevents multiple triggers from a single physical press due to contact bounce.
