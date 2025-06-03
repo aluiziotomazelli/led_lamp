@@ -3,23 +3,9 @@
 #include "esp_timer.h"
 #include "freertos/task.h"
 #include "hal/gpio_types.h"
-#include "system_events.h"
 
 #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 static const char *TAG = "Button";
-
-// Função para mapear button_click_type_t para event_type_t
-static event_type_t map_button_to_system_event(button_click_type_t btn_type) {
-	switch (btn_type) {
-	case BUTTON_CLICK:     		  return EVENT_BUTTON_CLICK;
-	case BUTTON_DOUBLE_CLICK:  	  return EVENT_BUTTON_DOUBLE_CLICK;
-	case BUTTON_LONG_CLICK:    	  return EVENT_BUTTON_LONG_CLICK;
-	case BUTTON_VERY_LONG_CLICK:  return EVENT_BUTTON_VERY_LONG_CLICK;
-	case BUTTON_TIMEOUT:          return EVENT_BUTTON_TIMEOUT;
-	case BUTTON_ERROR:            return EVENT_BUTTON_ERROR;
-	default:                      return EVENT_NONE; // fallback
-	}
-}
 
 // Estado do botão
 typedef enum {
@@ -46,7 +32,7 @@ struct button_s {
 	uint32_t very_long_click_ms;
 	uint32_t timeout_ms;
 
-	//	QueueHandle_t queue;
+	QueueHandle_t output_queue;
 	TaskHandle_t task_handle;
 };
 
@@ -162,21 +148,15 @@ static void button_task(void *param) {
 			button_click_type_t click = button_get_click(btn);
 
 			if (click != BUTTON_NONE_CLICK) {
-				//				event.type = click;
-				system_event_t sys_event = {
-					.type = map_button_to_system_event(click),
-					.data.button = {
-						.button_id = btn->pin // ou btn->id se tiver
-					}
-                };
+				button_event_t local_event;
+				local_event.type = click;
+				local_event.pin = btn->pin;
 
-                if (system_event_send(&sys_event)) {
-					ESP_LOGD(TAG, "Button %d: click %d send", btn->pin, click);
-                } else {
-					ESP_LOGD(TAG, "Failed to send, button: %d: click %d", btn->pin, click);
-                }
-				// Optional cleanup
-				// ulTaskNotifyTake(pdTRUE, 0);
+				if (xQueueSend(btn->output_queue, &local_event, pdMS_TO_TICKS(10)) == pdPASS) {
+					ESP_LOGD(TAG, "Button %d: click %d sent to queue", btn->pin, click);
+				} else {
+					ESP_LOGW(TAG, "Button %d: click %d failed to send to queue", btn->pin, click);
+				}
 
 				// Re-enable ISR before clearing state (avoids race)
 				processing = false;
@@ -203,12 +183,18 @@ static void IRAM_ATTR button_isr_handler(void *arg) {
 }
 
 // Criação do botão
-button_t *button_create(gpio_num_t pin) {
+button_t *button_create(gpio_num_t pin, QueueHandle_t output_queue) {
+	if (output_queue == NULL) {
+		ESP_LOGE(TAG, "Output queue is NULL");
+		return NULL;
+	}
+
 	button_t *btn = calloc(1, sizeof(button_t));
 	if (!btn)
 		return NULL;
 
 	btn->pin = pin;
+	btn->output_queue = output_queue;
 	btn->state = BUTTON_WAIT_FOR_PRESS;
 	btn->press_start_time_ms = 0;
 	btn->last_time_ms = 0;

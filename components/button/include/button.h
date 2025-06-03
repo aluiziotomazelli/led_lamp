@@ -24,7 +24,8 @@ typedef enum {
 } button_click_type_t;
 
 typedef struct {
-    button_click_type_t type;   ///< Tipo do clique detectado
+    button_click_type_t type;   ///< Type of the click detected
+    gpio_num_t pin;             ///< GPIO pin of the button
 } button_event_t;
 
 // Declaração incompleta para esconder implementação interna
@@ -32,11 +33,7 @@ typedef struct button_s button_t;
 
 // Cria uma nova instância de botão, configurada no pino dado.
 // Retorna ponteiro para button_t ou NULL em erro.
-button_t *button_create(gpio_num_t pin);
-
-// Obtém a fila de eventos do botão para ler cliques.
-// Pode ser usado com xQueueReceive para aguardar eventos.
-QueueHandle_t button_get_event_queue(button_t *btn);
+button_t *button_create(gpio_num_t pin, QueueHandle_t output_queue);
 
 // Ajusta tempos de debounce (opcional)
 void button_set_debounce(button_t *btn, uint16_t debounce_press_ms, uint16_t debounce_release_ms);
