@@ -176,15 +176,8 @@ void app_main(void) {
         // Prosseguir sem encoder, ou abortar dependendo da criticidade
     } else {
         ESP_LOGI(TAG, "Encoder criado com sucesso em GPIO %d e %d.", enc_config.pin_a, enc_config.pin_b);
-
-        // Testar funções de configuração (opcional)
-        esp_err_t err;
-        err = encoder_enable_acceleration(my_encoder, true);
-        ESP_LOGI(TAG, "Encoder enable acceleration: %s", esp_err_to_name(err));
-        err = encoder_set_accel_params(my_encoder, 50, 5);
-        ESP_LOGI(TAG, "Encoder set accel params: %s", esp_err_to_name(err));
-        err = encoder_set_half_steps(my_encoder, true);
-        ESP_LOGI(TAG, "Encoder set half steps: %s", esp_err_to_name(err));
+        // Call to encoder_enable_acceleration is removed as it no longer exists.
+        // The initial state of acceleration is set by enc_config.acceleration_enabled.
     }
 
     // Cria task que vai processar eventos do sistema (recebidos do app_button_event_handler_task)

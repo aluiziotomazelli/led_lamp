@@ -87,7 +87,7 @@ struct encoder_s {
     uint16_t accel_gap_ms;         // Time (ms) threshold for acceleration
     uint8_t accel_max_multiplier;  // Max multiplier for steps when accelerating
     volatile uint32_t last_step_time_ms; // Timestamp of the last detected step
-    SemaphoreHandle_t config_mutex; // Mutex for thread-safe access to configuration
+    // config_mutex is removed as all parameters are now init-only
 };
 
 // Helper function to map a value from one range to another
@@ -111,36 +111,17 @@ static void IRAM_ATTR encoder_isr_handler(void* arg) {
 static void encoder_task(void* arg) {
     encoder_handle_t enc = (encoder_handle_t) arg;
     uint8_t current_pin_states = 0;
-    bool current_half_step_mode;
-    bool current_flip_direction;
-    bool current_acceleration_enabled;
-    uint16_t current_accel_gap_ms;
-    uint8_t current_accel_max_multiplier;
+
+    // All configuration parameters (enc->half_step_mode, enc->flip_direction,
+    // enc->acceleration_enabled, enc->accel_gap_ms, enc->accel_max_multiplier)
+    // are now considered constant after initialization and can be read directly.
 
     while (1) {
         // Wait for notification from ISR
         if (ulTaskNotifyTake(pdTRUE, portMAX_DELAY)) {
-            // Read configuration under mutex protection
-            if (xSemaphoreTake(enc->config_mutex, portMAX_DELAY) == pdTRUE) {
-                current_half_step_mode = enc->half_step_mode;
-                current_flip_direction = enc->flip_direction;
-                current_acceleration_enabled = enc->acceleration_enabled;
-                current_accel_gap_ms = enc->accel_gap_ms;
-                current_accel_max_multiplier = enc->accel_max_multiplier;
-                xSemaphoreGive(enc->config_mutex);
-            } else {
-                ESP_LOGE(TAG, "Encoder task failed to take config mutex, using potentially stale config.");
-                // Initialize with defaults or last known good to be safe, though portMAX_DELAY should not fail easily
-                current_half_step_mode = false; // Default to full step
-                current_flip_direction = false;
-                current_acceleration_enabled = false;
-                current_accel_gap_ms = 100; // Default
-                current_accel_max_multiplier = 5; // Default
-            }
-
             current_pin_states = (gpio_get_level(enc->pin_a) << 1) | gpio_get_level(enc->pin_b);
 
-            const unsigned char (*current_ttable)[4] = current_half_step_mode ? ttable_half_step : ttable_full_step;
+            const unsigned char (*current_ttable)[4] = enc->half_step_mode ? ttable_half_step : ttable_full_step;
 
             enc->rotary_state = current_ttable[enc->rotary_state & 0x0F][current_pin_states];
 
@@ -153,23 +134,26 @@ static void encoder_task(void* arg) {
                 steps = -1;
             }
 
-            if (current_flip_direction) {
+            if (enc->flip_direction) {
                 steps = -steps;
             }
 
             if (steps != 0) {
                 int current_multiplier_val = 1;
-                if (current_acceleration_enabled) {
+                if (enc->acceleration_enabled) { // Directly use the init-only flag
                     uint32_t current_time_ms = esp_timer_get_time() / 1000;
                     uint32_t turn_interval_ms = current_time_ms - enc->last_step_time_ms;
-                    if (turn_interval_ms < current_accel_gap_ms && enc->last_step_time_ms != 0) {
-                        current_multiplier_val = map_value(current_accel_gap_ms - turn_interval_ms, 1, current_accel_gap_ms, 1, current_accel_max_multiplier + 1);
+                    if (turn_interval_ms < enc->accel_gap_ms && enc->last_step_time_ms != 0) {
+                        current_multiplier_val = map_value(enc->accel_gap_ms - turn_interval_ms, 1, enc->accel_gap_ms, 1, enc->accel_max_multiplier + 1);
                         if (current_multiplier_val < 1) current_multiplier_val = 1;
-                        if (current_multiplier_val > current_accel_max_multiplier) current_multiplier_val = current_accel_max_multiplier;
+                        if (current_multiplier_val > enc->accel_max_multiplier) current_multiplier_val = enc->accel_max_multiplier;
                         ESP_LOGD(TAG, "Accel: interval %lums, multiplier %d", turn_interval_ms, current_multiplier_val);
                     }
                     enc->last_step_time_ms = current_time_ms;
                 } else {
+                    // Still update last_step_time_ms if a step occurred,
+                    // for consistent timing if acceleration were to be re-enabled (though not possible now)
+                    // or for other potential future uses of this timestamp.
                     enc->last_step_time_ms = esp_timer_get_time() / 1000;
                 }
 
@@ -221,14 +205,7 @@ encoder_handle_t encoder_create(const encoder_config_t* config, QueueHandle_t ou
 
     enc->rotary_state = R_START;
     enc->last_step_time_ms = 0;
-    enc->config_mutex = NULL; // Initialize mutex handle
-
-    enc->config_mutex = xSemaphoreCreateMutex();
-    if (enc->config_mutex == NULL) {
-        ESP_LOGE(TAG, "Failed to create config mutex");
-        free(enc);
-        return NULL;
-    }
+    // Mutex creation is removed
 
     gpio_config_t io_conf_a = {
         .pin_bit_mask = (1ULL << enc->pin_a),
@@ -277,7 +254,7 @@ encoder_handle_t encoder_create(const encoder_config_t* config, QueueHandle_t ou
         ESP_LOGE(TAG, "Failed to create encoder task");
         gpio_isr_handler_remove(enc->pin_a);
         gpio_isr_handler_remove(enc->pin_b);
-        vSemaphoreDelete(enc->config_mutex); // Clean up mutex
+        // Mutex cleanup is removed
         // gpio_uninstall_isr_service();
         free(enc);
         return NULL;
@@ -321,12 +298,7 @@ esp_err_t encoder_delete(encoder_handle_t enc) {
 
     // 3. GPIO uninstall ISR service is generally not called here as it's a global service.
 
-    // 4. Delete Mutex
-    if (enc->config_mutex != NULL) {
-        vSemaphoreDelete(enc->config_mutex);
-        enc->config_mutex = NULL;
-        ESP_LOGD(TAG, "Config mutex deleted for encoder on pins A:%d, B:%d", enc->pin_a, enc->pin_b);
-    }
+    // 4. Mutex Deletion is removed.
 
     // 5. Free memory
     ESP_LOGI(TAG, "Encoder memory freed for pins A:%d, B:%d", enc->pin_a, enc->pin_b);
@@ -335,71 +307,6 @@ esp_err_t encoder_delete(encoder_handle_t enc) {
     return ESP_OK;
 }
 
-esp_err_t encoder_set_half_steps(encoder_handle_t enc, bool enable) {
-    if (!enc || !enc->config_mutex) {
-        ESP_LOGE(TAG, "set_half_steps: Invalid argument (NULL handle or mutex)");
-        return ESP_ERR_INVALID_ARG;
-    }
-    esp_err_t ret = ESP_OK;
-    if (xSemaphoreTake(enc->config_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        enc->half_step_mode = enable;
-        ESP_LOGI(TAG, "Encoder on A:%d, B:%d set to %s-step mode.", enc->pin_a, enc->pin_b, enable ? "half" : "full");
-        xSemaphoreGive(enc->config_mutex);
-    } else {
-        ESP_LOGE(TAG, "Failed to take config mutex in set_half_steps for A:%d, B:%d", enc->pin_a, enc->pin_b);
-        ret = ESP_ERR_TIMEOUT;
-    }
-    return ret;
-}
-
-esp_err_t encoder_set_flip_direction(encoder_handle_t enc, bool flip) {
-    if (!enc || !enc->config_mutex) {
-        ESP_LOGE(TAG, "set_flip_direction: Invalid argument (NULL handle or mutex)");
-        return ESP_ERR_INVALID_ARG;
-    }
-    esp_err_t ret = ESP_OK;
-    if (xSemaphoreTake(enc->config_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        enc->flip_direction = flip;
-        ESP_LOGI(TAG, "Encoder on A:%d, B:%d direction flip set to %s.", enc->pin_a, enc->pin_b, flip ? "true" : "false");
-        xSemaphoreGive(enc->config_mutex);
-    } else {
-        ESP_LOGE(TAG, "Failed to take config mutex in set_flip_direction for A:%d, B:%d", enc->pin_a, enc->pin_b);
-        ret = ESP_ERR_TIMEOUT;
-    }
-    return ret;
-}
-
-esp_err_t encoder_set_accel_params(encoder_handle_t enc, uint16_t gap_ms, uint8_t multiplier) {
-    if (!enc || !enc->config_mutex) {
-        ESP_LOGE(TAG, "set_accel_params: Invalid argument (NULL handle or mutex)");
-        return ESP_ERR_INVALID_ARG;
-    }
-    esp_err_t ret = ESP_OK;
-    if (xSemaphoreTake(enc->config_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        enc->accel_gap_ms = gap_ms;
-        enc->accel_max_multiplier = multiplier;
-        ESP_LOGI(TAG, "Encoder on A:%d, B:%d accel params: gap %ums, multiplier %u.", enc->pin_a, enc->pin_b, gap_ms, multiplier);
-        xSemaphoreGive(enc->config_mutex);
-    } else {
-        ESP_LOGE(TAG, "Failed to take config mutex in set_accel_params for A:%d, B:%d", enc->pin_a, enc->pin_b);
-        ret = ESP_ERR_TIMEOUT;
-    }
-    return ret;
-}
-
-esp_err_t encoder_enable_acceleration(encoder_handle_t enc, bool enable) {
-    if (!enc || !enc->config_mutex) {
-        ESP_LOGE(TAG, "enable_acceleration: Invalid argument (NULL handle or mutex)");
-        return ESP_ERR_INVALID_ARG;
-    }
-    esp_err_t ret = ESP_OK;
-    if (xSemaphoreTake(enc->config_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        enc->acceleration_enabled = enable;
-        ESP_LOGI(TAG, "Encoder on A:%d, B:%d acceleration %s.", enc->pin_a, enc->pin_b, enable ? "enabled" : "disabled");
-        xSemaphoreGive(enc->config_mutex);
-    } else {
-        ESP_LOGE(TAG, "Failed to take config mutex in enable_acceleration for A:%d, B:%d", enc->pin_a, enc->pin_b);
-        ret = ESP_ERR_TIMEOUT;
-    }
-    return ret;
-}
+// encoder_set_half_steps, encoder_set_flip_direction, encoder_set_accel_params,
+// and encoder_enable_acceleration are all removed as per the plan.
+// Configuration for these is now at creation time only via encoder_config_t.
