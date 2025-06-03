@@ -207,23 +207,19 @@ encoder_handle_t encoder_create(const encoder_config_t* config, QueueHandle_t ou
     enc->last_step_time_ms = 0;
     // Mutex creation is removed
 
-    gpio_config_t io_conf_a = {
-        .pin_bit_mask = (1ULL << enc->pin_a),
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << enc->pin_a) | (1ULL << enc->pin_b),
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_ANYEDGE
     };
-    gpio_config(&io_conf_a);
-
-    gpio_config_t io_conf_b = {
-        .pin_bit_mask = (1ULL << enc->pin_b),
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_ANYEDGE
-    };
-    gpio_config(&io_conf_b);
+    esp_err_t gpio_cfg_err = gpio_config(&io_conf);
+    if (gpio_cfg_err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to configure GPIOs: %s", esp_err_to_name(gpio_cfg_err));
+        free(enc); // Free allocated memory for enc struct
+        return NULL;
+    }
 
     // Install ISR service if not already installed
     esp_err_t isr_service_err = gpio_install_isr_service(0); // ESP_INTR_FLAG_LEVEL1 by default
