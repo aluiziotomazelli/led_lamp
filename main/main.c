@@ -164,7 +164,7 @@ void app_main(void) {
         .pin_a = GPIO_NUM_16,
         .pin_b = GPIO_NUM_17,
         .half_step_mode = true,
-        .flip_direction = false,
+        // .flip_direction = false, // This line is removed
         .acceleration_enabled = true,
         .accel_gap_ms = 50,
         .accel_max_multiplier = 5

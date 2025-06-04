@@ -15,62 +15,58 @@ static const char* TAG = "encoder";
 // From: https://www.best-microcontroller-projects.com/rotary-encoder.html
 // (or similar common implementations)
 
-// No complete step yet.
-#define R_START 0x0
+// Common states/flags for both tables
+#define R_START 0x0   // Initial/Resting state
+#define DIR_CW 0x10   // Clockwise step detected
+#define DIR_CCW 0x20  // Counter-clockwise step detected
+// DIR_NONE 0x00 // Implicitly no direction if not DIR_CW or DIR_CCW
 
-// Clockwise
-#define R_CW_FINAL 0x1
-#define R_CW_BEGIN 0x2
-#define R_CW_NEXT 0x3
+// States for the original full-step table
+#define FS_R_CW_FINAL 0x1 // Renamed to avoid conflict if R_CW_FINAL meant something different for half-step
+#define FS_R_CW_BEGIN 0x2
+#define FS_R_CW_NEXT 0x3
+#define FS_R_CCW_BEGIN 0x4
+#define FS_R_CCW_FINAL 0x5
+#define FS_R_CCW_NEXT 0x6
 
-// Counter-clockwise
-#define R_CCW_BEGIN 0x4
-#define R_CCW_FINAL 0x5
-#define R_CCW_NEXT 0x6
+// New states for the half-step table
+#define H_CCW_BEGIN 0x1    // Half-step Counter-Clockwise Begin
+#define H_CW_BEGIN 0x2     // Half-step Clockwise Begin
+#define H_START_M 0x3      // Half-step Mid-point/intermediate
+#define H_CW_BEGIN_M 0x4   // Half-step Clockwise Begin from Mid-point
+#define H_CCW_BEGIN_M 0x5  // Half-step Counter-Clockwise Begin from Mid-point
+                           // R_START (0x0) is also used by half-step table
 
-// Direction flags in rotary_state
-#define DIR_NONE 0x00 // No complete step yet
-#define DIR_CW 0x10   // Clockwise step
-#define DIR_CCW 0x20  // Counter-clockwise step
-
-// Full step state transition table (example, adjust if different)
+// Full step state transition table
 static const unsigned char ttable_full_step[7][4] = {
   // R_START (00)
-  {R_START,    R_CW_BEGIN,  R_CCW_BEGIN, R_START},
-  // R_CW_FINAL (01)
-  {R_CW_NEXT,  R_START,     R_CW_FINAL,  R_START | DIR_CW},
-  // R_CW_BEGIN (02)
-  {R_CW_NEXT,  R_CW_BEGIN,  R_START,     R_START},
-  // R_CW_NEXT (03)
-  {R_CW_NEXT,  R_CW_BEGIN,  R_CW_FINAL,  R_START},
-  // R_CCW_BEGIN (04)
-  {R_CCW_NEXT, R_START,     R_CCW_BEGIN, R_START},
-  // R_CCW_FINAL (05)
-  {R_CCW_NEXT, R_CCW_FINAL, R_START,     R_START | DIR_CCW},
-  // R_CCW_NEXT (06)
-  {R_CCW_NEXT, R_CCW_FINAL, R_CCW_BEGIN, R_START},
+  {R_START,        FS_R_CW_BEGIN,  FS_R_CCW_BEGIN, R_START},
+  // FS_R_CW_FINAL (01)
+  {FS_R_CW_NEXT,   R_START,        FS_R_CW_FINAL,  R_START | DIR_CW},
+  // FS_R_CW_BEGIN (02)
+  {FS_R_CW_NEXT,   FS_R_CW_BEGIN,  R_START,        R_START},
+  // FS_R_CW_NEXT (03)
+  {FS_R_CW_NEXT,   FS_R_CW_BEGIN,  FS_R_CW_FINAL,  R_START},
+  // FS_R_CCW_BEGIN (04)
+  {FS_R_CCW_NEXT,  R_START,        FS_R_CCW_BEGIN, R_START},
+  // FS_R_CCW_FINAL (05)
+  {FS_R_CCW_NEXT,  FS_R_CCW_FINAL, R_START,        R_START | DIR_CCW},
+  // FS_R_CCW_NEXT (06)
+  {FS_R_CCW_NEXT,  FS_R_CCW_FINAL, FS_R_CCW_BEGIN, R_START},
 };
 
-// Half step state transition table (example, adjust if different)
-// This table will have more states if it's a true half-step implementation,
-// often doubling the resolution by detecting transitions on all four edges.
-// The one from the C++ code seems to be a more optimized full-step variant.
-// For now, using the C++ version's "half_step" table directly.
-static const unsigned char ttable_half_step[7][4] = {
-  // R_START
-  {R_START,    R_CW_BEGIN,  R_CCW_BEGIN, R_START},
-  // R_CW_FINAL
-  {R_CW_NEXT,  R_START,     R_CW_FINAL,  R_START | DIR_CW},
-  // R_CW_BEGIN
-  {R_CW_NEXT,  R_CW_BEGIN,  R_START,     R_START},
-  // R_CW_NEXT
-  {R_CW_NEXT,  R_CW_BEGIN,  R_CW_FINAL,  R_START},
-  // R_CCW_BEGIN
-  {R_CCW_NEXT, R_START,     R_CCW_BEGIN, R_START},
-  // R_CCW_FINAL
-  {R_CCW_NEXT, R_CCW_FINAL, R_START,     R_START | DIR_CCW},
-  // R_CCW_NEXT
-  {R_CCW_NEXT, R_CCW_FINAL, R_CCW_BEGIN, R_START},
+// New half-step state transition table
+// This table should have 6 rows corresponding to states:
+// R_START (0), H_CCW_BEGIN (1), H_CW_BEGIN (2), H_START_M (3), H_CW_BEGIN_M (4), H_CCW_BEGIN_M (5)
+static const unsigned char ttable_half_step[6][4] = {
+    // Pin States (Input AB)
+    // 00                  01              10            11 // (Corresponding to (enc->pin_a << 1) | enc->pin_b values)
+    {H_START_M,           H_CW_BEGIN,     H_CCW_BEGIN,   R_START},            // Current State: R_START (0)
+    {H_START_M | DIR_CCW, R_START,        H_CCW_BEGIN,   R_START},            // Current State: H_CCW_BEGIN (1)
+    {H_START_M | DIR_CW,  H_CW_BEGIN,     R_START,       R_START},            // Current State: H_CW_BEGIN (2)
+    {H_START_M,           H_CCW_BEGIN_M,  H_CW_BEGIN_M,  R_START},            // Current State: H_START_M (3)
+    {H_START_M,           H_START_M,      H_CW_BEGIN_M,  R_START | DIR_CW},   // Current State: H_CW_BEGIN_M (4)
+    {H_START_M,           H_CCW_BEGIN_M,  H_START_M,     R_START | DIR_CCW}   // Current State: H_CCW_BEGIN_M (5)
 };
 
 
@@ -82,7 +78,7 @@ struct encoder_s {
     TaskHandle_t task_handle;
     volatile uint8_t rotary_state; // Current state of the encoder FSM
     bool half_step_mode;           // True for half-step, false for full-step
-    bool flip_direction;           // True to flip the reported direction
+    // flip_direction is removed
     bool acceleration_enabled;     // True to enable dynamic acceleration
     uint16_t accel_gap_ms;         // Time (ms) threshold for acceleration
     uint8_t accel_max_multiplier;  // Max multiplier for steps when accelerating
@@ -134,9 +130,10 @@ static void encoder_task(void* arg) {
                 steps = -1;
             }
 
-            if (enc->flip_direction) {
-                steps = -steps;
-            }
+            // flip_direction logic is removed
+            // if (enc->flip_direction) {
+            //     steps = -steps;
+            // }
 
             if (steps != 0) {
                 int current_multiplier_val = 1;
@@ -198,7 +195,7 @@ encoder_handle_t encoder_create(const encoder_config_t* config, QueueHandle_t ou
     enc->output_queue = output_queue; // Store the output queue
 
     enc->half_step_mode = config->half_step_mode;
-    enc->flip_direction = config->flip_direction;
+    // enc->flip_direction = config->flip_direction; // Removed
     enc->acceleration_enabled = config->acceleration_enabled;
     enc->accel_gap_ms = config->accel_gap_ms;
     enc->accel_max_multiplier = config->accel_max_multiplier;
@@ -245,7 +242,7 @@ encoder_handle_t encoder_create(const encoder_config_t* config, QueueHandle_t ou
         return NULL;
     }
 
-    BaseType_t task_created = xTaskCreate(encoder_task, "encoder_task", 2048, enc, 10, &enc->task_handle);
+    BaseType_t task_created = xTaskCreate(encoder_task, "encoder_task", 3072, enc, 10, &enc->task_handle);
     if (task_created != pdPASS) {
         ESP_LOGE(TAG, "Failed to create encoder task");
         gpio_isr_handler_remove(enc->pin_a);

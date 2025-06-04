@@ -19,7 +19,6 @@ typedef struct {
     gpio_num_t pin_a;                   // GPIO pin for phase A
     gpio_num_t pin_b;                   // GPIO pin for phase B
     bool half_step_mode;              // True for half-step, false for full-step
-    bool flip_direction;              // True to flip the reported direction of rotation
     bool acceleration_enabled;        // True to enable dynamic acceleration
     uint16_t accel_gap_ms;            // Time (ms) between steps to consider for max acceleration
     uint8_t accel_max_multiplier;     // Max multiplier for steps when acceleration is active
