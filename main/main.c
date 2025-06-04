@@ -133,20 +133,29 @@ void app_main(void) {
     }
     ESP_LOGI(TAG, "Fila de eventos de botão criada com sucesso.");
 
-    // Cria botão no GPIO 23
-    ESP_LOGI(TAG, "Criando botão no GPIO 23...");
-    button_t *btn = button_create(GPIO_NUM_23, button_app_queue);
+    // Define a common button configuration
+    button_config_t common_button_config = {
+        .pin = GPIO_NUM_NC, // Will be set per button
+        .active_low = true, // Assuming buttons pull low when pressed (typical for ESP32 dev boards)
+        .debounce_press_ms = 50,
+        .debounce_release_ms = 50,
+        .double_click_ms = 250,
+        .long_click_ms = 700,
+        .very_long_click_ms = 2000
+    };
+
+    // Configuração para o primeiro botão (btn)
+    button_config_t btn1_config = common_button_config;
+    btn1_config.pin = GPIO_NUM_23; // Botão específico no GPIO 23
+
+    ESP_LOGI(TAG, "Criando botão no GPIO %d...", btn1_config.pin);
+    button_t *btn = button_create(&btn1_config, button_app_queue);
     if (!btn) {
-        ESP_LOGE(TAG, "FALHA ao criar botão no GPIO 23! Abortando...");
-        // Considere deletar a fila aqui se necessário, mas como é app_main, pode só retornar.
+        ESP_LOGE(TAG, "FALHA ao criar botão no GPIO %d! Abortando...", btn1_config.pin);
         return;
     }
-    ESP_LOGI(TAG, "Botão no GPIO 23 criado com sucesso!");
-
-    // Configura tempos personalizados (opcional)
-    ESP_LOGI(TAG, "Configurando tempos do botão no GPIO 23...");
-    button_set_click_times(btn, 200, 1000, 3000);
-    ESP_LOGI(TAG, "Tempos configurados para GPIO 23.");
+    ESP_LOGI(TAG, "Botão no GPIO %d criado com sucesso!", btn1_config.pin);
+    // A chamada button_set_click_times(btn, ...) é removida pois a config já foi passada.
 
     // Cria a fila para eventos de encoder
     ESP_LOGI(TAG, "Criando fila de eventos de encoder...");
@@ -219,15 +228,18 @@ void app_main(void) {
     ESP_LOGI(TAG, "app_main finalizado, sistema rodando...");
 
     // Opcional: você pode adicionar mais botões aqui
-    ESP_LOGI(TAG, "Criando segundo botão no GPIO 22...");
-    button_t *btn2 = button_create(GPIO_NUM_22, button_app_queue);
+    // Configuração para o segundo botão (btn2)
+    button_config_t btn2_config = common_button_config;
+    btn2_config.pin = GPIO_NUM_22; // Botão específico no GPIO 22
+    // Exemplo de customização para btn2, se necessário:
+    // btn2_config.long_click_ms = 1000; // Ex: Tornar o clique longo do btn2 mais demorado
+
+    ESP_LOGI(TAG, "Criando segundo botão no GPIO %d...", btn2_config.pin);
+    button_t *btn2 = button_create(&btn2_config, button_app_queue);
     if (btn2) {
-        ESP_LOGI(TAG, "Segundo botão criado no GPIO 22");
-        // Pode configurar tempos diferentes para este botão se desejar
-        // button_set_click_times(btn2, 250, 1200, 3500);
+        ESP_LOGI(TAG, "Segundo botão no GPIO %d criado com sucesso!", btn2_config.pin);
     } else {
-        ESP_LOGE(TAG, "FALHA ao criar segundo botão no GPIO 22!");
-        // Não precisa abortar tudo, o primeiro botão e tasks ainda podem funcionar
+        ESP_LOGE(TAG, "FALHA ao criar segundo botão no GPIO %d!", btn2_config.pin);
     }
     
     ESP_LOGI(TAG, "app_main finalizado, sistema rodando...");

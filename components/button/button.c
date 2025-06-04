@@ -25,6 +25,7 @@ struct button_s {
 	uint32_t press_start_time_ms;
 	bool first_click;
 
+    bool active_low; // New
 	uint32_t debounce_press_ms;
 	uint32_t debounce_release_ms;
 	uint32_t double_click_ms;
@@ -41,27 +42,34 @@ static uint32_t get_current_time_ms() { return esp_timer_get_time() / 1000; }
 
 // Função principal de detecção (igual antes, mas com ponteiro)
 static button_click_type_t button_get_click(button_t *btn) {
-	//	uint32_t press_start_time = 0;
 	uint32_t now = get_current_time_ms();
+    uint8_t pressed_level = btn->active_low ? 0 : 1;
+    uint8_t released_level = btn->active_low ? 1 : 0;
 
 	switch (btn->state) {
 	case BUTTON_WAIT_FOR_PRESS:
-		if (gpio_get_level(btn->pin) == 0) {
+		if (gpio_get_level(btn->pin) == pressed_level) {
 			btn->press_start_time_ms = now;
 			btn->state = BUTTON_DEBOUNCE_PRESS;
-			ESP_LOGD("FSM", "STARTING DEBOUNCE");
+			ESP_LOGD("FSM", "STARTING DEBOUNCE (Pin: %d, Level: %d)", btn->pin, pressed_level);
 		}
 		break;
 
 	case BUTTON_DEBOUNCE_PRESS:
 		if (now - btn->press_start_time_ms > btn->debounce_press_ms) {
-			btn->state = BUTTON_WAIT_FOR_RELEASE;
-			ESP_LOGD("FSM", "WAIT_FOR_RELEASE");
+			// Ensure button is still pressed
+            if (gpio_get_level(btn->pin) == pressed_level) {
+                btn->state = BUTTON_WAIT_FOR_RELEASE;
+                ESP_LOGD("FSM", "WAIT_FOR_RELEASE (Pin: %d)", btn->pin);
+            } else { // Released prematurely
+                btn->state = BUTTON_WAIT_FOR_PRESS;
+                ESP_LOGD("FSM", "Released prematurely, back to WAIT_FOR_PRESS (Pin: %d)", btn->pin);
+            }
 		}
 		break;
 
 	case BUTTON_WAIT_FOR_RELEASE:
-		if (gpio_get_level(btn->pin) == 1) {
+		if (gpio_get_level(btn->pin) == released_level) {
 			uint32_t duration = now - btn->press_start_time_ms;
 
 			if (duration > btn->very_long_click_ms) {
@@ -85,17 +93,28 @@ static button_click_type_t button_get_click(button_t *btn) {
 
 	case BUTTON_DEBOUNCE_RELEASE:
 		if (now - btn->last_time_ms > btn->debounce_release_ms) {
-			btn->state = BUTTON_WAIT_FOR_DOUBLE;
-			ESP_LOGD("FSM", "DEBOUCE RELEASED");
+            // Ensure button is still released
+            if (gpio_get_level(btn->pin) == released_level) {
+                btn->state = BUTTON_WAIT_FOR_DOUBLE;
+                ESP_LOGD("FSM", "DEBOUNCE RELEASED (Pin: %d)", btn->pin);
+            } else { // Pressed again too soon (noise or bounce)
+                // This case might need careful handling. Could go back to WAIT_FOR_RELEASE
+                // or effectively extend the debounce by staying in DEBOUNCE_RELEASE
+                // For now, let's assume it was noise and proceed to WAIT_FOR_DOUBLE check.
+                // A more robust FSM might have a dedicated "bounce" state or re-evaluate.
+                 btn->state = BUTTON_WAIT_FOR_DOUBLE; // Or consider going back to a press state if level matches
+                 ESP_LOGD("FSM", "Pressed again during DEBOUNCE_RELEASE, proceed to DOUBLE_CHECK (Pin: %d)", btn->pin);
+            }
 		}
 		break;
 
 	case BUTTON_WAIT_FOR_DOUBLE:
-		if (gpio_get_level(btn->pin) == 0 && !btn->first_click) {
+		if (gpio_get_level(btn->pin) == pressed_level && !btn->first_click) {
 			// Detectou segundo clique
 			btn->last_time_ms = now;
 			btn->first_click = true; // Marca que teve segundo clique
-			btn->state = BUTTON_DEBOUNCE_PRESS;
+			btn->state = BUTTON_DEBOUNCE_PRESS; // Debounce this second press
+            ESP_LOGD("FSM", "Second click detected, to DEBOUNCE_PRESS (Pin: %d)", btn->pin);
 		} else if (now - btn->last_time_ms > btn->double_click_ms) {
 			btn->state = BUTTON_WAIT_FOR_PRESS;
 			if (btn->first_click) {
@@ -108,7 +127,7 @@ static button_click_type_t button_get_click(button_t *btn) {
 		break;
 
 	case BUTTON_TIMEOUT_WAIT_FOR_RELEASE:
-		if (gpio_get_level(btn->pin) == 1) {
+		if (gpio_get_level(btn->pin) == released_level) {
 			if (now - btn->last_time_ms > btn->debounce_release_ms) {
 				btn->last_time_ms = now;
 				btn->state = BUTTON_WAIT_FOR_PRESS;
@@ -183,42 +202,52 @@ static void IRAM_ATTR button_isr_handler(void *arg) {
 }
 
 // Criação do botão
-button_t *button_create(gpio_num_t pin, QueueHandle_t output_queue) {
-	if (output_queue == NULL) {
-		ESP_LOGE(TAG, "Output queue is NULL");
+button_t *button_create(const button_config_t* config, QueueHandle_t output_queue) {
+	if (!config || !output_queue) {
+        ESP_LOGE(TAG, "Invalid arguments: config or output_queue is NULL");
 		return NULL;
-	}
+    }
 
 	button_t *btn = calloc(1, sizeof(button_t));
-	if (!btn)
+	if (!btn) {
+        ESP_LOGE(TAG, "Failed to allocate memory for button struct");
 		return NULL;
+    }
 
-	btn->pin = pin;
+	btn->pin = config->pin;
+    btn->active_low = config->active_low;
 	btn->output_queue = output_queue;
 	btn->state = BUTTON_WAIT_FOR_PRESS;
 	btn->press_start_time_ms = 0;
 	btn->last_time_ms = 0;
 	btn->first_click = false;
 
-	btn->debounce_press_ms = DEBOUNCE_PRESS_MS;
-	btn->debounce_release_ms = DEBOUNCE_RELEASE_MS;
-	btn->double_click_ms = DOUBLE_CLICK_MS;
-	btn->long_click_ms = LONG_CLICK_MS;
-	btn->very_long_click_ms = VERY_LONG_CLICK_MS;
-	btn->timeout_ms = VERY_LONG_CLICK_MS * 2;
+	btn->debounce_press_ms = config->debounce_press_ms;
+	btn->debounce_release_ms = config->debounce_release_ms;
+	btn->double_click_ms = config->double_click_ms;
+	btn->long_click_ms = config->long_click_ms;
+	btn->very_long_click_ms = config->very_long_click_ms;
+	btn->timeout_ms = config->very_long_click_ms * 2; // Or a more suitable calculation
 
-	//	btn->queue = xQueueCreate(5, sizeof(button_event_t));
-	//	if (!btn->queue) {
-	//		free(btn);
-	//		return NULL;
-	//	}
+    gpio_config_t io_conf;
+    io_conf.pin_bit_mask = (1ULL << config->pin);
+    io_conf.mode = GPIO_MODE_INPUT;
+    if (config->active_low) {
+        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+        io_conf.intr_type = GPIO_INTR_NEGEDGE; // Interrupt on press (falling edge)
+    } else { // Active high
+        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+        io_conf.pull_down_en = GPIO_PULLDOWN_ENABLE;
+        io_conf.intr_type = GPIO_INTR_POSEDGE; // Interrupt on press (rising edge)
+    }
 
-	gpio_config_t io_conf = {.pin_bit_mask = 1ULL << pin,
-							 .mode = GPIO_MODE_INPUT,
-							 .pull_up_en = GPIO_PULLUP_ENABLE,
-							 .pull_down_en = GPIO_PULLDOWN_DISABLE,
-							 .intr_type = GPIO_INTR_NEGEDGE};
-	gpio_config(&io_conf);
+    esp_err_t gpio_err = gpio_config(&io_conf);
+    if (gpio_err != ESP_OK) {
+        ESP_LOGE(TAG, "GPIO config failed for pin %d: %s", config->pin, esp_err_to_name(gpio_err));
+        free(btn);
+        return NULL;
+    }
 
 	// Install ISR service with error handling
 	esp_err_t err = gpio_install_isr_service(0);
@@ -235,45 +264,22 @@ button_t *button_create(gpio_num_t pin, QueueHandle_t output_queue) {
 		return NULL;
 	}
 
-	gpio_isr_handler_add(pin, button_isr_handler, btn);
+	gpio_isr_handler_add(config->pin, button_isr_handler, btn);
 
 	BaseType_t res = xTaskCreate(button_task, "button_task", 2048, btn, 10,
 								 &btn->task_handle);
 	if (res != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create button task for pin %d", config->pin);
+        gpio_isr_handler_remove(config->pin);
 		free(btn);
 		return NULL;
 	}
 
-	ESP_LOGI(TAG, "Botão criado no pino %d", pin);
+	ESP_LOGI(TAG, "Botão criado no pino %d (Active: %s)", config->pin, config->active_low ? "LOW" : "HIGH");
 	return btn;
 }
 
-void button_set_debounce(button_t *btn, uint16_t debounce_press_ms,
-						 uint16_t debounce_release_ms) {
-	if (btn) {
-		btn->debounce_press_ms = debounce_press_ms;
-		btn->debounce_release_ms = debounce_release_ms;
-		ESP_LOGI(TAG,
-				 "Tempos de debounce ajustados: press %d ms, release %d ms",
-				 debounce_press_ms, debounce_release_ms);
-	}
-}
-
-void button_set_click_times(button_t *btn, uint16_t double_click_ms,
-							uint16_t long_click_ms,
-							uint16_t very_long_click_ms) {
-	if (btn) {
-		btn->double_click_ms = double_click_ms;
-		btn->long_click_ms = long_click_ms;
-		btn->very_long_click_ms = very_long_click_ms;
-		btn->timeout_ms =
-			very_long_click_ms * 2; // Timeout é o dobro do muito longo
-		ESP_LOGI(TAG,
-				 "Tempos de clique ajustados: double %d ms, long %d ms, very "
-				 "long %d ms",
-				 double_click_ms, long_click_ms, very_long_click_ms);
-	}
-}
+// button_set_debounce and button_set_click_times are removed.
 
 void button_delete(button_t *btn) {
 	if (btn) {

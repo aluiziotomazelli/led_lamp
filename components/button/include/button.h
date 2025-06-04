@@ -5,13 +5,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
-// Definições padrão (pode ajustar)
-#define DEBOUNCE_PRESS_MS 40
-#define DEBOUNCE_RELEASE_MS 60
-#define DOUBLE_CLICK_MS 200
-#define LONG_CLICK_MS 1000
-#define VERY_LONG_CLICK_MS 3000
-
 // Tipos para eventos de clique de botão
 typedef enum {
     BUTTON_NONE_CLICK,          ///< Nenhum clique detectado
@@ -31,15 +24,20 @@ typedef struct {
 // Declaração incompleta para esconder implementação interna
 typedef struct button_s button_t;
 
+// Configuration structure for button creation
+typedef struct {
+    gpio_num_t pin;
+    bool active_low;                // True if a press is LOW, false if HIGH
+    uint16_t debounce_press_ms;
+    uint16_t debounce_release_ms;
+    uint16_t double_click_ms;       // Max time between clicks for a double click
+    uint16_t long_click_ms;         // Min time for a long click
+    uint16_t very_long_click_ms;    // Min time for a very long click
+} button_config_t;
+
 // Cria uma nova instância de botão, configurada no pino dado.
 // Retorna ponteiro para button_t ou NULL em erro.
-button_t *button_create(gpio_num_t pin, QueueHandle_t output_queue);
-
-// Ajusta tempos de debounce (opcional)
-void button_set_debounce(button_t *btn, uint16_t debounce_press_ms, uint16_t debounce_release_ms);
-
-// Ajusta tempos de clique (opcional)
-void button_set_click_times(button_t *btn, uint16_t double_click_ms, uint16_t long_click_ms, uint16_t very_long_click_ms);
+button_t *button_create(const button_config_t* config, QueueHandle_t output_queue);
 
 // Libera recursos associados ao botão (se implementar)
 void button_delete(button_t *btn);
