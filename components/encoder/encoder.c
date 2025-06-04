@@ -56,21 +56,21 @@ static const unsigned char ttable_full_step[7][4] = {
 // often doubling the resolution by detecting transitions on all four edges.
 // The one from the C++ code seems to be a more optimized full-step variant.
 // For now, using the C++ version's "half_step" table directly.
-static const unsigned char ttable_half_step[7][4] = {
-  // R_START
-  {R_START,    R_CW_BEGIN,  R_CCW_BEGIN, R_START},
-  // R_CW_FINAL
-  {R_CW_NEXT,  R_START,     R_CW_FINAL,  R_START | DIR_CW},
-  // R_CW_BEGIN
-  {R_CW_NEXT,  R_CW_BEGIN,  R_START,     R_START},
-  // R_CW_NEXT
-  {R_CW_NEXT,  R_CW_BEGIN,  R_CW_FINAL,  R_START},
-  // R_CCW_BEGIN
-  {R_CCW_NEXT, R_START,     R_CCW_BEGIN, R_START},
-  // R_CCW_FINAL
-  {R_CCW_NEXT, R_CCW_FINAL, R_START,     R_START | DIR_CCW},
-  // R_CCW_NEXT
-  {R_CCW_NEXT, R_CCW_FINAL, R_CCW_BEGIN, R_START},
+
+#define R_START 0x0
+#define H_CCW_BEGIN 0x1
+#define H_CW_BEGIN 0x2
+#define H_START_M 0x3
+#define H_CW_BEGIN_M 0x4
+#define H_CCW_BEGIN_M 0x5
+static const unsigned char ttable_half_step[6][4] = {
+    // 00                  01              10            11 // BA
+    {H_START_M, H_CW_BEGIN, H_CCW_BEGIN, R_START},            // R_START (00)
+    {H_START_M | DIR_CCW, R_START, H_CCW_BEGIN, R_START},     // H_CCW_BEGIN
+    {H_START_M | DIR_CW, H_CW_BEGIN, R_START, R_START},       // H_CW_BEGIN
+    {H_START_M, H_CCW_BEGIN_M, H_CW_BEGIN_M, R_START},        // H_START_M (11)
+    {H_START_M, H_START_M, H_CW_BEGIN_M, R_START | DIR_CW},   // H_CW_BEGIN_M
+    {H_START_M, H_CCW_BEGIN_M, H_START_M, R_START | DIR_CCW}, // H_CCW_BEGIN_M
 };
 
 
@@ -82,7 +82,6 @@ struct encoder_s {
     TaskHandle_t task_handle;
     volatile uint8_t rotary_state; // Current state of the encoder FSM
     bool half_step_mode;           // True for half-step, false for full-step
-    bool flip_direction;           // True to flip the reported direction
     bool acceleration_enabled;     // True to enable dynamic acceleration
     uint16_t accel_gap_ms;         // Time (ms) threshold for acceleration
     uint8_t accel_max_multiplier;  // Max multiplier for steps when accelerating
@@ -132,10 +131,6 @@ static void encoder_task(void* arg) {
                 steps = 1;
             } else if (direction == DIR_CCW) {
                 steps = -1;
-            }
-
-            if (enc->flip_direction) {
-                steps = -steps;
             }
 
             if (steps != 0) {
@@ -198,7 +193,6 @@ encoder_handle_t encoder_create(const encoder_config_t* config, QueueHandle_t ou
     enc->output_queue = output_queue; // Store the output queue
 
     enc->half_step_mode = config->half_step_mode;
-    enc->flip_direction = config->flip_direction;
     enc->acceleration_enabled = config->acceleration_enabled;
     enc->accel_gap_ms = config->accel_gap_ms;
     enc->accel_max_multiplier = config->accel_max_multiplier;
