@@ -4,6 +4,7 @@
 #include "esp_log.h"
 #include "freertos/task.h"
 #include "button.h"
+#include "soc/gpio_num.h"
 #include "system_events.h"
 #include "encoder.h"
 
@@ -20,7 +21,7 @@ static void app_encoder_event_handler_task(void *param) {
 
     while(1) {
         if (xQueueReceive(encoder_event_queue, &evt, portMAX_DELAY) == pdTRUE) {
-            ESP_LOGI(TAG_ENCODER_HANDLER, "Encoder event: steps %d", evt.steps);
+            ESP_LOGI(TAG_ENCODER_HANDLER, "Encoder event: steps %ld", evt.steps);
             // Here you could also map encoder_event_t to system_event_t if needed
             // For now, just logging raw encoder steps.
         }
@@ -164,6 +165,7 @@ void app_main(void) {
         .pin_a = GPIO_NUM_17,
         .pin_b = GPIO_NUM_16,
         .half_step_mode = true,
+        // .flip_direction = false, // This line is removed
         .acceleration_enabled = true,
         .accel_gap_ms = 50,
         .accel_max_multiplier = 5
@@ -181,7 +183,7 @@ void app_main(void) {
 
     // Cria task que vai processar eventos do sistema (recebidos do app_button_event_handler_task)
     ESP_LOGI(TAG, "Criando task de eventos do sistema...");
-    if (xTaskCreate(system_event_task, "sys_evt_task", 3072, NULL, 5, NULL) != pdPASS) {
+    if (xTaskCreate(system_event_task, "sys_evt_task", 2048, NULL, 5, NULL) != pdPASS) {
         ESP_LOGE(TAG, "FALHA ao criar task de eventos do sistema! Abortando...");
         return;
     }

@@ -10,7 +10,7 @@ typedef struct encoder_s* encoder_handle_t;
 
 // Event structure for encoder output
 typedef struct {
-    int16_t steps; // Number of steps rotated (positive for CW, negative for CCW)
+    int32_t steps; // Number of steps rotated (positive for CW, negative for CCW)
     // Future additions: direction, accumulated value, etc.
 } encoder_event_t;
 
