@@ -1,4 +1,0 @@
-
-
-
-#define QUEUES_SIZES_SUM 10
