@@ -7,6 +7,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include <stdlib.h> // For malloc and free
+#include "project_config.h"
 
 
 static const char *TAG = "input_integrator";
@@ -70,9 +71,7 @@ queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
 		return qm;
 	}
 
-	UBaseType_t queue_size = uxQueueSpacesAvailable(btn_q) +
-							 uxQueueSpacesAvailable(enc_q) +
-							 uxQueueSpacesAvailable(espnow_q);
+	UBaseType_t queue_size = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE;
 
 	qm.queue_set = xQueueCreateSet(queue_size);
 	if (qm.queue_set == NULL) {
