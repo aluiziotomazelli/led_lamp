@@ -1,9 +1,0 @@
-CMake Error at /home/alemao/dev/esp-idf-v5.4.1/tools/cmake/project.cmake:472 (message):
-  Directory specified in EXTRA_COMPONENT_DIRS doesn't exist:
-  /home/alemao/dev/lamp/lamp/components/input_manager
-Call Stack (most recent call first):
-  /home/alemao/dev/esp-idf-v5.4.1/tools/cmake/project.cmake:556 (__project_init)
-  CMakeLists.txt:37 (project)
-
-
-ninja: error: rebuilding 'build.ninja': subcommand failed

@@ -1,6 +1,0 @@
-source "/home/alemao/dev/esp-idf-v5.4.1/components/bootloader/Kconfig.projbuild"
-source "/home/alemao/dev/esp-idf-v5.4.1/components/esp_app_format/Kconfig.projbuild"
-source "/home/alemao/dev/esp-idf-v5.4.1/components/esp_rom/Kconfig.projbuild"
-source "/home/alemao/dev/esp-idf-v5.4.1/components/esptool_py/Kconfig.projbuild"
-source "/home/alemao/dev/esp-idf-v5.4.1/components/partition_table/Kconfig.projbuild"
-source "/home/alemao/dev/lamp/lamp/main/Kconfig.projbuild"
