@@ -74,16 +74,17 @@ void app_main(void) {
     UBaseType_t integrated_queue_len = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE;
     integrated_event_queue = xQueueCreate(integrated_queue_len, sizeof(integrated_event_t));
     configASSERT(integrated_event_queue != NULL);
-    ESP_LOGI(TAG, "Integrated event queue created (size: %lu)", integrated_queue_len);
+    ESP_LOGI(TAG, "Integrated event queue created (size: %du)", integrated_queue_len);
 
     // Initialize Button
     button_config_t btn_cfg = {
         .pin = BUTTON1_PIN,
         .active_low = true,
-        .debounce_time_ms = 50,
-        .short_press_time_ms = 200, // Sensible default
-        .long_press_time_ms = 1000, // Sensible default
-        .very_long_press_time_ms = 2000 // Sensible default
+        .debounce_press_ms = DEBOUNCE_PRESS_MS,
+        .debounce_release_ms = DEBOUNCE_RELEASE_MS,
+        .double_click_ms = DOUBLE_CLICK_MS,
+        .long_click_ms = LONG_CLICK_MS,
+        .very_long_click_ms = VERY_LONG_CLICK_MS
     };
     button_t *button_handle = button_create(&btn_cfg, button_event_queue);
     configASSERT(button_handle != NULL);
@@ -95,8 +96,8 @@ void app_main(void) {
         .pin_b = ENCODER_PIN_B,
         .half_step_mode = true,
         .acceleration_enabled = false, // Keep it simple for testing
-        .debounce_us = 1000,
-        .filter_ticks = 50
+        .accel_gap_ms = ENC_ACCEL_GAP,
+        .accel_max_multiplier = MAX_ACCEL_MULTIPLIER
     };
     encoder_handle_t encoder_handle = encoder_create(&enc_cfg, encoder_event_queue);
     configASSERT(encoder_handle != NULL);

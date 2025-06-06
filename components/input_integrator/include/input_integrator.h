@@ -41,3 +41,4 @@ typedef struct {
 queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q, 
                                  QueueHandle_t espnow_q, QueueHandle_t int_q);
 
+void integrator_task(void *pvParameters);
