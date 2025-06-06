@@ -7,9 +7,9 @@
 #include "esp_debug_helpers.h"
 
 
-#define BUTTO1_PIN 23
+#define BUTTON1_PIN 23
 #define ENCODER_PIN_A 17
-#define ENCODER_PIN_B 17
+#define ENCODER_PIN_B 18
 
 #define BUTTON_QUEUE_SIZE 5
 #define ENCODER_QUEUE_SIZE 10
