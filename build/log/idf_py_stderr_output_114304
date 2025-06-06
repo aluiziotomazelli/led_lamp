@@ -1,0 +1,13 @@
+CMake Error at /home/alemao/dev/esp-idf-v5.4.1/tools/cmake/component.cmake:254 (message):
+  ERROR: Cannot parse CMake requirements line:
+  ;if;(!(x));esp_rom_printf("[ASSERT];%s:%d;%s\\n",;__FILE__,;__LINE__,;#x);while(1);};while;(0)")
+
+
+
+
+Call Stack (most recent call first):
+  /home/alemao/dev/esp-idf-v5.4.1/tools/cmake/build.cmake:644 (__component_get_requirements)
+  /home/alemao/dev/esp-idf-v5.4.1/tools/cmake/project.cmake:717 (idf_build_process)
+  CMakeLists.txt:6 (project)
+
+

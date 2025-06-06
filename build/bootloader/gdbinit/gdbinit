@@ -1,0 +1,2 @@
+source /home/alemao/dev/lamp/lamp/build/bootloader/gdbinit/symbols
+source /home/alemao/dev/lamp/lamp/build/bootloader/gdbinit/connect

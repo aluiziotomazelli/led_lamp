@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/alemao/dev/lamp/lamp/build/CMakeFiles/bootloader"
+		},
+		{
+			"file" : "/home/alemao/dev/lamp/lamp/build/CMakeFiles/bootloader.rule"
+		},
+		{
+			"file" : "/home/alemao/dev/lamp/lamp/build/CMakeFiles/bootloader-complete.rule"
+		},
+		{
+			"file" : "/home/alemao/dev/lamp/lamp/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule"
+		},
+		{
+			"file" : "/home/alemao/dev/lamp/lamp/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule"
+		},
+		{
+			"file" : "/home/alemao/dev/lamp/lamp/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule"
+		},
+		{
+			"file" : "/home/alemao/dev/lamp/lamp/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule"
+		},
+		{
+			"file" : "/home/alemao/dev/lamp/lamp/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule"
+		},
+		{
+			"file" : "/home/alemao/dev/lamp/lamp/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule"
+		},
+		{
+			"file" : "/home/alemao/dev/lamp/lamp/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"bootloader"
+		],
+		"name" : "bootloader"
+	}
+}

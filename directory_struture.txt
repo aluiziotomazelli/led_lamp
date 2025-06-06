@@ -1,0 +1,43 @@
+led_lamp/
+├── CMakeLists.txt
+├── sdkconfig
+├── main/
+│   ├── CMakeLists.txt
+│   ├── led_lamp.c (main)      		# Inicialização do sistema (app_main)
+│   ├── fsm.c / fsm.h          		# Máquina de estados do sistema
+│   ├── input_handler.c / .h   		# Lógica de interpretação de entradas
+├── components/
+│   ├── encoder/
+│   │   ├── include/
+│   │   │   ├── encoder.h
+│   │   ├── CMakeLists.txt
+│   │   ├── encoder.c          		# Task do encoder rotativo
+│   ├── button/
+│   │   ├── include/
+│   │   │   ├── button.h
+│   │   ├── CMakeLists.txt
+│   │   ├── button.c           		# Task do botão com debounce
+│   ├── led_driver/
+│   │   ├── include/
+│   │   │   ├── led_driver.h
+│   │   ├── CMakeLists.txt
+│   │   ├── led_driver.c       		# Interface com led_strip (SPI)
+│   ├── effect_manager/
+│   │   ├── include/
+│   │   │   ├── effect_manager.h
+│   │   ├── effects/
+│   │   │   ├── static_color.c
+│   │   │   ├── static_color.h
+│   │   │   ├── candle.c
+│   │   │   ├── candle.h
+│   │   ├── CMakeLists.txt
+│   │   ├── effect_manager.c       	# Geração de efeitos e controle
+│   ├── effect_param/
+│   │   ├── CMakeLists.txt
+│   │   ├── effect_param.c / .h    	# Ajustes de parâmetros dos efeitos
+│   ├── system_config/
+│   │   ├── include/
+│   │   │   ├── system_config.h
+│   │   ├── CMakeLists.txt
+│   │   ├── system_config.c        	# Brilho, estado ligado, NVS
+
