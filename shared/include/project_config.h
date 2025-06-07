@@ -33,7 +33,12 @@
 #define FSM_TIMEOUT_MS      100
 #define FSM_MODE_TIMEOUT_MS 30000
 
-
+// LED Strip Configuration
+#define LED_STRIP_NUM_LEDS          8  // Example: 8 LEDs
+#define LED_STRIP_SPI_HOST          SPI2_HOST // Example: VSPI (SPI3_HOST is also common)
+#define LED_STRIP_SPI_CLK_SPEED_HZ  (10 * 1000 * 1000) // 10 MHz
+#define LED_STRIP_GPIO_MOSI         19 // Define your MOSI GPIO pin
+#define LED_STRIP_GPIO_SCLK         18 // Define your SCLK GPIO pin
 
 
 #ifdef __cplusplus

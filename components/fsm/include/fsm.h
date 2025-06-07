@@ -8,12 +8,15 @@
 #include "input_integrator.h"
 #include <stdint.h>
 
+/**
+ * @brief Defines the possible operational states of the Finite State Machine.
+ */
 typedef enum {
-    MODE_OFF,	
-    MODE_DISPLAY,          ///< Modo exibição - mostra efeito ativo
-    MODE_EFFECT_SELECT,    ///< Modo seleção de efeito
-    MODE_EFFECT_SETUP,     ///< Modo configuração do efeito atual
-    MODE_SYSTEM_SETUP      ///< Modo configuração do sistema
+    MODE_OFF,	           ///< FSM is idle or not actively controlling (not currently implemented as a start state).
+    MODE_DISPLAY,          ///< Default mode: displays the currently active LED effect.
+    MODE_EFFECT_SELECT,    ///< Allows cycling through and previewing available LED effects.
+    MODE_EFFECT_SETUP,     ///< Allows configuration of parameters for the currently selected LED effect.
+    MODE_SYSTEM_SETUP      ///< Allows configuration of system-wide settings (e.g., timeouts, default brightness).
 } fsm_state_t;
 
 /**
@@ -57,16 +60,16 @@ bool fsm_is_running(void);
 fsm_state_t fsm_get_current_state(void);
 
 /**
- * @brief Obtém o efeito atualmente selecionado
+ * @brief Obtém o ID do efeito de LED atualmente selecionado.
  * 
- * @return uint8_t Índice do efeito atual
+ * @return uint8_t ID do efeito atual.
  */
 uint8_t fsm_get_current_effect(void);
 
 /**
- * @brief Obtém o brilho global atual
+ * @brief Obtém o nível de brilho global atual da fita de LED.
  * 
- * @return uint8_t Brilho atual (0-254)
+ * @return uint8_t Nível de brilho (0-255).
  */
 uint8_t fsm_get_global_brightness(void);
 
