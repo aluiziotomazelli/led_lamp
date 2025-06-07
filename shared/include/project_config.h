@@ -27,7 +27,11 @@
 #define ENC_ACCEL_GAP 50
 #define MAX_ACCEL_MULTIPLIER 5
 
-
+// Configurações da FSM
+#define FSM_STACK_SIZE      4096
+#define FSM_PRIORITY        5
+#define FSM_TIMEOUT_MS      100
+#define FSM_MODE_TIMEOUT_MS 30000
 
 
 

@@ -17,7 +17,7 @@ QueueHandle_t encoder_event_queue;
 QueueHandle_t espnow_event_queue; // Though not actively used for sending in this test, it's part of integrator
 QueueHandle_t integrated_event_queue;
 
-queue_manager_t qm;
+queue_manager_t queue_manager;
 
 // Define stack sizes for tasks - these were previously hardcoded and might be a source of issues if too small
 #define TASK_STACK_SIZE_INTEGRATOR 2048
@@ -94,8 +94,8 @@ void app_main(void) {
     encoder_config_t enc_cfg = {
         .pin_a = ENCODER_PIN_A,
         .pin_b = ENCODER_PIN_B,
-        .half_step_mode = true,
-        .acceleration_enabled = false, // Keep it simple for testing
+        .half_step_mode = false,
+        .acceleration_enabled = true, // Keep it simple for testing
         .accel_gap_ms = ENC_ACCEL_GAP,
         .accel_max_multiplier = MAX_ACCEL_MULTIPLIER
     };
@@ -104,13 +104,13 @@ void app_main(void) {
     ESP_LOGI(TAG, "Encoder initialized on pins A: %d, B: %d", ENCODER_PIN_A, ENCODER_PIN_B);
 
     // Initialize Input Integrator
-    qm = init_queue_manager(button_event_queue, encoder_event_queue, espnow_event_queue, integrated_event_queue);
-    configASSERT(qm.queue_set != NULL);
+    queue_manager = init_queue_manager(button_event_queue, encoder_event_queue, espnow_event_queue, integrated_event_queue);
+    configASSERT(queue_manager.queue_set != NULL);
     ESP_LOGI(TAG, "Input integrator initialized.");
 
     // Create Tasks
     BaseType_t task_created;
-    task_created = xTaskCreate(integrator_task, "integrator_task", TASK_STACK_SIZE_INTEGRATOR, &qm, 5, NULL);
+    task_created = xTaskCreate(integrator_task, "integrator_task", TASK_STACK_SIZE_INTEGRATOR, &queue_manager, 5, NULL);
     configASSERT(task_created == pdPASS);
 
     task_created = xTaskCreate(integrated_event_handler_task, "integrated_event_handler_task", TASK_STACK_SIZE_HANDLER, NULL, 4, NULL);
