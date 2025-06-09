@@ -1,142 +1,169 @@
-#include <stdio.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "esp_log.h"
-#include "project_config.h" // For queue sizes and pin definitions
+#include "esp_log_level.h"
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "button.h"
 #include "encoder.h"
-#include "input_integrator.h" // For integrated_event_t, init_queue_manager, integrator_task
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
 #include "fsm.h"              // For FSM initialization
-#include <inttypes.h> // For PRIu32
+#include "input_integrator.h" // For integrated_event_t, init_queue_manager, integrator_task
+#include "project_config.h" // For queue sizes and pin definitions
+#include <inttypes.h>       // For PRIu32
+#include <stdio.h>
 
 // Define Global Variables
 static const char *TAG = "main_test";
 
 QueueHandle_t button_event_queue;
 QueueHandle_t encoder_event_queue;
-QueueHandle_t espnow_event_queue; // Though not actively used for sending in this test, it's part of integrator
+QueueHandle_t espnow_event_queue; // Though not actively used for sending in
+                                  // this test, it's part of integrator
 QueueHandle_t integrated_event_queue;
+QueueHandle_t output_event_queue;
 
 queue_manager_t queue_manager;
 
-// Define stack sizes for tasks - these were previously hardcoded and might be a source of issues if too small
-#define TASK_STACK_SIZE_INTEGRATOR 2048
-#define TASK_STACK_SIZE_HANDLER 2048
+// Define stack sizes for tasks - these were previously hardcoded and might be a
+// source of issues if too small
 
-// Implement integrated_event_handler_task
-static void integrated_event_handler_task(void *pvParameters) {
-    integrated_event_t event;
-    while (1) {
-        if (xQueueReceive(integrated_event_queue, &event, portMAX_DELAY) == pdTRUE) {
-            switch (event.source) {
-                case EVENT_SOURCE_BUTTON:
-                    ESP_LOGI(TAG, "Integrated Event: BUTTON - Pin: %d, Type: %d, Timestamp: %" PRIu32,
-                             event.data.button.pin, event.data.button.type, event.timestamp);
-                    break;
-                case EVENT_SOURCE_ENCODER:
-                    ESP_LOGI(TAG, "Integrated Event: ENCODER - Steps: %" PRId32 ", Timestamp: %" PRIu32,
-                             event.data.encoder.steps, event.timestamp);
-                    break;
-                case EVENT_SOURCE_ESPNOW:
-                    // Ensure ESPNOW data is handled safely, e.g. check data_len before printing
-                    ESP_LOGI(TAG, "Integrated Event: ESPNOW - MAC: %02x:%02x:%02x:%02x:%02x:%02x, DataLen: %d, Timestamp: %" PRIu32,
-                             event.data.espnow.mac_addr[0], event.data.espnow.mac_addr[1],
-                             event.data.espnow.mac_addr[2], event.data.espnow.mac_addr[3],
-                             event.data.espnow.mac_addr[4], event.data.espnow.mac_addr[5],
-                             event.data.espnow.data_len, event.timestamp);
-                    // Example: if (event.data.espnow.data_len > 0) { ESP_LOGI(TAG, "  Data: %.*s", event.data.espnow.data_len, (char*)event.data.espnow.data); }
-                    break;
-                default:
-                    ESP_LOGW(TAG, "Integrated Event: UNKNOWN SOURCE (%d), Timestamp: %" PRIu32, event.source, event.timestamp);
-                    break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(10)); // Small delay
+// Tarefa do controlador de LEDs
+void led_controller_task(void *pvParameters) {
+  QueueHandle_t action_queue = (QueueHandle_t)pvParameters;
+  fsm_output_action_t action;
+
+  while (1) {
+    if (xQueueReceive(action_queue, &action, portMAX_DELAY)) {
+      switch (action.type) {
+      case ACTION_TURN_ON_LAMP:
+        ESP_LOGI(TAG, "ACTION_TURN_ON_LAMP");
+        break;
+      case ACTION_TURN_OFF_LAMP:
+        ESP_LOGI(TAG, "ACTION_TURN_OFF_LAMP");
+        break;
+      case ACTION_ADJUST_BRIGHTNESS:
+        ESP_LOGI(TAG, "ACTION_ADJUST_BRIGHTNESS");
+        break;
+      case ACTION_SELECT_EFFECT:
+        ESP_LOGI(TAG, "ACTION_SELECT_EFFECT");
+        break;
+      case ACTION_SHOW_EFFECT_PREVIEW:
+        ESP_LOGI(TAG, "ACTION_SHOW_EFFECT_PREVIEW");
+        break;
+      case ACTION_SAVE_EFFECT_PARAM:
+        ESP_LOGI(TAG, "ACTION_SAVE_EFFECT_PARAM");
+        break;
+      case ACTION_REVERT_EFFECT_PARAMS:
+        ESP_LOGI(TAG, "ACTION_REVERT_EFFECT_PARAMS");
+        break;
+      case ACTION_SAVE_CONFIG:
+        ESP_LOGI(TAG, "ACTION_SAVE_CONFIG");
+        break;
+      case ACTION_LOAD_CONFIG:
+        ESP_LOGI(TAG, "ACTION_LOAD_CONFIG");
+        break;
+      case ACTION_EXIT_SETUP:
+        ESP_LOGI(TAG, "ACTION_EXIT_SETUP");
+        break;
+      case ACTION_FEEDBACK_SHORT:
+        ESP_LOGI(TAG, "ACTION_FEEDBACK_SHORT");
+        break;
+      case ACTION_FEEDBACK_LONG:
+        ESP_LOGI(TAG, "ACTION_FEEDBACK_LONG");
+        break;
+      case ACTION_ADJUST_EFFECT_PARAM:
+        ESP_LOGI(TAG, "ACTION_ADJUST_EFFECT_PARAM");
+        break;
+      case ACTION_SELECT_PARAMETER:
+        ESP_LOGI(TAG, "ACTION_SELECT_PARAMETER");
+        break;
+
+      }
     }
+  }
 }
 
 void app_main(void) {
-    esp_log_level_set(TAG, ESP_LOG_INFO);
+  
+   esp_log_level_set("*", ESP_LOG_DEBUG);
+   esp_log_level_set("Button", ESP_LOG_INFO);
+   esp_log_level_set("Button FSM", ESP_LOG_INFO);
+   esp_log_level_set("INP_INTEGRATOR", ESP_LOG_INFO);
 
-    // Create Queues
-    button_event_queue = xQueueCreate(BUTTON_QUEUE_SIZE, sizeof(button_event_t));
-    configASSERT(button_event_queue != NULL);
-    ESP_LOGI(TAG, "Button event queue created (size: %d)", BUTTON_QUEUE_SIZE);
+  // Create Queues
+  button_event_queue = xQueueCreate(BUTTON_QUEUE_SIZE, sizeof(button_event_t));
+  configASSERT(button_event_queue != NULL);
+  ESP_LOGI(TAG, "Button event queue created (size: %d)", BUTTON_QUEUE_SIZE);
 
-    encoder_event_queue = xQueueCreate(ENCODER_QUEUE_SIZE, sizeof(encoder_event_t));
-    configASSERT(encoder_event_queue != NULL);
-    ESP_LOGI(TAG, "Encoder event queue created (size: %d)", ENCODER_QUEUE_SIZE);
+  encoder_event_queue =
+      xQueueCreate(ENCODER_QUEUE_SIZE, sizeof(encoder_event_t));
+  configASSERT(encoder_event_queue != NULL);
+  ESP_LOGI(TAG, "Encoder event queue created (size: %d)", ENCODER_QUEUE_SIZE);
 
-    espnow_event_queue = xQueueCreate(ESPNOW_QUEUE_SIZE, sizeof(espnow_event_t));
-    configASSERT(espnow_event_queue != NULL);
-    ESP_LOGI(TAG, "ESP-NOW event queue created (size: %d)", ESPNOW_QUEUE_SIZE);
+  espnow_event_queue = xQueueCreate(ESPNOW_QUEUE_SIZE, sizeof(espnow_event_t));
+  configASSERT(espnow_event_queue != NULL);
+  ESP_LOGI(TAG, "ESP-NOW event queue created (size: %d)", ESPNOW_QUEUE_SIZE);
 
-    UBaseType_t integrated_queue_len = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE;
-    integrated_event_queue = xQueueCreate(integrated_queue_len, sizeof(integrated_event_t));
-    configASSERT(integrated_event_queue != NULL);
-    ESP_LOGI(TAG, "Integrated event queue created (size: %du)", integrated_queue_len);
+  UBaseType_t integrated_queue_len =
+      BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE;
+  integrated_event_queue =
+      xQueueCreate(integrated_queue_len, sizeof(integrated_event_t));
+  configASSERT(integrated_event_queue != NULL);
+  ESP_LOGI(TAG, "Integrated event queue created (size: %du)",
+           integrated_queue_len);
 
-    // Initialize Button
-    button_config_t btn_cfg = {
-        .pin = BUTTON1_PIN,
-        .active_low = true,
-        .debounce_press_ms = DEBOUNCE_PRESS_MS,
-        .debounce_release_ms = DEBOUNCE_RELEASE_MS,
-        .double_click_ms = DOUBLE_CLICK_MS,
-        .long_click_ms = LONG_CLICK_MS,
-        .very_long_click_ms = VERY_LONG_CLICK_MS
-    };
-    button_t *button_handle = button_create(&btn_cfg, button_event_queue);
-    configASSERT(button_handle != NULL);
-    ESP_LOGI(TAG, "Button initialized on pin %d", BUTTON1_PIN);
+  // Initialize Button
+  button_config_t btn_cfg = {.pin = BUTTON1_PIN,
+                             .active_low = true,
+                             .debounce_press_ms = DEBOUNCE_PRESS_MS,
+                             .debounce_release_ms = DEBOUNCE_RELEASE_MS,
+                             .double_click_ms = DOUBLE_CLICK_MS,
+                             .long_click_ms = LONG_CLICK_MS,
+                             .very_long_click_ms = VERY_LONG_CLICK_MS};
+  button_t *button_handle = button_create(&btn_cfg, button_event_queue);
+  configASSERT(button_handle != NULL);
+  ESP_LOGI(TAG, "Button initialized on pin %d", BUTTON1_PIN);
 
-    // Initialize Encoder
-    encoder_config_t enc_cfg = {
-        .pin_a = ENCODER_PIN_A,
-        .pin_b = ENCODER_PIN_B,
-        .half_step_mode = false,
-        .acceleration_enabled = true, // Keep it simple for testing
-        .accel_gap_ms = ENC_ACCEL_GAP,
-        .accel_max_multiplier = MAX_ACCEL_MULTIPLIER
-    };
-    encoder_handle_t encoder_handle = encoder_create(&enc_cfg, encoder_event_queue);
-    configASSERT(encoder_handle != NULL);
-    ESP_LOGI(TAG, "Encoder initialized on pins A: %d, B: %d", ENCODER_PIN_A, ENCODER_PIN_B);
+  // Initialize Encoder
+  encoder_config_t enc_cfg = {.pin_a = ENCODER_PIN_A,
+                              .pin_b = ENCODER_PIN_B,
+                              .half_step_mode = true,
+                              .acceleration_enabled =
+                                  true, // Keep it simple for testing
+                              .accel_gap_ms = ENC_ACCEL_GAP,
+                              .accel_max_multiplier = MAX_ACCEL_MULTIPLIER};
+  encoder_handle_t encoder_handle =
+      encoder_create(&enc_cfg, encoder_event_queue);
+  configASSERT(encoder_handle != NULL);
+  ESP_LOGI(TAG, "Encoder initialized on pins A: %d, B: %d", ENCODER_PIN_A,
+           ENCODER_PIN_B);
 
-    // Initialize Input Integrator
-    queue_manager = init_queue_manager(button_event_queue, encoder_event_queue, espnow_event_queue, integrated_event_queue);
-    configASSERT(queue_manager.queue_set != NULL);
-    ESP_LOGI(TAG, "Input integrator initialized.");
+  // Initialize Input Integrator
+  queue_manager =
+      init_queue_manager(button_event_queue, encoder_event_queue,
+                         espnow_event_queue, integrated_event_queue);
+  configASSERT(queue_manager.queue_set != NULL);
+  ESP_LOGI(TAG, "Input integrator initialized.");
 
-    // Create Tasks
-    BaseType_t task_created;
-    task_created = xTaskCreate(integrator_task, "integrator_task", TASK_STACK_SIZE_INTEGRATOR, &queue_manager, 5, NULL);
-    configASSERT(task_created == pdPASS);
-    ESP_LOGI(TAG, "Integrator task created.");
+  // Create Tasks
+  BaseType_t task_created;
+  task_created =
+      xTaskCreate(integrator_task, "integrator_task",
+                  TASK_STACK_SIZE_INTEGRATOR, &queue_manager, 5, NULL);
+  configASSERT(task_created == pdPASS);
+  ESP_LOGI(TAG, "Integrator task created.");
 
-    // The integrated_event_handler_task is now replaced by the FSM.
-    // The FSM will process events from the integrated_event_queue.
-    // task_created = xTaskCreate(integrated_event_handler_task, "integrated_event_handler_task", TASK_STACK_SIZE_HANDLER, NULL, 4, NULL);
-    // configASSERT(task_created == pdPASS);
+  output_event_queue =
+      xQueueCreate(OUTPUT_QUEUE_SIZE, sizeof(fsm_output_action_t));
+  configASSERT(output_event_queue != NULL);
+  ESP_LOGI(TAG, "Output event queue created (size: %d)", OUTPUT_QUEUE_SIZE);
 
-    // Initialize the Finite State Machine (FSM)
-    // The FSM will consume events from integrated_event_queue and manage application state.
-    fsm_mode_t fsm_config = { // Using default values, can be customized
-        .task_stack_size = FSM_STACK_SIZE, // From project_config.h or fsm_default
-        .task_priority = FSM_PRIORITY,     // From project_config.h or fsm_default
-        .queue_timeout_ms = FSM_TIMEOUT_MS, // From project_config.h or fsm_default
-        .mode_timeout_ms = FSM_MODE_TIMEOUT_MS // From project_config.h or fsm_default
-    };
-    esp_err_t fsm_init_result = fsm_init(integrated_event_queue, &fsm_config);
-    if (fsm_init_result != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize FSM: %s", esp_err_to_name(fsm_init_result));
-        // Handle FSM initialization failure, perhaps by halting or specific error state.
-        // For now, assert or log. In a real product, might try a recovery or safe mode.
-        configASSERT(fsm_init_result == ESP_OK);
-    } else {
-        ESP_LOGI(TAG, "FSM initialized successfully.");
-    }
-    
-    ESP_LOGI(TAG, "Main setup complete. FSM is now managing application state and LED control.");
+  fsm_queues_t fsm_queues = {.input_queue = integrated_event_queue,
+                             .output_queue = output_event_queue};
+
+  // 3. Inicializar a FSM
+  fsm_init(fsm_queues);
+
+  xTaskCreate(led_controller_task, "led_task", 4096,
+              (void *)output_event_queue, 4, NULL);
 }

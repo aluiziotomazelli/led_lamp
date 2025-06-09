@@ -1,5 +1,4 @@
-#ifndef LED_EFFECTS_H
-#define LED_EFFECTS_H
+#pragma  once 
 
 #include <stdint.h>
 // #include "cJSON.h" // Omitting for now as per instructions
@@ -15,7 +14,7 @@ extern "C" {
  * for example, by user input via an encoder or through a web interface.
  */
 typedef struct {
-    char name[20];          ///< User-friendly name of the parameter (e.g., "Speed", "Hue", "Intensity"). Limited to 19 chars + null terminator.
+    char name[15];          ///< User-friendly name of the parameter (e.g., "Speed", "Hue", "Intensity"). Limited to 19 chars + null terminator.
     int32_t value;          ///< Current value of the parameter. This is the mutable part that gets updated.
     int32_t min;            ///< Minimum allowed value for this parameter.
     int32_t max;            ///< Maximum allowed value for this parameter.
@@ -74,8 +73,3 @@ const led_effect_t* led_effects_get_all(uint8_t* count);
  */
 const led_effect_t* led_effects_get_by_id(uint8_t id);
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif // LED_EFFECTS_H

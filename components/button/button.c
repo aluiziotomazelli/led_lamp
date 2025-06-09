@@ -5,7 +5,7 @@
 #include "hal/gpio_types.h"
 #include "project_config.h"
 
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 static const char *TAG = "Button";
 
 // Estado do botão
@@ -52,7 +52,7 @@ static button_click_type_t button_get_click(button_t *btn) {
 		if (gpio_get_level(btn->pin) == pressed_level) {
 			btn->press_start_time_ms = now;
 			btn->state = BUTTON_DEBOUNCE_PRESS;
-			ESP_LOGD("FSM", "STARTING DEBOUNCE (Pin: %d, Level: %d)", btn->pin,
+			ESP_LOGD("Button FSM", "STARTING DEBOUNCE (Pin: %d, Level: %d)", btn->pin,
 					 pressed_level);
 		}
 		break;
@@ -62,11 +62,11 @@ static button_click_type_t button_get_click(button_t *btn) {
 			// Ensure button is still pressed
 			if (gpio_get_level(btn->pin) == pressed_level) {
 				btn->state = BUTTON_WAIT_FOR_RELEASE;
-				ESP_LOGD("FSM", "WAIT_FOR_RELEASE (Pin: %d)", btn->pin);
+				ESP_LOGD("Button FSM", "WAIT_FOR_RELEASE (Pin: %d)", btn->pin);
 			} else { // Released prematurely
 				btn->state = BUTTON_WAIT_FOR_PRESS;
 				ESP_LOGD(
-					"FSM",
+					"Button FSM",
 					"Released prematurely, back to WAIT_FOR_PRESS (Pin: %d)",
 					btn->pin);
 			}
@@ -91,7 +91,7 @@ static button_click_type_t button_get_click(button_t *btn) {
 			btn->state = BUTTON_TIMEOUT_WAIT_FOR_RELEASE;
 			//			fallback_start_time = now;
 			btn->last_time_ms = now;
-			ESP_LOGD("FSM", "TIMEOUT WAIT FOR RELEASE");
+			ESP_LOGD("Button FSM", "TIMEOUT WAIT FOR RELEASE");
 			//			return BUTTON_TIMEOUT;
 		}
 		break;
@@ -101,7 +101,7 @@ static button_click_type_t button_get_click(button_t *btn) {
 			// Ensure button is still released
 			if (gpio_get_level(btn->pin) == released_level) {
 				btn->state = BUTTON_WAIT_FOR_DOUBLE;
-				ESP_LOGD("FSM", "DEBOUNCE RELEASED (Pin: %d)", btn->pin);
+				ESP_LOGD("Button FSM", "DEBOUNCE RELEASED (Pin: %d)", btn->pin);
 			} else { // Pressed again too soon (noise or bounce)
 					 // This case might need careful handling. Could go back to
 				// WAIT_FOR_RELEASE or effectively extend the debounce by
@@ -111,7 +111,7 @@ static button_click_type_t button_get_click(button_t *btn) {
 				btn->state =
 					BUTTON_WAIT_FOR_DOUBLE; // Or consider going back to a press
 											// state if level matches
-				ESP_LOGD("FSM",
+				ESP_LOGD("Button FSM",
 						 "Pressed again during DEBOUNCE_RELEASE, proceed to "
 						 "DOUBLE_CHECK (Pin: %d)",
 						 btn->pin);
@@ -125,7 +125,7 @@ static button_click_type_t button_get_click(button_t *btn) {
 			btn->last_time_ms = now;
 			btn->first_click = true;			// Marca que teve segundo clique
 			btn->state = BUTTON_DEBOUNCE_PRESS; // Debounce this second press
-			ESP_LOGD("FSM",
+			ESP_LOGD("Button FSM",
 					 "Second click detected, to DEBOUNCE_PRESS (Pin: %d)",
 					 btn->pin);
 		} else if (now - btn->last_time_ms > btn->double_click_ms) {
@@ -144,14 +144,14 @@ static button_click_type_t button_get_click(button_t *btn) {
 			if (now - btn->last_time_ms > btn->debounce_release_ms) {
 				btn->last_time_ms = now;
 				btn->state = BUTTON_WAIT_FOR_PRESS;
-				ESP_LOGD("FSM", "TIMEOUT RELEASED");
+				ESP_LOGD("Button FSM", "TIMEOUT RELEASED");
 				return BUTTON_TIMEOUT;
 			}
 		} else {
 			btn->last_time_ms = now;
 			if (now - btn->press_start_time_ms > 2 * btn->timeout_ms) {
 				btn->state = BUTTON_WAIT_FOR_PRESS;
-				ESP_LOGD("FSM", "BUTTON ERROR");
+				ESP_LOGD("Button FSM", "BUTTON ERROR");
 				return BUTTON_ERROR;
 			}
 		}

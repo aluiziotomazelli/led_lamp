@@ -1,2 +1,5 @@
 /build/
 /build
+.project
+dependencies.lock
+managed_components/

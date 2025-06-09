@@ -1,4 +1,4 @@
-
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 
 #include "input_integrator.h"
 #include "button.h"
@@ -10,7 +10,7 @@
 #include "project_config.h"
 
 
-static const char *TAG = "input_integrator";
+static const char *TAG = "INP_INTEGRATOR";
 
 void integrator_task(void *pvParameters) {
 	configASSERT(pvParameters != NULL);
@@ -35,6 +35,7 @@ void integrator_task(void *pvParameters) {
 				event.timestamp = xTaskGetTickCount();  // Log the atual timestamp
 				event.data.button = button_evt;
 				xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
+				ESP_LOGD(TAG, "Button %d: click %d sent to queue", button_evt.pin, button_evt.type);
 			}
 		} else if (active_queue == qm->encoder_queue) {
 			encoder_event_t encoder_evt;
@@ -43,6 +44,7 @@ void integrator_task(void *pvParameters) {
 				event.timestamp = xTaskGetTickCount();  // Log the atual timestamp
 				event.data.encoder = encoder_evt;
 				xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
+				ESP_LOGD(TAG, "Encoder: %"PRId32" sent to queue", encoder_evt.steps);
 			}
 		} else if (active_queue == qm->espnow_queue) {
 			espnow_event_t espnow_evt;
