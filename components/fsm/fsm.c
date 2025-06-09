@@ -1,11 +1,14 @@
 #include "fsm.h"
 #include "esp_timer.h"
 #include "led_controller.h"  // Para controle dos LEDs
-#include "project_config.h"
-#include <string.h>
-#include <stdlib.h> // For malloc, free
+#include "project_config.h"  // For LED_STRIP_NUM_LEDS etc.
+#include <string.h>          // For memset, memcpy
+#include <stdlib.h>          // For malloc, free
+#include <inttypes.h>        // For PRId32 macro
 
-#include "led_effects.h" // Added for LED effects
+#include "led_effects.h"     // For led_effect_t, effect_param_t
+#include "led_strip_types.h" // For LED_PIXEL_FORMAT_GRB, LED_MODEL_SK6812
+#include "driver/spi_common.h" // For SPI_CLK_SRC_DEFAULT
 
 static const char *TAG = "FSM";
 
@@ -159,13 +162,14 @@ esp_err_t fsm_init(QueueHandle_t queue_handle, const fsm_mode_t *config) {
 
     // Initialize LED controller
     led_controller_config_t led_cfg = {
-        .num_leds = LED_STRIP_NUM_LEDS,
-        .spi_host = LED_STRIP_SPI_HOST,
-        .clk_speed_hz = LED_STRIP_SPI_CLK_SPEED_HZ,
-        .spi_mosi_gpio = LED_STRIP_GPIO_MOSI,
-        .spi_sclk_gpio = LED_STRIP_GPIO_SCLK
-        // IDF build system uses SPI_MASTER_USE_GPIO for these pins if not set explicitly in led_strip_spi_config_t
-        // Ensure project_config.h has these defined
+        .num_leds = LED_STRIP_NUM_LEDS,             // From project_config.h
+        .spi_host = LED_STRIP_SPI_HOST,             // From project_config.h
+        .clk_speed_hz = LED_STRIP_SPI_CLK_SPEED_HZ, // From project_config.h
+        .spi_mosi_gpio = LED_STRIP_GPIO_MOSI,         // From project_config.h
+        .spi_sclk_gpio = LED_STRIP_GPIO_SCLK,         // From project_config.h
+        .pixel_format = LED_PIXEL_FORMAT_GRB,       // Using direct value
+        .model = LED_MODEL_SK6812,                  // Using direct value
+        .spi_clk_src = SPI_CLK_SRC_DEFAULT          // Using direct value
     };
     esp_err_t ret_led = led_controller_init(&led_cfg);
     if (ret_led != ESP_OK) {

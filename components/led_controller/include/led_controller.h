@@ -18,8 +18,9 @@ typedef struct {
     uint32_t num_leds;          ///< Number of LEDs in the strip. This defines the size of the buffer.
     uint8_t spi_mosi_gpio;      ///< GPIO number used for the SPI MOSI (Data) signal.
     uint8_t spi_sclk_gpio;      ///< GPIO number used for the SPI SCLK (Clock) signal.
-    // Consider adding led_pixel_format and led_model if these need to be configurable per instance.
-    // For now, they are set internally in led_controller.c (e.g., SK6812, GRB).
+    led_pixel_format_t pixel_format; ///< Pixel format of the LED strip (e.g., LED_PIXEL_FORMAT_GRB).
+    led_strip_model_t model;         ///< Model of the LED strip (e.g., LED_MODEL_SK6812, LED_MODEL_WS2812).
+    spi_clock_source_t spi_clk_src;  ///< SPI clock source. Use from `spi_common.h` (e.g., SPI_CLK_SRC_DEFAULT).
 } led_controller_config_t;
 
 /**
