@@ -8,15 +8,18 @@
 #include "input_integrator.h"
 #include <stdint.h>
 
+
+
+
 /**
- * @brief Defines the possible operational states of the Finite State Machine.
+ * @brief Estados da FSM
  */
 typedef enum {
-    MODE_OFF,	           ///< FSM is idle or not actively controlling (not currently implemented as a start state).
-    MODE_DISPLAY,          ///< Default mode: displays the currently active LED effect.
-    MODE_EFFECT_SELECT,    ///< Allows cycling through and previewing available LED effects.
-    MODE_EFFECT_SETUP,     ///< Allows configuration of parameters for the currently selected LED effect.
-    MODE_SYSTEM_SETUP      ///< Allows configuration of system-wide settings (e.g., timeouts, default brightness).
+	FSM_STATE_OFF,
+    FSM_STATE_DISPLAY,          ///< Modo exibição - mostra efeito ativo
+    FSM_STATE_EFFECT_SELECT,    ///< Modo seleção de efeito
+    FSM_STATE_EFFECT_SETUP,     ///< Modo configuração do efeito atual
+    FSM_STATE_SYSTEM_SETUP      ///< Modo configuração do sistema
 } fsm_state_t;
 
 /**
@@ -27,7 +30,7 @@ typedef struct {
     UBaseType_t task_priority;      ///< Prioridade da task (default: 5)
     TickType_t queue_timeout_ms;    ///< Timeout para receber da queue (default: 100ms)
     uint32_t mode_timeout_ms;       ///< Timeout para voltar ao modo display (default: 30000ms)
-} fsm_mode_t;
+} fsm_config_t;
 
 /**
  * @brief Inicializa a FSM
@@ -36,7 +39,7 @@ typedef struct {
  * @param config Configurações da FSM (pode ser NULL para usar defaults)
  * @return esp_err_t ESP_OK se inicializado com sucesso
  */
-esp_err_t fsm_init(QueueHandle_t queue_handle, const fsm_mode_t *config);
+esp_err_t fsm_init(QueueHandle_t queue_handle, const fsm_config_t *config);
 
 /**
  * @brief Para a FSM (para cleanup)
@@ -60,16 +63,16 @@ bool fsm_is_running(void);
 fsm_state_t fsm_get_current_state(void);
 
 /**
- * @brief Obtém o ID do efeito de LED atualmente selecionado.
+ * @brief Obtém o efeito atualmente selecionado
  * 
- * @return uint8_t ID do efeito atual.
+ * @return uint8_t Índice do efeito atual
  */
 uint8_t fsm_get_current_effect(void);
 
 /**
- * @brief Obtém o nível de brilho global atual da fita de LED.
+ * @brief Obtém o brilho global atual
  * 
- * @return uint8_t Nível de brilho (0-255).
+ * @return uint8_t Brilho atual (0-254)
  */
 uint8_t fsm_get_global_brightness(void);
 
@@ -115,3 +118,4 @@ void fsm_reset_stats(void);
  * @return esp_err_t ESP_OK se transição válida
  */
 esp_err_t fsm_force_state(fsm_state_t new_state);
+

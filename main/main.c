@@ -115,28 +115,9 @@ void app_main(void) {
     configASSERT(task_created == pdPASS);
     ESP_LOGI(TAG, "Integrator task created.");
 
-    // The integrated_event_handler_task is now replaced by the FSM.
-    // The FSM will process events from the integrated_event_queue.
-    // task_created = xTaskCreate(integrated_event_handler_task, "integrated_event_handler_task", TASK_STACK_SIZE_HANDLER, NULL, 4, NULL);
-    // configASSERT(task_created == pdPASS);
 
-    // Initialize the Finite State Machine (FSM)
-    // The FSM will consume events from integrated_event_queue and manage application state.
-    fsm_mode_t fsm_config = { // Using default values, can be customized
-        .task_stack_size = FSM_STACK_SIZE, // From project_config.h or fsm_default
-        .task_priority = FSM_PRIORITY,     // From project_config.h or fsm_default
-        .queue_timeout_ms = FSM_TIMEOUT_MS, // From project_config.h or fsm_default
-        .mode_timeout_ms = FSM_MODE_TIMEOUT_MS // From project_config.h or fsm_default
-    };
-    esp_err_t fsm_init_result = fsm_init(integrated_event_queue, &fsm_config);
-    if (fsm_init_result != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize FSM: %s", esp_err_to_name(fsm_init_result));
-        // Handle FSM initialization failure, perhaps by halting or specific error state.
-        // For now, assert or log. In a real product, might try a recovery or safe mode.
-        configASSERT(fsm_init_result == ESP_OK);
-    } else {
-        ESP_LOGI(TAG, "FSM initialized successfully.");
-    }
+
+   
     
-    ESP_LOGI(TAG, "Main setup complete. FSM is now managing application state and LED control.");
+    
 }
