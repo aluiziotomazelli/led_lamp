@@ -4,6 +4,7 @@ idf_component_register(SRCS "fsm.c"
 					    input_integrator
 						led_controller
 						led_effects
+						led_renderer
 						esp_common # For ESP_LOG, esp_err_t etc.
 #                    TEST_SRCS test/test_fsm.c
                     )

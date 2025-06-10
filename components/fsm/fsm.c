@@ -1,6 +1,7 @@
 #include "fsm.h"
 #include "esp_timer.h"
 #include "led_controller.h" // Para controle dos LEDs
+#include "led_renderer.h"
 #include "project_config.h" // For LED_STRIP_NUM_LEDS etc.
 #include <inttypes.h>       // For PRId32 macro
 #include <stdlib.h>         // For malloc, free
@@ -86,7 +87,7 @@ static esp_err_t fsm_process_espnow_event(const espnow_event_t *espnow_event,
                                           uint32_t timestamp);
 static esp_err_t fsm_transition_to_state(fsm_state_t new_state);
 static void fsm_check_mode_timeout(uint32_t current_time);
-static void fsm_update_led_display(void);
+// static void fsm_update_led_display(void); // Removed
 static uint32_t fsm_get_current_time_ms(void);
 static void fsm_load_effect_params(uint8_t effect_id);
 
@@ -228,6 +229,7 @@ esp_err_t fsm_init(QueueHandle_t queue_handle, const fsm_mode_t *config) {
     // For now, we'll continue, but LEDs won't work.
   } else {
     ESP_LOGI(TAG, "LED controller initialized.");
+    led_renderer_init(); // Initialize LED Renderer
     // Load available effects
     const led_effect_t *effects_array =
         led_effects_get_all(&num_defined_effects);
@@ -256,8 +258,8 @@ esp_err_t fsm_init(QueueHandle_t queue_handle, const fsm_mode_t *config) {
       ESP_LOGW(TAG, "No LED effects defined!");
       num_defined_effects = 0; // Ensure it's zero
     }
-    // Apply initial brightness
-    led_controller_set_brightness(fsm_ctx.global_brightness);
+    // Apply initial brightness (will be handled by initial led_renderer_update)
+    // led_controller_set_brightness(fsm_ctx.global_brightness); // Done by renderer
   }
 
   // Cria a task da FSM
@@ -275,7 +277,8 @@ esp_err_t fsm_init(QueueHandle_t queue_handle, const fsm_mode_t *config) {
 
   // Inicializa display dos LEDs (after LED controller and effects are loaded)
   if (ret_led == ESP_OK) {
-    fsm_update_led_display();
+    // fsm_update_led_display(); // Removed
+    led_renderer_update(current_active_effect, current_effect_params_runtime, fsm_ctx.global_brightness, fsm_ctx.led_strip_on, LED_STRIP_NUM_LEDS);
   }
 
   ESP_LOGI(TAG, "FSM initialized successfully in state %d",
@@ -295,6 +298,9 @@ esp_err_t fsm_deinit(void) {
     vTaskDelete(fsm_ctx.fsm_task_handle);
     fsm_ctx.fsm_task_handle = NULL;
   }
+
+  // Deinitialize LED renderer first
+  led_renderer_deinit();
 
   // Deinitialize LED controller
   esp_err_t deinit_ret = led_controller_deinit();
@@ -448,7 +454,8 @@ static esp_err_t fsm_process_button_event(const button_event_t *button_event,
       fsm_ctx.led_strip_on = !fsm_ctx.led_strip_on;
       fsm_perform_visual_feedback(fsm_ctx.led_strip_on ? FEEDBACK_POWER_ON
                                                        : FEEDBACK_POWER_OFF);
-      fsm_update_led_display();
+      // fsm_update_led_display(); // Removed
+      led_renderer_update(current_active_effect, current_effect_params_runtime, fsm_ctx.global_brightness, fsm_ctx.led_strip_on, LED_STRIP_NUM_LEDS);
       ESP_LOGI(TAG, "LED strip %s", fsm_ctx.led_strip_on ? "ON" : "OFF");
       break;
     case BUTTON_DOUBLE_CLICK:
@@ -690,8 +697,9 @@ static esp_err_t fsm_process_encoder_event(const encoder_event_t *encoder_event,
       new_brightness = 255;
     fsm_ctx.global_brightness = (uint8_t)new_brightness;
 
-    led_controller_set_brightness(fsm_ctx.global_brightness);
-    fsm_update_led_display();
+    // led_controller_set_brightness(fsm_ctx.global_brightness); // Done by renderer
+    // fsm_update_led_display(); // Removed
+    led_renderer_update(current_active_effect, current_effect_params_runtime, fsm_ctx.global_brightness, fsm_ctx.led_strip_on, LED_STRIP_NUM_LEDS);
     ESP_LOGD(TAG, "Brightness adjusted to %" PRIu8,
              fsm_ctx.global_brightness); // global_brightness is uint8_t
     break;
@@ -744,7 +752,8 @@ static esp_err_t fsm_process_encoder_event(const encoder_event_t *encoder_event,
     if (new_effect_id != fsm_ctx.current_effect) {
       fsm_ctx.current_effect = new_effect_id;
       fsm_load_effect_params(fsm_ctx.current_effect);
-      fsm_update_led_display();
+      // fsm_update_led_display(); // Removed
+      led_renderer_update(current_active_effect, current_effect_params_runtime, fsm_ctx.global_brightness, fsm_ctx.led_strip_on, LED_STRIP_NUM_LEDS);
     }
     ESP_LOGD(TAG, "Effect selection preview: %s (ID: %" PRIu8 ")",
              current_active_effect ? current_active_effect->name : "None",
@@ -785,7 +794,8 @@ static esp_err_t fsm_process_encoder_event(const encoder_event_t *encoder_event,
     if (param_to_edit->value != new_val) {
       param_to_edit->value = new_val;
       fsm_ctx.setup_has_changes = true;
-      fsm_update_led_display();
+      // fsm_update_led_display(); // Removed
+      led_renderer_update(current_active_effect, current_effect_params_runtime, fsm_ctx.global_brightness, fsm_ctx.led_strip_on, LED_STRIP_NUM_LEDS);
       ESP_LOGD(TAG,
                "Effect '%s', Param '%s' (idx %" PRIu8 ") changed to %" PRIi32,
                current_active_effect->name, param_to_edit->name,
@@ -886,7 +896,8 @@ static esp_err_t fsm_transition_to_state(fsm_state_t new_state) {
       fsm_load_effect_params(fsm_ctx.current_effect);
     }
     fsm_perform_visual_feedback(FEEDBACK_ENTERING_DISPLAY_MODE);
-    fsm_update_led_display();
+    // fsm_update_led_display(); // Removed
+    led_renderer_update(current_active_effect, current_effect_params_runtime, fsm_ctx.global_brightness, fsm_ctx.led_strip_on, LED_STRIP_NUM_LEDS);
     break;
 
   case MODE_EFFECT_SELECT:
@@ -902,12 +913,15 @@ static esp_err_t fsm_transition_to_state(fsm_state_t new_state) {
                  fsm_ctx.current_effect); // uint8_t
         fsm_load_effect_params(fsm_ctx.current_effect);
       }
-      fsm_update_led_display();
+      // fsm_update_led_display(); // Removed
+      led_renderer_update(current_active_effect, current_effect_params_runtime, fsm_ctx.global_brightness, fsm_ctx.led_strip_on, LED_STRIP_NUM_LEDS);
     } else {
       ESP_LOGW(TAG, "Transition to EFFECT_SELECT: No effects defined. Display "
                     "will be blank or off.");
-      led_controller_clear();
-      led_controller_refresh();
+      // led_controller_clear(); // Handled by renderer if effect is NULL
+      // led_controller_refresh(); // Handled by renderer
+      led_renderer_update(NULL, NULL, fsm_ctx.global_brightness, fsm_ctx.led_strip_on, LED_STRIP_NUM_LEDS);
+
     }
     break;
 
@@ -949,20 +963,20 @@ static esp_err_t fsm_transition_to_state(fsm_state_t new_state) {
                ")", // uint8_t for idx
                current_active_effect->name,
                (current_effect_params_runtime)
-                   ? current_effect_params_runtime[0].name
+                   ? current_effect_params_runtime[fsm_ctx.setup_param_index].name // Use current index
                    : "N/A",
-               fsm_ctx.setup_param_index); // Corrected: use setup_param_index
-                                           // for the log
+               fsm_ctx.setup_param_index);
     } else {
       ESP_LOGE(TAG,
                "Failed to enter setup: Effect ID %" PRIu8
                " could not be loaded. Reverting to DISPLAY.",
                fsm_ctx.setup_effect_index); // uint8_t
       fsm_ctx.current_state = fsm_ctx.previous_state;
-      fsm_transition_to_state(MODE_DISPLAY);
+      fsm_transition_to_state(MODE_DISPLAY); // This will call renderer update
       return ESP_FAIL;
     }
-    fsm_update_led_display();
+    // fsm_update_led_display(); // Removed
+    led_renderer_update(current_active_effect, current_effect_params_runtime, fsm_ctx.global_brightness, fsm_ctx.led_strip_on, LED_STRIP_NUM_LEDS);
     break;
 
   case MODE_SYSTEM_SETUP:
@@ -1006,110 +1020,9 @@ fsm_check_mode_timeout(uint32_t current_time) { // current_time is uint32_t
   }
 }
 
-// Atualiza display dos LEDs baseado no estado atual
-static void fsm_update_led_display(void) {
-  if (!fsm_ctx.led_strip_on) {
-    led_controller_clear();
-    led_controller_refresh();
-    ESP_LOGD(TAG, "LEDs turned OFF. Cleared and refreshed.");
-    return;
-  }
-
-  if (current_active_effect == NULL || current_effect_params_runtime == NULL) {
-    if (num_defined_effects > 0 && current_active_effect == NULL) {
-      ESP_LOGW(TAG,
-               "No active effect or params, attempting to load default effect "
-               "ID %" PRIu8,
-               fsm_ctx.current_effect); // uint8_t
-      fsm_load_effect_params(fsm_ctx.current_effect);
-      if (current_active_effect == NULL ||
-          (current_active_effect->param_count > 0 &&
-           current_effect_params_runtime == NULL)) {
-        ESP_LOGE(
-            TAG,
-            "Failed to load default effect or its params. Clearing strip.");
-        led_controller_clear();
-        led_controller_refresh();
-        return;
-      }
-    } else if (num_defined_effects == 0) {
-      ESP_LOGW(TAG, "No effects defined. Clearing strip.");
-      led_controller_clear();
-      led_controller_refresh();
-      return;
-    }
-    if (current_active_effect != NULL &&
-        current_active_effect->param_count > 0 &&
-        current_effect_params_runtime == NULL) {
-      ESP_LOGE(TAG,
-               "Effect %s (ID %" PRIu8
-               ") has params but runtime_params is NULL. Clearing strip.",
-               current_active_effect->name,
-               current_active_effect->id); // uint8_t
-      led_controller_clear();
-      led_controller_refresh();
-      return;
-    }
-  }
-
-  ESP_LOGD(TAG,
-           "Updating LED display - Effect: %s (ID: %" PRIu8
-           "), Brightness: %" PRIu8 ", Power: %s", // uint8_t, uint8_t
-           current_active_effect ? current_active_effect->name : "None",
-           fsm_ctx.current_effect, fsm_ctx.global_brightness,
-           fsm_ctx.led_strip_on ? "ON" : "OFF");
-
-  switch (current_active_effect->id) { // id is uint8_t
-  case 0:                              // Static Color
-    if (current_active_effect->param_count >= 2 &&
-        current_effect_params_runtime != NULL) {
-      uint16_t hue =
-          current_effect_params_runtime[0]
-              .value; // value is int32_t, but hue for set_pixel_hsv is uint16_t
-      uint8_t sat =
-          current_effect_params_runtime[1]
-              .value; // value is int32_t, but sat for set_pixel_hsv is uint8_t
-      for (uint32_t i = 0; i < LED_STRIP_NUM_LEDS;
-           i++) { // LED_STRIP_NUM_LEDS is usually uint32_t or similar
-        led_controller_set_pixel_hsv(i, hue, sat, 255);
-      }
-    } else {
-      ESP_LOGE(TAG,
-               "Static Color effect (ID %" PRIu8
-               ") misconfigured or params not loaded.",
-               current_active_effect->id); // uint8_t
-      for (uint32_t i = 0; i < LED_STRIP_NUM_LEDS; i++) {
-        led_controller_set_pixel_hsv(i, 0, 0, 100);
-      }
-    }
-    break;
-
-  case 1: // Candle
-    if (current_active_effect->param_count >= 1 &&
-        current_effect_params_runtime != NULL) {
-      uint16_t base_hue = current_effect_params_runtime[0].value; // As above
-      for (uint32_t i = 0; i < LED_STRIP_NUM_LEDS; i++) {
-        led_controller_set_pixel_hsv(i, base_hue, 220, 255);
-      }
-    } else {
-      ESP_LOGE(TAG,
-               "Candle effect (ID %" PRIu8
-               ") misconfigured or params not loaded.",
-               current_active_effect->id); // uint8_t
-      for (uint32_t i = 0; i < LED_STRIP_NUM_LEDS; i++) {
-        led_controller_set_pixel_hsv(i, 30, 200, 255);
-      }
-    }
-    break;
-
-  default:
-    ESP_LOGW(TAG, "Effect ID %" PRIu8 " not implemented. Turning LEDs off.",
-             current_active_effect->id); // uint8_t
-    led_controller_clear();
-    break;
-  }
-  led_controller_refresh();
-}
+// static void fsm_update_led_display(void) { // Function removed and replaced by led_renderer_update calls
+//   // ... entire old function content removed ...
+// }
 
 // Obtém timestamp atual em millisegundos
 static uint32_t fsm_get_current_time_ms(void) {
@@ -1182,10 +1095,11 @@ static void fsm_apply_system_settings(void) {
   if (new_brightness !=
       fsm_ctx.global_brightness) { // global_brightness is uint8_t
     fsm_ctx.global_brightness = new_brightness;
-    led_controller_set_brightness(fsm_ctx.global_brightness);
+    // led_controller_set_brightness(fsm_ctx.global_brightness); // Done by renderer
     ESP_LOGI(TAG, "Global brightness updated to %" PRIu8 " via system settings",
              fsm_ctx.global_brightness); // uint8_t
-    fsm_update_led_display();
+    // fsm_update_led_display(); // Removed
+    led_renderer_update(current_active_effect, current_effect_params_runtime, fsm_ctx.global_brightness, fsm_ctx.led_strip_on, LED_STRIP_NUM_LEDS);
   }
   ESP_LOGI(
       TAG,
