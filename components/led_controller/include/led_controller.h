@@ -2,6 +2,8 @@
 
 #include "esp_err.h"
 #include "led_strip.h"
+#include "led_strip_types.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,14 +14,15 @@ extern "C" {
  * This structure holds all necessary parameters to initialize and operate an SPI-based LED strip.
  */
 typedef struct {
-    spi_host_device_t spi_host; ///< SPI host device (e.g., SPI2_HOST, SPI3_HOST). The SPI bus should be initialized before calling `led_controller_init`.
-    uint32_t clk_speed_hz;      ///< SPI clock speed in Hertz. Common values are 10MHz (10 * 1000 * 1000).
     uint32_t num_leds;          ///< Number of LEDs in the strip. This defines the size of the buffer.
-    uint8_t spi_mosi_gpio;      ///< GPIO number used for the SPI MOSI (Data) signal.
-    uint8_t spi_sclk_gpio;      ///< GPIO number used for the SPI SCLK (Clock) signal.
-   led_color_component_format_t  pixel_format; ///< Pixel format of the LED strip (e.g., LED_PIXEL_FORMAT_GRB).
-    led_model_t model;         ///< Model of the LED strip (e.g., LED_MODEL_SK6812, LED_MODEL_WS2812).
+    led_model_t model;         	///< Model of the LED strip (e.g., LED_MODEL_SK6812, LED_MODEL_WS2812).
+    uint8_t data_gpio;         	///< GPIO number used for the SPI MOSI (Data) signal.
+   	led_color_component_format_t  pixel_format; ///< Pixel format of the LED strip (e.g., LED_PIXEL_FORMAT_GRB).
+	bool invert;
+	
     spi_clock_source_t spi_clk_src;  ///< SPI clock source. Use from `spi_common.h` (e.g., SPI_CLK_SRC_DEFAULT).
+    spi_host_device_t spi_host; ///< SPI host device (e.g., SPI2_HOST, SPI3_HOST). The SPI bus should be initialized before calling `led_controller_init`.
+	bool with_dma;
 } led_controller_config_t;
 
 /**
