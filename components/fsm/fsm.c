@@ -3,6 +3,7 @@
 #include "led_controller.h"  // Para controle dos LEDs
 #include "project_config.h"
 #include <string.h>
+#include <inttypes.h>  // Necessário para as macros PRIu32, PRId32, etc.
 
 static const char *TAG = "FSM";
 
@@ -110,7 +111,7 @@ esp_err_t fsm_init(QueueHandle_t queue_handle, const fsm_mode_t *config) {
     // Inicializa display dos LEDs
     fsm_update_led_display();
 
-    ESP_LOGI(TAG, "FSM initialized successfully in state %d", fsm_ctx.current_state);
+    ESP_LOGI(TAG, "FSM initialized successfully in state %" PRIu8, fsm_ctx.current_state);
     return ESP_OK;
 }
 
@@ -174,7 +175,7 @@ esp_err_t fsm_force_state(fsm_state_t new_state) {
         return ESP_ERR_INVALID_ARG;
     }
     
-    ESP_LOGW(TAG, "Forcing state transition from %d to %d", fsm_ctx.current_state, new_state);
+    ESP_LOGW(TAG, "Forcing state transition from %" PRIu8 " to %" PRIu8, fsm_ctx.current_state, new_state);
     return fsm_transition_to_state(new_state);
 }
 
@@ -234,7 +235,7 @@ static esp_err_t fsm_process_integrated_event(const integrated_event_t *event) {
             break;
 
         default:
-            ESP_LOGW(TAG, "Unknown event source: %d", event->source);
+            ESP_LOGW(TAG, "Unknown event source: %" PRIu8, event->source);
             fsm_ctx.stats.invalid_events++;
             ret = ESP_ERR_INVALID_ARG;
             break;
@@ -249,7 +250,7 @@ static esp_err_t fsm_process_button_event(const button_event_t *button_event, ui
         return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_LOGD(TAG, "Button event: %d in state %d", button_event->type, fsm_ctx.current_state);
+    ESP_LOGD(TAG, "Button event: %" PRIu8 " in state %" PRIu8, button_event->type, fsm_ctx.current_state);
 
     switch (fsm_ctx.current_state) {
         case MODE_DISPLAY:
@@ -291,7 +292,7 @@ static esp_err_t fsm_process_button_event(const button_event_t *button_event, ui
                     // Seleciona o efeito atual e volta para exibição
                     fsm_transition_to_state(MODE_DISPLAY);
                     fsm_update_led_display();
-                    ESP_LOGI(TAG, "Effect %d selected", fsm_ctx.current_effect);
+                    ESP_LOGI(TAG, "Effect %" PRIu8 " selected", fsm_ctx.current_effect);
                     break;
                     
                 case BUTTON_LONG_CLICK:
@@ -312,7 +313,7 @@ static esp_err_t fsm_process_button_event(const button_event_t *button_event, ui
                     fsm_ctx.setup_has_changes = true;
                     // TODO: Verificar se ainda há parâmetros para configurar
                     // Se não há mais, salva e volta para exibição
-                    ESP_LOGI(TAG, "Setup param %d saved, moving to next", fsm_ctx.setup_param_index - 1);
+                    ESP_LOGI(TAG, "Setup param %" PRIu8 " saved, moving to next", fsm_ctx.setup_param_index - 1);
                     break;
                     
                 case BUTTON_LONG_CLICK:
@@ -347,7 +348,7 @@ static esp_err_t fsm_process_button_event(const button_event_t *button_event, ui
             break;
 
         default:
-            ESP_LOGW(TAG, "Unknown state in button processing: %d", fsm_ctx.current_state);
+            ESP_LOGW(TAG, "Unknown state in button processing: %" PRIu8, fsm_ctx.current_state);
             fsm_ctx.stats.invalid_events++;
             return ESP_ERR_INVALID_STATE;
     }
@@ -361,7 +362,7 @@ static esp_err_t fsm_process_encoder_event(const encoder_event_t *encoder_event,
         return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_LOGD(TAG, "Encoder event: %d steps in state %d", encoder_event->steps, fsm_ctx.current_state);
+    ESP_LOGD(TAG, "Encoder event: %" PRId32 " steps in state %" PRIu8, encoder_event->steps, fsm_ctx.current_state);
 
     switch (fsm_ctx.current_state) {
         case MODE_DISPLAY:
@@ -374,7 +375,7 @@ static esp_err_t fsm_process_encoder_event(const encoder_event_t *encoder_event,
                                            0 : fsm_ctx.global_brightness + encoder_event->steps;
             }
             fsm_update_led_display();
-            ESP_LOGD(TAG, "Brightness adjusted to %d", fsm_ctx.global_brightness);
+            ESP_LOGD(TAG, "Brightness adjusted to %" PRIu8, fsm_ctx.global_brightness);
             break;
 
         case MODE_EFFECT_SELECT:
@@ -386,23 +387,23 @@ static esp_err_t fsm_process_encoder_event(const encoder_event_t *encoder_event,
                 fsm_ctx.current_effect--;
             }
             fsm_update_led_display();  // Mostra preview do efeito
-            ESP_LOGD(TAG, "Effect selection: %d", fsm_ctx.current_effect);
+            ESP_LOGD(TAG, "Effect selection: %" PRIu8, fsm_ctx.current_effect);
             break;
 
         case MODE_EFFECT_SETUP:
             // Ajusta parâmetro do efeito atual
             // TODO: Implementar ajuste de parâmetros específicos do efeito
-            ESP_LOGD(TAG, "Adjusting effect parameter %d by %d steps", 
+            ESP_LOGD(TAG, "Adjusting effect parameter %" PRIu8 " by %" PRId32 " steps", 
                      fsm_ctx.setup_param_index, encoder_event->steps);
             break;
 
         case MODE_SYSTEM_SETUP:
             // Ajusta parâmetros do sistema
-            ESP_LOGD(TAG, "Adjusting system parameter by %d steps", encoder_event->steps);
+            ESP_LOGD(TAG, "Adjusting system parameter %" PRId32 " steps", encoder_event->steps);
             break;
 
         default:
-            ESP_LOGW(TAG, "Unknown state in encoder processing: %d", fsm_ctx.current_state);
+            ESP_LOGW(TAG, "Unknown state in encoder processing: %" PRIu8, fsm_ctx.current_state);
             fsm_ctx.stats.invalid_events++;
             return ESP_ERR_INVALID_STATE;
     }
@@ -416,7 +417,7 @@ static esp_err_t fsm_process_espnow_event(const espnow_event_t *espnow_event, ui
         return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_LOGD(TAG, "ESP-NOW event: %d bytes from %02x:%02x:%02x:%02x:%02x:%02x",
+    ESP_LOGD(TAG, "ESP-NOW event: %" PRIu16 " bytes from %02x:%02x:%02x:%02x:%02x:%02x",
              espnow_event->data_len,
              espnow_event->mac_addr[0], espnow_event->mac_addr[1], espnow_event->mac_addr[2],
              espnow_event->mac_addr[3], espnow_event->mac_addr[4], espnow_event->mac_addr[5]);
@@ -433,7 +434,7 @@ static esp_err_t fsm_transition_to_state(fsm_state_t new_state) {
         return ESP_OK;  // Já está no estado desejado
     }
 
-    ESP_LOGI(TAG, "State transition: %d -> %d", fsm_ctx.current_state, new_state);
+    ESP_LOGI(TAG, "State transition: %" PRIu8 " -> %" PRIu8, fsm_ctx.current_state, new_state);
     
     fsm_ctx.previous_state = fsm_ctx.current_state;
     fsm_ctx.current_state = new_state;
@@ -454,7 +455,7 @@ static esp_err_t fsm_transition_to_state(fsm_state_t new_state) {
             
         case MODE_EFFECT_SETUP:
             // Inicia setup do efeito
-            ESP_LOGI(TAG, "Starting effect setup for effect %d", fsm_ctx.setup_effect_index);
+            ESP_LOGI(TAG, "Starting effect setup for effect %" PRIu8, fsm_ctx.setup_effect_index);
             break;
             
         case MODE_SYSTEM_SETUP:
@@ -463,7 +464,7 @@ static esp_err_t fsm_transition_to_state(fsm_state_t new_state) {
             break;
             
         default:
-            ESP_LOGW(TAG, "Unknown state in transition: %d", new_state);
+            ESP_LOGW(TAG, "Unknown state in transition: %" PRIu8, new_state);
             return ESP_ERR_INVALID_ARG;
     }
 
@@ -478,7 +479,7 @@ static void fsm_check_mode_timeout(uint32_t current_time) {
 
     uint32_t time_in_state = current_time - fsm_ctx.state_entry_time;
     if (time_in_state > fsm_ctx.config.mode_timeout_ms) {
-        ESP_LOGI(TAG, "Mode timeout in state %d, returning to display", fsm_ctx.current_state);
+        ESP_LOGI(TAG, "Mode timeout in state %" PRIu8 ", returning to display", fsm_ctx.current_state);
         fsm_transition_to_state(MODE_DISPLAY);
     }
 }
@@ -490,7 +491,7 @@ static void fsm_update_led_display(void) {
     // led_controller_set_brightness(fsm_ctx.global_brightness);
     // led_controller_set_power(fsm_ctx.led_strip_on);
     
-    ESP_LOGD(TAG, "LED display updated - Effect: %d, Brightness: %d, Power: %s",
+    ESP_LOGD(TAG, "LED display updated - Effect: %" PRIu8 ", Brightness: %" PRIu8 ", Power: %s",
              fsm_ctx.current_effect, fsm_ctx.global_brightness,
              fsm_ctx.led_strip_on ? "ON" : "OFF");
 }
