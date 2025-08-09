@@ -33,7 +33,11 @@
 #define FSM_TIMEOUT_MS      100
 #define FSM_MODE_TIMEOUT_MS 30000
 
-
+// Configurações do LED Controller
+#define LED_STRIP_PIN           5
+#define LED_STRIP_LED_COUNT     16
+#define LED_RENDERER_STACK_SIZE 4096
+#define LED_RENDERER_PRIORITY   5
 
 
 #ifdef __cplusplus

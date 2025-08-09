@@ -3,6 +3,7 @@
 #include "led_controller.h"  // Para controle dos LEDs
 #include "project_config.h"
 #include <string.h>
+#include <inttypes.h>
 
 static const char *TAG = "FSM";
 
@@ -361,7 +362,7 @@ static esp_err_t fsm_process_encoder_event(const encoder_event_t *encoder_event,
         return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_LOGD(TAG, "Encoder event: %d steps in state %d", encoder_event->steps, fsm_ctx.current_state);
+    ESP_LOGD(TAG, "Encoder event: %" PRId32 " steps in state %d", encoder_event->steps, fsm_ctx.current_state);
 
     switch (fsm_ctx.current_state) {
         case MODE_DISPLAY:
@@ -392,13 +393,13 @@ static esp_err_t fsm_process_encoder_event(const encoder_event_t *encoder_event,
         case MODE_EFFECT_SETUP:
             // Ajusta parâmetro do efeito atual
             // TODO: Implementar ajuste de parâmetros específicos do efeito
-            ESP_LOGD(TAG, "Adjusting effect parameter %d by %d steps", 
+            ESP_LOGD(TAG, "Adjusting effect parameter %d by %" PRId32 " steps",
                      fsm_ctx.setup_param_index, encoder_event->steps);
             break;
 
         case MODE_SYSTEM_SETUP:
             // Ajusta parâmetros do sistema
-            ESP_LOGD(TAG, "Adjusting system parameter by %d steps", encoder_event->steps);
+            ESP_LOGD(TAG, "Adjusting system parameter by %" PRId32 " steps", encoder_event->steps);
             break;
 
         default:

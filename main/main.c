@@ -7,74 +7,32 @@
 #include "button.h"
 #include "encoder.h"
 #include "input_integrator.h" // For integrated_event_t, init_queue_manager, integrator_task
+#include "fsm.h"
+#include "led_controller.h"
 #include <inttypes.h> // For PRIu32
 
 // Define Global Variables
-static const char *TAG = "main_test";
+static const char *TAG = "main_app";
 
 QueueHandle_t button_event_queue;
 QueueHandle_t encoder_event_queue;
-QueueHandle_t espnow_event_queue; // Though not actively used for sending in this test, it's part of integrator
+QueueHandle_t espnow_event_queue;
 QueueHandle_t integrated_event_queue;
 
 queue_manager_t queue_manager;
 
-// Define stack sizes for tasks - these were previously hardcoded and might be a source of issues if too small
+// Define stack sizes for tasks
 #define TASK_STACK_SIZE_INTEGRATOR 2048
-#define TASK_STACK_SIZE_HANDLER 2048
-
-// Implement integrated_event_handler_task
-static void integrated_event_handler_task(void *pvParameters) {
-    integrated_event_t event;
-    while (1) {
-        if (xQueueReceive(integrated_event_queue, &event, portMAX_DELAY) == pdTRUE) {
-            switch (event.source) {
-                case EVENT_SOURCE_BUTTON:
-                    ESP_LOGI(TAG, "Integrated Event: BUTTON - Pin: %d, Type: %d, Timestamp: %" PRIu32,
-                             event.data.button.pin, event.data.button.type, event.timestamp);
-                    break;
-                case EVENT_SOURCE_ENCODER:
-                    ESP_LOGI(TAG, "Integrated Event: ENCODER - Steps: %" PRId32 ", Timestamp: %" PRIu32,
-                             event.data.encoder.steps, event.timestamp);
-                    break;
-                case EVENT_SOURCE_ESPNOW:
-                    // Ensure ESPNOW data is handled safely, e.g. check data_len before printing
-                    ESP_LOGI(TAG, "Integrated Event: ESPNOW - MAC: %02x:%02x:%02x:%02x:%02x:%02x, DataLen: %d, Timestamp: %" PRIu32,
-                             event.data.espnow.mac_addr[0], event.data.espnow.mac_addr[1],
-                             event.data.espnow.mac_addr[2], event.data.espnow.mac_addr[3],
-                             event.data.espnow.mac_addr[4], event.data.espnow.mac_addr[5],
-                             event.data.espnow.data_len, event.timestamp);
-                    // Example: if (event.data.espnow.data_len > 0) { ESP_LOGI(TAG, "  Data: %.*s", event.data.espnow.data_len, (char*)event.data.espnow.data); }
-                    break;
-                default:
-                    ESP_LOGW(TAG, "Integrated Event: UNKNOWN SOURCE (%d), Timestamp: %" PRIu32, event.source, event.timestamp);
-                    break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(10)); // Small delay
-    }
-}
 
 void app_main(void) {
     esp_log_level_set(TAG, ESP_LOG_INFO);
 
     // Create Queues
     button_event_queue = xQueueCreate(BUTTON_QUEUE_SIZE, sizeof(button_event_t));
-    configASSERT(button_event_queue != NULL);
-    ESP_LOGI(TAG, "Button event queue created (size: %d)", BUTTON_QUEUE_SIZE);
-
     encoder_event_queue = xQueueCreate(ENCODER_QUEUE_SIZE, sizeof(encoder_event_t));
-    configASSERT(encoder_event_queue != NULL);
-    ESP_LOGI(TAG, "Encoder event queue created (size: %d)", ENCODER_QUEUE_SIZE);
-
     espnow_event_queue = xQueueCreate(ESPNOW_QUEUE_SIZE, sizeof(espnow_event_t));
-    configASSERT(espnow_event_queue != NULL);
-    ESP_LOGI(TAG, "ESP-NOW event queue created (size: %d)", ESPNOW_QUEUE_SIZE);
-
     UBaseType_t integrated_queue_len = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE;
     integrated_event_queue = xQueueCreate(integrated_queue_len, sizeof(integrated_event_t));
-    configASSERT(integrated_event_queue != NULL);
-    ESP_LOGI(TAG, "Integrated event queue created (size: %du)", integrated_queue_len);
 
     // Initialize Button
     button_config_t btn_cfg = {
@@ -95,27 +53,40 @@ void app_main(void) {
         .pin_a = ENCODER_PIN_A,
         .pin_b = ENCODER_PIN_B,
         .half_step_mode = false,
-        .acceleration_enabled = true, // Keep it simple for testing
+        .acceleration_enabled = true,
         .accel_gap_ms = ENC_ACCEL_GAP,
         .accel_max_multiplier = MAX_ACCEL_MULTIPLIER
     };
     encoder_handle_t encoder_handle = encoder_create(&enc_cfg, encoder_event_queue);
     configASSERT(encoder_handle != NULL);
-    ESP_LOGI(TAG, "Encoder initialized on pins A: %d, B: %d", ENCODER_PIN_A, ENCODER_PIN_B);
+    ESP_LOGI(TAG, "Encoder initialized on pins A:%d, B:%d", ENCODER_PIN_A, ENCODER_PIN_B);
 
     // Initialize Input Integrator
     queue_manager = init_queue_manager(button_event_queue, encoder_event_queue, espnow_event_queue, integrated_event_queue);
     configASSERT(queue_manager.queue_set != NULL);
     ESP_LOGI(TAG, "Input integrator initialized.");
 
-    // Create Tasks
-    BaseType_t task_created;
-    task_created = xTaskCreate(integrator_task, "integrator_task", TASK_STACK_SIZE_INTEGRATOR, &queue_manager, 5, NULL);
-    configASSERT(task_created == pdPASS);
+    // Initialize LED Controller
+    led_controller_config_t led_cfg = {
+        .gpio_pin = LED_STRIP_PIN,
+        .led_count = LED_STRIP_LED_COUNT,
+        .task_stack_size = LED_RENDERER_STACK_SIZE,
+        .task_priority = LED_RENDERER_PRIORITY
+    };
+    configASSERT(led_controller_init(&led_cfg) == ESP_OK);
+    ESP_LOGI(TAG, "LED controller initialized.");
 
-    task_created = xTaskCreate(integrated_event_handler_task, "integrated_event_handler_task", TASK_STACK_SIZE_HANDLER, NULL, 4, NULL);
+    // Initialize FSM
+    // Passing NULL to use default config from project_config.h
+    configASSERT(fsm_init(integrated_event_queue, NULL) == ESP_OK);
+    ESP_LOGI(TAG, "FSM initialized.");
+
+    // Create Input Integrator Task
+    BaseType_t task_created = xTaskCreate(integrator_task, "integrator_task", TASK_STACK_SIZE_INTEGRATOR, &queue_manager, 5, NULL);
     configASSERT(task_created == pdPASS);
     
-    ESP_LOGI(TAG, "Tasks created (integrator stack: %d, handler stack: %d).", TASK_STACK_SIZE_INTEGRATOR, TASK_STACK_SIZE_HANDLER);
-    ESP_LOGI(TAG, "Test main setup complete. Monitoring events...");
+    // Trigger initial render
+    led_controller_update_request();
+
+    ESP_LOGI(TAG, "System setup complete. FSM and renderer are running.");
 }
