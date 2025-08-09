@@ -41,6 +41,10 @@
 #define LED_STRIP_GPIO_SCLK         18 // Define your SCLK GPIO pin
 
 
+#define TASK_STACK_SIZE_INTEGRATOR 2048
+#define OUTPUT_QUEUE_SIZE 10
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
