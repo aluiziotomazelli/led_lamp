@@ -33,11 +33,15 @@
 #define FSM_TIMEOUT_MS      100
 #define FSM_MODE_TIMEOUT_MS 30000
 
-// Configurações do LED Controller
-#define LED_STRIP_PIN           5
-#define LED_STRIP_LED_COUNT     16
-#define LED_RENDERER_STACK_SIZE 4096
-#define LED_RENDERER_PRIORITY   5
+// --- LED Controller Config ---
+#define LED_CONTROLLER_SPI_HOST         SPI2_HOST
+#define LED_CONTROLLER_CLK_SPEED_HZ     (10 * 1000 * 1000)
+#define LED_CONTROLLER_NUM_LEDS         16
+#define LED_CONTROLLER_MOSI_GPIO        5
+#define LED_CONTROLLER_SCLK_GPIO        18
+#define LED_CONTROLLER_COLOR_FORMAT     LED_STRIP_COLOR_COMPONENT_FMT_GRB
+#define LED_CONTROLLER_MODEL            LED_MODEL_WS2812
+#define LED_CONTROLLER_SPI_CLK_SRC      SPI_CLK_SRC_DEFAULT
 
 
 #ifdef __cplusplus
