@@ -35,7 +35,7 @@
 
 // --- LED Controller Config ---
 #define LED_CONTROLLER_DATA_PIN         19
-#define LED_CONTROLLER_NUM_LEDS         16
+#define LED_CONTROLLER_NUM_LEDS         24
 #define LED_CONTROLLER_MODEL            LED_MODEL_WS2812
 
 #define LED_CONTROLLER_SPI_CLK_SRC      SPI_CLK_SRC_DEFAULT

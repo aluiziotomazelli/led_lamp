@@ -59,7 +59,7 @@ static void app_logic_task(void *pvParameters) {
 				// Calculate hue for each pixel, creating a rainbow pattern
 				uint16_t pixel_hue =
 					(hue + (i * 360 / LED_CONTROLLER_NUM_LEDS)) % 360;
-				led_controller_set_pixel_hsv(i, pixel_hue, 255, 255);
+				led_controller_set_pixel_hsv(i, pixel_hue, 255, 60);
 			}
 			// Cycle the hue for the next frame
 			hue = (hue + 5) % 360;
@@ -78,7 +78,7 @@ static void app_logic_task(void *pvParameters) {
 		}
 
 		// Delay to control the animation speed
-		vTaskDelay(pdMS_TO_TICKS(20));
+		vTaskDelay(pdMS_TO_TICKS(40));
 	}
 }
 
