@@ -6,6 +6,7 @@
 #include "project_config.h" // For queue sizes and pin definitions
 #include "button.h"
 #include "encoder.h"
+#include "touch_button.h"
 #include "input_integrator.h" // For integrated_event_t, init_queue_manager, integrator_task
 #include <inttypes.h> // For PRIu32
 
@@ -14,6 +15,7 @@ static const char *TAG = "main_test";
 
 QueueHandle_t button_event_queue;
 QueueHandle_t encoder_event_queue;
+QueueHandle_t touch_button_event_queue;
 QueueHandle_t espnow_event_queue; // Though not actively used for sending in this test, it's part of integrator
 QueueHandle_t integrated_event_queue;
 
@@ -46,6 +48,10 @@ static void integrated_event_handler_task(void *pvParameters) {
                              event.data.espnow.data_len, event.timestamp);
                     // Example: if (event.data.espnow.data_len > 0) { ESP_LOGI(TAG, "  Data: %.*s", event.data.espnow.data_len, (char*)event.data.espnow.data); }
                     break;
+                case EVENT_SOURCE_TOUCH:
+                    ESP_LOGI(TAG, "Integrated Event: TOUCH - Pad: %d, Type: %d, Timestamp: %" PRIu32,
+                             event.data.touch.touch_pad, event.data.touch.type, event.timestamp);
+                    break;
                 default:
                     ESP_LOGW(TAG, "Integrated Event: UNKNOWN SOURCE (%d), Timestamp: %" PRIu32, event.source, event.timestamp);
                     break;
@@ -67,11 +73,15 @@ void app_main(void) {
     configASSERT(encoder_event_queue != NULL);
     ESP_LOGI(TAG, "Encoder event queue created (size: %d)", ENCODER_QUEUE_SIZE);
 
+    touch_button_event_queue = xQueueCreate(TOUCH_BUTTON_QUEUE_SIZE, sizeof(touch_button_event_t));
+    configASSERT(touch_button_event_queue != NULL);
+    ESP_LOGI(TAG, "Touch button event queue created (size: %d)", TOUCH_BUTTON_QUEUE_SIZE);
+
     espnow_event_queue = xQueueCreate(ESPNOW_QUEUE_SIZE, sizeof(espnow_event_t));
     configASSERT(espnow_event_queue != NULL);
     ESP_LOGI(TAG, "ESP-NOW event queue created (size: %d)", ESPNOW_QUEUE_SIZE);
 
-    UBaseType_t integrated_queue_len = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE;
+    UBaseType_t integrated_queue_len = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE + TOUCH_BUTTON_QUEUE_SIZE;
     integrated_event_queue = xQueueCreate(integrated_queue_len, sizeof(integrated_event_t));
     configASSERT(integrated_event_queue != NULL);
     ESP_LOGI(TAG, "Integrated event queue created (size: %du)", integrated_queue_len);
@@ -90,6 +100,15 @@ void app_main(void) {
     configASSERT(button_handle != NULL);
     ESP_LOGI(TAG, "Button initialized on pin %d", BUTTON1_PIN);
 
+    // Initialize Touch Button
+    touch_button_config_t touch_btn_cfg = {
+        .touch_pad = TOUCH_BUTTON_PIN,
+        .threshold_percent = 0.6f
+    };
+    touch_button_t *touch_button_handle = touch_button_create(&touch_btn_cfg, touch_button_event_queue);
+    configASSERT(touch_button_handle != NULL);
+    ESP_LOGI(TAG, "Touch button initialized on pad %d", TOUCH_BUTTON_PIN);
+
     // Initialize Encoder
     encoder_config_t enc_cfg = {
         .pin_a = ENCODER_PIN_A,
@@ -104,7 +123,7 @@ void app_main(void) {
     ESP_LOGI(TAG, "Encoder initialized on pins A: %d, B: %d", ENCODER_PIN_A, ENCODER_PIN_B);
 
     // Initialize Input Integrator
-    queue_manager = init_queue_manager(button_event_queue, encoder_event_queue, espnow_event_queue, integrated_event_queue);
+    queue_manager = init_queue_manager(button_event_queue, encoder_event_queue, espnow_event_queue, touch_button_event_queue, integrated_event_queue);
     configASSERT(queue_manager.queue_set != NULL);
     ESP_LOGI(TAG, "Input integrator initialized.");
 

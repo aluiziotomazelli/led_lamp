@@ -52,26 +52,35 @@ void integrator_task(void *pvParameters) {
 				event.data.espnow = espnow_evt;
 				xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
 			}
+		} else if (active_queue == qm->touch_queue) {
+			touch_button_event_t touch_evt;
+			if (xQueueReceive(qm->touch_queue, &touch_evt, 0) == pdTRUE) {
+				event.source = EVENT_SOURCE_TOUCH;
+				event.timestamp = xTaskGetTickCount();
+				event.data.touch = touch_evt;
+				xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
+			}
 		}
 	} // while(1)
 } // função
 
 queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
-								   QueueHandle_t espnow_q,
+								   QueueHandle_t espnow_q, QueueHandle_t touch_q,
 								   QueueHandle_t int_q) {
 
 	queue_manager_t qm = {.button_queue = btn_q,
 						  .encoder_queue = enc_q,
 						  .espnow_queue = espnow_q,
+						  .touch_queue = touch_q,
 						  .integrated_queue = int_q,
 						  .queue_set = NULL};
 
-	if (!btn_q || !enc_q || !espnow_q || !int_q) {
+	if (!btn_q || !enc_q || !espnow_q || !touch_q || !int_q) {
 		ESP_LOGE(TAG, "One or more invalid queues received");
 		return qm;
 	}
 
-	UBaseType_t queue_size = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE;
+	UBaseType_t queue_size = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE + TOUCH_BUTTON_QUEUE_SIZE;
 
 	qm.queue_set = xQueueCreateSet(queue_size);
 	if (qm.queue_set == NULL) {
@@ -82,7 +91,8 @@ queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
 	// Configurar queues no set
 	if (xQueueAddToSet(btn_q, qm.queue_set) != pdPASS ||
 		xQueueAddToSet(enc_q, qm.queue_set) != pdPASS ||
-		xQueueAddToSet(espnow_q, qm.queue_set) != pdPASS) {
+		xQueueAddToSet(espnow_q, qm.queue_set) != pdPASS ||
+		xQueueAddToSet(touch_q, qm.queue_set) != pdPASS) {
 		ESP_LOGE(TAG, "Failed to add queues to set");
 		vQueueDelete(qm.queue_set);
 		qm.queue_set = NULL;

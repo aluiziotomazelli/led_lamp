@@ -7,6 +7,7 @@
 #include "freertos/queue.h"
 #include "button.h"
 #include "encoder.h"
+#include "touch_button.h"
 
 typedef struct {
     unsigned char mac_addr[6];
@@ -17,7 +18,8 @@ typedef struct {
 typedef enum {
     EVENT_SOURCE_BUTTON,
     EVENT_SOURCE_ENCODER,
-    EVENT_SOURCE_ESPNOW
+    EVENT_SOURCE_ESPNOW,
+    EVENT_SOURCE_TOUCH
 } event_source_t;
 
 typedef struct {
@@ -27,6 +29,7 @@ typedef struct {
         button_event_t button;
         encoder_event_t encoder;
         espnow_event_t espnow;
+        touch_button_event_t touch;
     } data;
 } integrated_event_t;
 
@@ -34,11 +37,13 @@ typedef struct {
     QueueHandle_t button_queue;
     QueueHandle_t encoder_queue;
     QueueHandle_t espnow_queue;
+    QueueHandle_t touch_queue;
     QueueHandle_t integrated_queue;
     QueueSetHandle_t queue_set;
 } queue_manager_t;
 
 queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q, 
-                                 QueueHandle_t espnow_q, QueueHandle_t int_q);
+                                 QueueHandle_t espnow_q, QueueHandle_t touch_q,
+                                 QueueHandle_t int_q);
 
 void integrator_task(void *pvParameters);
