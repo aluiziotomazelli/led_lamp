@@ -40,7 +40,7 @@ static void touch_button_handler_task(void *pvParameters) {
 				// Sua lógica para toque simples aqui
 				break;
 
-			case TOUCH_LONG_PRESS:
+			case TOUCH_HOLD_PRESS:
 				ESP_LOGI("TouchHandler", "Touch long press on pad %d",
 						 event.touch_pad);
 				// Sua lógica para toque longo aqui (ex: aumentar brilho)
@@ -106,7 +106,7 @@ static void integrated_event_handler_task(void *pvParameters) {
 					// Sua lógica para toque simples aqui
 					break;
 
-				case TOUCH_LONG_PRESS:
+				case TOUCH_HOLD_PRESS:
 					ESP_LOGI("TouchHandler",
 							 "Touch long press on pad %d (via integrator)",
 							 event.data.touch.touch_pad);
