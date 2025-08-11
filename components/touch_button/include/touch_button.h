@@ -9,7 +9,7 @@
 typedef enum {
     TOUCH_NONE,          ///< Nenhum toque detectado
     TOUCH_PRESS,         ///< Toque simples (press/release)
-    TOUCH_LONG_PRESS,    ///< Toque longo (press and hold) - repetido durante hold
+    TOUCH_HOLD_PRESS,    ///< Toque longo (press and hold) - repetido durante hold
     TOUCH_ERROR          ///< Estado de erro
 } touch_button_type_t;
 

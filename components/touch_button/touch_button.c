@@ -155,7 +155,7 @@ static touch_button_type_t touch_button_get_event(touch_button_t *btn) {
                     // Era um long press mas ainda não foi enviado
                     ESP_LOGD(TAG, "Touch pad %d: Long press on release (%lu ms)", 
                              btn->touch_pad, press_duration);
-                    return TOUCH_LONG_PRESS;
+                    return TOUCH_HOLD_PRESS;
                 } else {
                     // Toque normal
                     ESP_LOGD(TAG, "Touch pad %d: Normal press (%lu ms)", 
@@ -171,7 +171,7 @@ static touch_button_type_t touch_button_get_event(touch_button_t *btn) {
                     btn->state = TOUCH_LONG_PRESS_DETECTED;
                     ESP_LOGD(TAG, "Touch pad %d: Long press detected (%lu ms)", 
                              btn->touch_pad, press_duration);
-                    return TOUCH_LONG_PRESS;
+                    return TOUCH_HOLD_PRESS;
                 }
             }
             break;
@@ -186,7 +186,7 @@ static touch_button_type_t touch_button_get_event(touch_button_t *btn) {
                 if (now - btn->last_repeat_time_ms >= btn->hold_repeat_ms) {
                     btn->last_repeat_time_ms = now;
                     ESP_LOGD(TAG, "Touch pad %d: Long press repeat", btn->touch_pad);
-                    return TOUCH_LONG_PRESS;
+                    return TOUCH_HOLD_PRESS;
                 }
             }
             break;
