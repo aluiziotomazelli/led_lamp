@@ -1,23 +1,25 @@
 #include "button.h"
 #include "encoder.h"
+#include "esp_log_level.h"
+
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "input_integrator.h" // For integrated_event_t, init_queue_manager, integrator_task
 #include "project_config.h" // For queue sizes and pin definitions
-#include "touch_button.h"
+#include "touch.h"
 #include <inttypes.h> // For PRIu32
 #include <stdio.h>
 
 // Define Global Variables
-static const char *TAG = "main_test";
+static const char *TAG = "main";
 
 QueueHandle_t button_event_queue;
 QueueHandle_t encoder_event_queue;
 QueueHandle_t espnow_event_queue; // Though not actively used for sending in
 								  // this test, it's part of integrator
-QueueHandle_t touch_button_event_queue;
+QueueHandle_t touch_event_queue;
 QueueHandle_t integrated_event_queue;
 
 queue_manager_t queue_manager;
@@ -27,37 +29,7 @@ queue_manager_t queue_manager;
 #define TASK_STACK_SIZE_INTEGRATOR 2048
 #define TASK_STACK_SIZE_HANDLER 2048
 
-// Opcional: criar task para processar eventos do touch button
-static void touch_button_handler_task(void *pvParameters) {
-	touch_button_event_t event;
-	while (1) {
-		if (xQueueReceive(touch_button_event_queue, &event, portMAX_DELAY) ==
-			pdTRUE) {
-			switch (event.type) {
-			case TOUCH_PRESS:
-				ESP_LOGI("TouchHandler", "Touch press on pad %d",
-						 event.touch_pad);
-				// Sua lógica para toque simples aqui
-				break;
-
-			case TOUCH_HOLD_PRESS:
-				ESP_LOGI("TouchHandler", "Touch long press on pad %d",
-						 event.touch_pad);
-				// Sua lógica para toque longo aqui (ex: aumentar brilho)
-				break;
-
-			case TOUCH_ERROR:
-				ESP_LOGW("TouchHandler", "Touch error on pad %d",
-						 event.touch_pad);
-				break;
-
-			default:
-				break;
-			}
-		}
-	}
-}
-
+// Opcional: cria
 // Implement integrated_event_handler_task
 static void integrated_event_handler_task(void *pvParameters) {
 	integrated_event_t event;
@@ -67,14 +39,14 @@ static void integrated_event_handler_task(void *pvParameters) {
 			switch (event.source) {
 			case EVENT_SOURCE_BUTTON:
 				ESP_LOGI(TAG,
-						 "Integrated Event: BUTTON - Pin: %d, Type: %d, "
+						 "BUTTON - Pin: %d, Type: %d, "
 						 "Timestamp: %" PRIu32,
 						 event.data.button.pin, event.data.button.type,
 						 event.timestamp);
 				break;
 			case EVENT_SOURCE_ENCODER:
 				ESP_LOGI(TAG,
-						 "Integrated Event: ENCODER - Steps: %" PRId32
+						 "ENCODER - Steps: %" PRId32
 						 ", Timestamp: %" PRIu32,
 						 event.data.encoder.steps, event.timestamp);
 				break;
@@ -82,7 +54,7 @@ static void integrated_event_handler_task(void *pvParameters) {
 				// Ensure ESPNOW data is handled safely, e.g. check data_len
 				// before printing
 				ESP_LOGI(TAG,
-						 "Integrated Event: ESPNOW - MAC: "
+						 "ESPNOW - MAC: "
 						 "%02x:%02x:%02x:%02x:%02x:%02x, DataLen: %d, "
 						 "Timestamp: %" PRIu32,
 						 event.data.espnow.mac_addr[0],
@@ -100,42 +72,48 @@ static void integrated_event_handler_task(void *pvParameters) {
 				// Processamento específico para touch events
 				switch (event.data.touch.type) {
 				case TOUCH_PRESS:
-					ESP_LOGI("TouchHandler",
+					ESP_LOGI(TAG,  
 							 "Touch press on pad %d (via integrator)",
-							 event.data.touch.touch_pad);
+							 event.data.touch.pad);
 					// Sua lógica para toque simples aqui
 					break;
 
-				case TOUCH_HOLD_PRESS:
-					ESP_LOGI("TouchHandler",
-							 "Touch long press on pad %d (via integrator)",
-							 event.data.touch.touch_pad);
+				case TOUCH_HOLD:
+					ESP_LOGI(TAG,
+							 "Touch hold press on pad %d (via integrator)",
+							 event.data.touch.pad);
 					// Sua lógica para toque longo aqui (ex: aumentar brilho)
 					break;
+//				case TOUCH_HOLD_REPEAT:
+//					ESP_LOGI("Integrated Event: TOUCH",
+//							 "Touch hold repeat on pad %d (via integrator)",
+//							 event.data.touch.pad);
+//					// Sua lógica para toque longo aqui (ex: aumentar brilho)
+//					break;
 
 				case TOUCH_ERROR:
-					ESP_LOGW("TouchHandler",
+					ESP_LOGW(TAG,
 							 "Touch error on pad %d (via integrator)",
-							 event.data.touch.touch_pad);
+							 event.data.touch.pad);
 					break;
 
 				default:
-					ESP_LOGW("TouchHandler", "Unknown touch type %d on pad %d",
-							 event.data.touch.type, event.data.touch.touch_pad);
+					ESP_LOGW(TAG, "Unknown touch type %d on pad %d",
+							 event.data.touch.type, event.data.touch.pad);
 					break;
 				}
 
 				// Log padrão do integrator também
 				ESP_LOGI(TAG,
-						 "Integrated Event: TOUCH - Pad: %d, Type: %d, "
+						 "TOUCH - Pad: %d, Type: %d, "
 						 "Timestamp: %" PRIu32,
-						 event.data.touch.touch_pad, event.data.touch.type,
+						 event.data.touch.pad, event.data.touch.type,
 						 event.timestamp);
 				break;
 
 			default:
 				ESP_LOGW(TAG,
-						 "Integrated Event: UNKNOWN SOURCE (%d), Timestamp: "
+						 "UNKNOWN SOURCE (%d), Timestamp: "
 						 "%" PRIu32,
 						 event.source, event.timestamp);
 				break;
@@ -146,7 +124,7 @@ static void integrated_event_handler_task(void *pvParameters) {
 }
 
 void app_main(void) {
-	esp_log_level_set(TAG, ESP_LOG_INFO);
+	esp_log_level_set(TAG, ESP_LOG_DEBUG);
 
 	// Create Queues
 	button_event_queue =
@@ -159,11 +137,11 @@ void app_main(void) {
 	configASSERT(encoder_event_queue != NULL);
 	ESP_LOGI(TAG, "Encoder event queue created (size: %d)", ENCODER_QUEUE_SIZE);
 
-	touch_button_event_queue =
-		xQueueCreate(TOUCH_BUTTON_QUEUE_SIZE, sizeof(touch_button_event_t));
-	configASSERT(touch_button_event_queue != NULL);
+	touch_event_queue =
+		xQueueCreate(TOUCH_QUEUE_SIZE, sizeof(touch_event_t));
+	configASSERT(touch_event_queue != NULL);
 	ESP_LOGI(TAG, "Touch button event queue created (size: %d)",
-			 TOUCH_BUTTON_QUEUE_SIZE);
+			 TOUCH_QUEUE_SIZE);
 
 	espnow_event_queue =
 		xQueueCreate(ESPNOW_QUEUE_SIZE, sizeof(espnow_event_t));
@@ -172,7 +150,7 @@ void app_main(void) {
 
 	UBaseType_t integrated_queue_len = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE +
 									   ESPNOW_QUEUE_SIZE +
-									   TOUCH_BUTTON_QUEUE_SIZE;
+									   TOUCH_QUEUE_SIZE;
 	integrated_event_queue =
 		xQueueCreate(integrated_queue_len, sizeof(integrated_event_t));
 	configASSERT(integrated_event_queue != NULL);
@@ -205,24 +183,27 @@ void app_main(void) {
 	ESP_LOGI(TAG, "Encoder initialized on pins A: %d, B: %d", ENCODER_PIN_A,
 			 ENCODER_PIN_B);
 
-// Configurar touch button
-touch_button_config_t touch_btn_cfg = {
-    .touch_pad = TOUCH_BUTTON_PIN,
-    .threshold_percent = TOUCH_THRESHOULD,
-    .debounce_ms = TOUCH_DEBOUNCE_MS,
-    .long_press_ms = TOUCH_HOLD_PRESS_MS,
-    .hold_repeat_ms = TOUCH_HOLD_REPEAT_MS,              // Repetir TOUCH_LONG_PRESS a cada 200ms
-    .sample_interval_ms = TOUCH_SAMPLE_INTERVAL
-};
-	touch_button_t *touch_button_handle =
-		touch_button_create(&touch_btn_cfg, touch_button_event_queue);
-	configASSERT(touch_button_handle != NULL);
-	ESP_LOGI(TAG, "Touch button initialized on pad %d", TOUCH_BUTTON_PIN);
+// Initialize Touch
+touch_config_t touch_cfg = {
+        .pad = TOUCH_PAD_PIN,
+        .threshold_percent = TOUCH_THRESHOLD_PERCENT,
+        .debounce_press_ms = TOUCH_DEBOUNCE_PRESS_MS,
+        .debounce_release_ms = TOUCH_DEBOUNCE_RELEASE_MS,
+        .hold_time_ms = TOUCH_HOLD_TIME_MS,
+        .hold_repeat_interval_ms = TOUCH_HOLD_REPEAT_TIME_MS,
+        .recalibration_interval_min = TOUCH_RECALIBRATION_INTERVAL_MIN,
+        .enable_hold_repeat = false
+    };
+
+	touch_t *touch_handle =
+		touch_create(&touch_cfg, touch_event_queue);
+	configASSERT(touch_handle != NULL);
+	ESP_LOGI(TAG, "Touch button initialized on pad %d", TOUCH_PAD_PIN);
 
 	// Initialize Input Integrator
 	queue_manager = init_queue_manager(
 		button_event_queue, encoder_event_queue, espnow_event_queue,
-		touch_button_event_queue, integrated_event_queue);
+		touch_event_queue, integrated_event_queue);
 	configASSERT(queue_manager.queue_set != NULL);
 	ESP_LOGI(TAG, "Input integrator initialized.");
 
@@ -242,7 +223,4 @@ touch_button_config_t touch_btn_cfg = {
 			 TASK_STACK_SIZE_INTEGRATOR, TASK_STACK_SIZE_HANDLER);
 	ESP_LOGI(TAG, "Test main setup complete. Monitoring events...");
 
-	// No final do app_main(), criar a task handler:
-	xTaskCreate(touch_button_handler_task, "touch_handler", 2048, NULL, 4,
-				NULL);
 }

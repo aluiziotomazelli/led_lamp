@@ -53,7 +53,7 @@ void integrator_task(void *pvParameters) {
 				xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
 			}
 		} else if (active_queue == qm->touch_queue) {
-			touch_button_event_t touch_evt;
+			touch_event_t touch_evt;
 			if (xQueueReceive(qm->touch_queue, &touch_evt, 0) == pdTRUE) {
 				event.source = EVENT_SOURCE_TOUCH;
 				event.timestamp = xTaskGetTickCount();
@@ -80,7 +80,7 @@ queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
 		return qm;
 	}
 
-	UBaseType_t queue_size = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE + TOUCH_BUTTON_QUEUE_SIZE;
+	UBaseType_t queue_size = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE;
 
 	qm.queue_set = xQueueCreateSet(queue_size);
 	if (qm.queue_set == NULL) {

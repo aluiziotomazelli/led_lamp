@@ -20,18 +20,20 @@
 #define TOUCH_BUTTON_TASK_STACK_SIZE 2048
 
 // Touch Button Configuration
-#define TOUCH_BUTTON_PIN TOUCH_PAD_NUM0    // GPIO4
-#define TOUCH_THRESHOULD 0.6f
-#define TOUCH_BUTTON_QUEUE_SIZE 10
-#define TOUCH_BUTTON_TASK_STACK_SIZE 2048
+#define TOUCH_PAD_PIN TOUCH_PAD_NUM0    // GPIO4
+#define TOUCH_THRESHOLD_PERCENT 60
+
+#define TOUCH_QUEUE_SIZE 5
+#define TOUCH_TASK_STACK_SIZE 2048
 
 // Touch Button Timing (opcional - valores padrão serão usados se não definidos)
-#define TOUCH_DEBOUNCE_MS       50    // Debounce time
-#define TOUCH_HOLD_PRESS_MS     1000  // Long press time
-#define TOUCH_HOLD_REPEAT_MS    300  // Long press time
+#define TOUCH_DEBOUNCE_PRESS_MS       20    // Debounce time
+#define TOUCH_DEBOUNCE_RELEASE_MS 20
+#define TOUCH_HOLD_TIME_MS 1000         // 1 segundo para considerar HOLD
+#define TOUCH_HOLD_REPEAT_TIME_MS 200         // 1 segundo para considerar HOLD
 
 #define TOUCH_SAMPLE_INTERVAL   100   // Sample interval
-#define TOUCH_RECALIBRATION_INTERVAL_MIN 10 //tempo em minutos
+#define TOUCH_RECALIBRATION_INTERVAL_MIN 1 //tempo em minutos
 
 // Bot]ao físico
 #define DEBOUNCE_PRESS_MS 50

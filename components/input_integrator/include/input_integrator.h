@@ -7,7 +7,7 @@
 #include "freertos/queue.h"
 #include "button.h"
 #include "encoder.h"
-#include "touch_button.h"
+#include "touch.h"
 
 typedef struct {
     unsigned char mac_addr[6];
@@ -29,7 +29,7 @@ typedef struct {
         button_event_t button;
         encoder_event_t encoder;
         espnow_event_t espnow;
-        touch_button_event_t touch;
+        touch_event_t touch;
     } data;
 } integrated_event_t;
 

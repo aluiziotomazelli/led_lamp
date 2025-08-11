@@ -1,11 +1,11 @@
 #include "button.h"
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/task.h"
 #include "hal/gpio_types.h"
 #include "project_config.h"
 
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 static const char *TAG = "Button";
 
 // Estado do botão
