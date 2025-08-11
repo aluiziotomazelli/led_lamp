@@ -19,9 +19,19 @@
 #define ENCODER_TASK_STACK_SIZE 3072
 #define TOUCH_BUTTON_TASK_STACK_SIZE 2048
 
-#define TOUCH_BUTTON_PIN 4
+// Touch Button Configuration
+#define TOUCH_BUTTON_PIN TOUCH_PAD_NUM0    // GPIO4
+#define TOUCH_THRESHOULD 0.6f
+#define TOUCH_BUTTON_QUEUE_SIZE 10
+#define TOUCH_BUTTON_TASK_STACK_SIZE 2048
 
-#define TOUCH_BUTTON_QUEUE_SIZE 5
+// Touch Button Timing (opcional - valores padrão serão usados se não definidos)
+#define TOUCH_DEBOUNCE_MS       50    // Debounce time
+#define TOUCH_HOLD_PRESS_MS     1000  // Long press time
+#define TOUCH_HOLD_REPEAT_MS    300  // Long press time
+
+#define TOUCH_SAMPLE_INTERVAL   100   // Sample interval
+
 
 #define DEBOUNCE_PRESS_MS 50
 #define DEBOUNCE_RELEASE_MS 30
