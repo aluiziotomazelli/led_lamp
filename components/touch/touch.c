@@ -43,6 +43,8 @@ struct touch_s {
 	uint16_t recalibration_interval_ms;
 	bool is_recalibrating; // Flag para indicar recalibração em andamento
 
+	bool is_pressed;
+
 	QueueHandle_t output_queue;
 	TaskHandle_t task_handle;
 };
@@ -63,31 +65,33 @@ static void IRAM_ATTR touch_isr_handler(void *arg) {
 }
 
 static void touch_recalibrate(touch_t *touch_handle) {
-        touch_handle->is_recalibrating = true;
-        ESP_LOGI(TAG, "Starting recalibration - pad %d (blocking touch)", touch_handle->pad);
-        
-        // Desabilita interrupções durante a recalibração
-        touch_pad_intr_disable();
-        
-        uint32_t sum = 0;
-        const uint8_t samples = 5;
-        for (int i = 0; i < samples; i++) {
-            uint16_t sample;
-            touch_pad_read_raw_data(touch_handle->pad, &sample);
-            sum += sample;
-            vTaskDelay(pdMS_TO_TICKS(10));
-        }
-        
-        touch_handle->baseline = sum / samples;
-        uint16_t threshold = touch_handle->baseline - 
-                           (touch_handle->baseline * touch_handle->threshold_percent / 100);
-        touch_pad_set_thresh(touch_handle->pad, threshold);
-        
-        // Reabilita interrupções
-        touch_pad_intr_enable();
-        
-        ESP_LOGI(TAG, "Recalibration complete - pad %d", touch_handle->pad);
-        touch_handle->is_recalibrating = false;
+	touch_handle->is_recalibrating = true;
+	ESP_LOGI(TAG, "Starting recalibration - pad %d (blocking touch)",
+			 touch_handle->pad);
+
+	// Desabilita interrupções durante a recalibração
+	touch_pad_intr_disable();
+
+	uint32_t sum = 0;
+	const uint8_t samples = 5;
+	for (int i = 0; i < samples; i++) {
+		uint16_t sample;
+		touch_pad_read_raw_data(touch_handle->pad, &sample);
+		sum += sample;
+		vTaskDelay(pdMS_TO_TICKS(10));
+	}
+
+	touch_handle->baseline = sum / samples;
+	uint16_t threshold =
+		touch_handle->baseline -
+		(touch_handle->baseline * touch_handle->threshold_percent / 100);
+	touch_pad_set_thresh(touch_handle->pad, threshold);
+
+	// Reabilita interrupções
+	touch_pad_intr_enable();
+
+	ESP_LOGI(TAG, "Recalibration complete - pad %d", touch_handle->pad);
+	touch_handle->is_recalibrating = false;
 }
 
 // Main state machine logic
@@ -98,13 +102,13 @@ static touch_event_type_t touch_get_event(touch_t *touch_handle) {
 	touch_pad_read_raw_data(touch_handle->pad, &touch_value);
 
 	// Check if the pad is currently "pressed" based on the threshold
-	bool is_pressed =
+	touch_handle->is_pressed =
 		(touch_handle->baseline - touch_value) >
 		(touch_handle->baseline * touch_handle->threshold_percent / 100);
 
 	switch (touch_handle->state) {
 	case TOUCH_WAIT_FOR_PRESS:
-		if (is_pressed) {
+		if (touch_handle->is_pressed) {
 			touch_handle->press_start_time_ms = now;
 			touch_handle->state = TOUCH_DEBOUNCE_PRESS;
 			ESP_LOGD("FSM", "DEBOUNCE_PRESS (Pad: %" PRIu32 ")",
@@ -115,7 +119,7 @@ static touch_event_type_t touch_get_event(touch_t *touch_handle) {
 	case TOUCH_DEBOUNCE_PRESS:
 		if (now - touch_handle->press_start_time_ms >
 			touch_handle->debounce_press_ms) {
-			if (is_pressed) {
+			if (touch_handle->is_pressed) {
 				touch_handle->state = TOUCH_WAIT_FOR_RELEASE_OR_HOLD;
 				ESP_LOGD("FSM", "WAIT_FOR_RELEASE_OR_HOLD (Pad: %" PRIu32 ")",
 						 (uint32_t)touch_handle->pad);
@@ -132,7 +136,7 @@ static touch_event_type_t touch_get_event(touch_t *touch_handle) {
 		break;
 
 	case TOUCH_WAIT_FOR_RELEASE_OR_HOLD:
-		if (!is_pressed) {
+		if (!touch_handle->is_pressed) {
 			uint32_t duration = now - touch_handle->press_start_time_ms;
 
 			if (duration < touch_handle->hold_time_ms) {
@@ -166,74 +170,86 @@ static touch_event_type_t touch_get_event(touch_t *touch_handle) {
 	case TOUCH_DEBOUNCE_RELEASE:
 		if (now - touch_handle->last_time_ms >
 			touch_handle->debounce_release_ms) {
-			if (!is_pressed) {
-				touch_handle->state = TOUCH_WAIT_FOR_PRESS;
-				if (!touch_handle
-						 ->hold_generated) { // Só envia PRESS se não foi HOLD
-					return TOUCH_PRESS;
-				}
-			} else {
-				// Press again too soon
-				touch_handle->state = TOUCH_WAIT_FOR_PRESS;
-			}
+			touch_handle->state = TOUCH_WAIT_FOR_PRESS;
 			touch_handle->hold_generated = false; // Reseta a flag
+			// Não retornamos PRESS aqui, pois já foi retornado na transição
+			// anterior
 		}
 		break;
 	}
+	//	case TOUCH_DEBOUNCE_RELEASE:
+	//		if (now - touch_handle->last_time_ms >
+	//			touch_handle->debounce_release_ms) {
+	//			if (!touch_handle->is_pressed) {
+	//				touch_handle->state = TOUCH_WAIT_FOR_PRESS;
+	//				if (!touch_handle
+	//						 ->hold_generated) { // Só envia PRESS se não foi
+	//HOLD 					return TOUCH_PRESS;
+	//				}
+	//			} else {
+	//				// Press again too soon
+	//				touch_handle->state = TOUCH_WAIT_FOR_PRESS;
+	//			}
+	//			touch_handle->hold_generated = false; // Reseta a flag
+	//		}
+	//		break;
+	//	}
 	return TOUCH_NONE;
 }
 
 // Individual task for each touch button
 static void touch_task(void *param) {
-    touch_t *touch_handle = (touch_t *)param;
-    const TickType_t xMaxBlockTime = pdMS_TO_TICKS(100);
-    uint32_t last_wake_time = xTaskGetTickCount();
-    
-    while (1) {
-        // 1. Verificação periódica de recalibração
-        uint32_t now = get_current_time_ms();
-        if (now - touch_handle->last_recalibration_ms > touch_handle->recalibration_interval_ms) {
-            touch_recalibrate(touch_handle);
-            touch_handle->last_recalibration_ms = now;
-        }
+	touch_t *touch_handle = (touch_t *)param;
+	const TickType_t xMaxBlockTime = pdMS_TO_TICKS(100);
+	uint32_t last_wake_time = xTaskGetTickCount();
 
-        // 2. Espera por notificação (ISR ou timeout)
-        uint32_t notification_value = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
-        
-        if (notification_value > 0) {
-            ESP_LOGD(TAG, "Processing touch event for pad %d", touch_handle->pad);
-            
-            // Processamento do toque
-            touch_pad_intr_disable();
-            bool event_processed = false;
-            
-            do {
-                touch_event_type_t event_type = touch_get_event(touch_handle);
-                
-                if (event_type != TOUCH_NONE) {
-                    touch_event_t local_event = {
-                        .type = event_type,
-                        .pad = touch_handle->pad
-                    };
-                    
-                    if (xQueueSend(touch_handle->output_queue, &local_event, 
-                                 pdMS_TO_TICKS(10)) == pdPASS) {
-                        ESP_LOGI(TAG, "Touch event %d sent for pad %d", 
-                               event_type, touch_handle->pad);
-                        event_processed = true;
-                    } else {
-                        ESP_LOGW(TAG, "Failed to send event %d for pad %d",
-                               event_type, touch_handle->pad);
-                    }
-                }
-                vTaskDelay(pdMS_TO_TICKS(1)); // Pequeno delay para evitar busy-wait
-            } while (!event_processed);
-            
-            touch_pad_intr_enable();
-        }
+	while (1) {	
+		// 1. Verificação periódica de recalibração
+		uint32_t now = get_current_time_ms();
+		if (!touch_handle->is_pressed &&
+			(now - touch_handle->last_recalibration_ms >
+			 touch_handle->recalibration_interval_ms)) {
+			touch_recalibrate(touch_handle);
+			touch_handle->last_recalibration_ms = now;
+		}
 
-        vTaskDelayUntil(&last_wake_time, xMaxBlockTime);
-    }
+		// 2. Espera por notificação (ISR ou timeout)
+		uint32_t notification_value = ulTaskNotifyTake(pdTRUE, xMaxBlockTime);
+
+		if (notification_value > 0 && !touch_handle->is_recalibrating) {
+			ESP_LOGD(TAG, "Processing touch event for pad %d",
+					 touch_handle->pad);
+
+			// Processamento do toque
+			touch_pad_intr_disable();
+			bool event_processed = false;
+
+			do {
+				touch_event_type_t event_type = touch_get_event(touch_handle);
+
+				if (event_type != TOUCH_NONE) {
+					touch_event_t local_event = {.type = event_type,
+												 .pad = touch_handle->pad};
+
+					if (xQueueSend(touch_handle->output_queue, &local_event,
+								   pdMS_TO_TICKS(10)) == pdPASS) {
+						ESP_LOGI(TAG, "Touch event %d sent for pad %d",
+								 event_type, touch_handle->pad);
+						event_processed = true;
+					} else {
+						ESP_LOGW(TAG, "Failed to send event %d for pad %d",
+								 event_type, touch_handle->pad);
+					}
+				}
+				vTaskDelay(
+					pdMS_TO_TICKS(10)); // Pequeno delay para evitar busy-wait
+			} while (!event_processed);
+
+			touch_pad_intr_enable();
+		}
+
+		vTaskDelayUntil(&last_wake_time, xMaxBlockTime);
+	}
 }
 
 // Function to create a new touch button instance
