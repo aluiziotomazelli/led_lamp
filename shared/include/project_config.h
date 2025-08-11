@@ -31,8 +31,9 @@
 #define TOUCH_HOLD_REPEAT_MS    300  // Long press time
 
 #define TOUCH_SAMPLE_INTERVAL   100   // Sample interval
+#define TOUCH_RECALIBRATION_INTERVAL_MIN 10 //tempo em minutos
 
-
+// Bot]ao físico
 #define DEBOUNCE_PRESS_MS 50
 #define DEBOUNCE_RELEASE_MS 30
 #define DOUBLE_CLICK_MS 180
