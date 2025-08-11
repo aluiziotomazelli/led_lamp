@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "driver/touch_pad.h"
+#include "driver/touch_sens_types.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 

@@ -1,49 +1,45 @@
 #include "touch_button.h"
 #include "esp_log.h"
 #include "freertos/task.h"
-#include "driver/touch_pad.h"
+#include "driver/touch_sens.h" // Use the new touch sensor driver
 #include "project_config.h"
+#include <inttypes.h>
 
 #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 static const char *TAG = "TouchButton";
 
 // Internal structure for a touch button
 struct touch_button_s {
-    touch_pad_t touch_pad;
-    uint16_t threshold;
+    touch_sensor_handle_t sens_handle;
+    touch_channel_handle_t chan_handle;
+    touch_pad_t touch_pad_num;
     QueueHandle_t output_queue;
-    TaskHandle_t task_handle;
 };
 
-static void touch_button_task(void *param) {
-    touch_button_t *btn = (touch_button_t *)param;
-    bool pressed = false;
-    uint32_t touch_value;
-
-    while (1) {
-        // Read the touch sensor value
-        touch_pad_read_filtered(btn->touch_pad, &touch_value);
-
-        if (touch_value < btn->threshold && !pressed) {
-            pressed = true;
-            touch_button_event_t event = {
-                .type = TOUCH_BUTTON_PRESS,
-                .touch_pad = btn->touch_pad
-            };
-            xQueueSend(btn->output_queue, &event, pdMS_TO_TICKS(10));
-            ESP_LOGD(TAG, "Touch pad %d pressed, value: %d, threshold: %d", btn->touch_pad, touch_value, btn->threshold);
-        } else if (touch_value > btn->threshold && pressed) {
-            pressed = false;
-            touch_button_event_t event = {
-                .type = TOUCH_BUTTON_RELEASE,
-                .touch_pad = btn->touch_pad
-            };
-            xQueueSend(btn->output_queue, &event, pdMS_TO_TICKS(10));
-            ESP_LOGD(TAG, "Touch pad %d released, value: %d, threshold: %d", btn->touch_pad, touch_value, btn->threshold);
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(50)); // Check every 50ms
+// Callback triggered when a touch pad is activated (pressed)
+static bool touch_on_active_cb(touch_sensor_handle_t sens_handle, const touch_active_event_data_t *event, void *user_ctx) {
+    touch_button_t *btn = (touch_button_t *)user_ctx;
+    if (btn && event->chan_id == btn->touch_pad_num) {
+        touch_button_event_t evt = {
+            .type = TOUCH_BUTTON_PRESS,
+            .touch_pad = btn->touch_pad_num
+        };
+        xQueueSend(btn->output_queue, &evt, 0);
     }
+    return false;
+}
+
+// Callback triggered when a touch pad is deactivated (released)
+static bool touch_on_inactive_cb(touch_sensor_handle_t sens_handle, const touch_inactive_event_data_t *event, void *user_ctx) {
+    touch_button_t *btn = (touch_button_t *)user_ctx;
+    if (btn && event->chan_id == btn->touch_pad_num) {
+        touch_button_event_t evt = {
+            .type = TOUCH_BUTTON_RELEASE,
+            .touch_pad = btn->touch_pad_num
+        };
+        xQueueSend(btn->output_queue, &evt, 0);
+    }
+    return false;
 }
 
 touch_button_t *touch_button_create(const touch_button_config_t* config, QueueHandle_t output_queue) {
@@ -54,53 +50,73 @@ touch_button_t *touch_button_create(const touch_button_config_t* config, QueueHa
 
     touch_button_t *btn = calloc(1, sizeof(touch_button_t));
     if (!btn) {
-        ESP_LOGE(TAG, "Failed to allocate memory");
+        ESP_LOGE(TAG, "Failed to allocate memory for button struct");
         return NULL;
     }
 
-    btn->touch_pad = config->touch_pad;
     btn->output_queue = output_queue;
+    btn->touch_pad_num = config->touch_pad;
 
-    // Initialize touch pad driver
-    ESP_ERROR_CHECK(touch_pad_init());
-    touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
-    touch_pad_config(btn->touch_pad, 0);
+    // --- Start of new driver initialization ---
 
-    // Filter configuration
-    touch_filter_config_t filter_info = {
-        .mode = TOUCH_PAD_FILTER_IIR_16,
-        .debounce_cnt = 1,      // Debounce counter
-        .noise_thr = 0,         // Noise threshold
-        .jitter_step = 4,       // Jitter filter step
-        .smh_lvl = TOUCH_PAD_SMOOTH_IIR_2,
+    // 1. Create a new controller
+    touch_sensor_config_t touch_cfg = TOUCH_SENSOR_DEFAULT_BASIC_CONFIG(1, NULL);
+    ESP_ERROR_CHECK(touch_sensor_new_controller(&touch_cfg, &btn->sens_handle));
+
+    // 2. Get an initial reading to set the threshold
+    // To do this, we need a temporary channel config, then we'll reconfigure it with the threshold
+    touch_channel_config_t chan_cfg_temp = {
+        .charge_speed = TOUCH_CHARGE_SPEED_7,
+        .init_charge_volt = TOUCH_INIT_VOLT_HIGH,
+        .abs_active_thresh[0] = 0 // No threshold initially
     };
-    touch_pad_filter_set_config(&filter_info);
-    touch_pad_filter_enable();
+    ESP_ERROR_CHECK(touch_sensor_new_channel(btn->sens_handle, config->touch_pad, &chan_cfg_temp, &btn->chan_handle));
 
+    // Enable controller to take a reading
+    ESP_ERROR_CHECK(touch_sensor_enable(btn->sens_handle));
 
-    // Calibrate baseline
-    vTaskDelay(pdMS_TO_TICKS(100)); // Wait for touch pad to stabilize
-    uint32_t touch_value_initial = 0;
-    touch_pad_read_filtered(btn->touch_pad, &touch_value_initial);
-    btn->threshold = (uint16_t)(touch_value_initial * config->threshold_percent);
-    ESP_LOGI(TAG, "Touch pad %d initialized. Initial value: %d, Threshold: %d", btn->touch_pad, touch_value_initial, btn->threshold);
+    // Trigger a one-shot scan to get a baseline value
+    uint32_t initial_value[1] = {0};
+    ESP_ERROR_CHECK(touch_sensor_trigger_oneshot_scanning(btn->sens_handle, -1)); // Wait forever
+    ESP_ERROR_CHECK(touch_channel_read_data(btn->chan_handle, TOUCH_CHAN_DATA_TYPE_RAW, initial_value));
 
+    uint32_t threshold = (uint32_t)(initial_value[0] * config->threshold_percent);
+    ESP_LOGI(TAG, "Touch pad %d initialized. Initial value: %" PRIu32 ", Threshold: %" PRIu32, config->touch_pad, initial_value[0], threshold);
 
-    BaseType_t res = xTaskCreate(touch_button_task, "touch_button_task", TOUCH_BUTTON_TASK_STACK_SIZE, btn, 5, &btn->task_handle);
-    if (res != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create touch button task");
-        free(btn);
-        return NULL;
-    }
+    // Now disable and reconfigure the channel with the correct threshold
+    ESP_ERROR_CHECK(touch_sensor_disable(btn->sens_handle));
+    touch_channel_config_t chan_cfg_final = {
+        .charge_speed = TOUCH_CHARGE_SPEED_7,
+        .init_charge_volt = TOUCH_INIT_VOLT_HIGH,
+        .abs_active_thresh[0] = threshold
+    };
+    ESP_ERROR_CHECK(touch_sensor_reconfig_channel(btn->chan_handle, &chan_cfg_final));
 
+    // 3. Configure the software filter
+    touch_sensor_filter_config_t filter_config = TOUCH_SENSOR_DEFAULT_FILTER_CONFIG();
+    ESP_ERROR_CHECK(touch_sensor_config_filter(btn->sens_handle, &filter_config));
+
+    // 4. Register callbacks
+    touch_event_callbacks_t callbacks = {
+        .on_active = touch_on_active_cb,
+        .on_inactive = touch_on_inactive_cb
+    };
+    ESP_ERROR_CHECK(touch_sensor_register_callbacks(btn->sens_handle, &callbacks, btn));
+
+    // 5. Enable the controller again and start scanning
+    ESP_ERROR_CHECK(touch_sensor_enable(btn->sens_handle));
+    ESP_ERROR_CHECK(touch_sensor_start_continuous_scanning(btn->sens_handle));
+
+    ESP_LOGI(TAG, "Touch button created on pad %d", config->touch_pad);
     return btn;
 }
 
 void touch_button_delete(touch_button_t *btn) {
     if (btn) {
-        if (btn->task_handle) {
-            vTaskDelete(btn->task_handle);
-        }
+        ESP_ERROR_CHECK(touch_sensor_stop_continuous_scanning(btn->sens_handle));
+        ESP_ERROR_CHECK(touch_sensor_disable(btn->sens_handle));
+        ESP_ERROR_CHECK(touch_sensor_del_channel(btn->chan_handle));
+        ESP_ERROR_CHECK(touch_sensor_del_controller(btn->sens_handle));
         free(btn);
     }
 }
