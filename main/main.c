@@ -33,6 +33,13 @@ queue_manager_t queue_manager;
 // Implement integrated_event_handler_task
 static void integrated_event_handler_task(void *pvParameters) {
 	integrated_event_t event;
+	
+	// Inicializa o LED (GPIO2)
+    const int LED_GPIO = 2;
+    gpio_reset_pin(LED_GPIO);
+    gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_level(LED_GPIO, 0); // Inicia desligado
+    
 	while (1) {
 		if (xQueueReceive(integrated_event_queue, &event, portMAX_DELAY) ==
 			pdTRUE) {
@@ -72,10 +79,17 @@ static void integrated_event_handler_task(void *pvParameters) {
 				// Processamento específico para touch events
 				switch (event.data.touch.type) {
 				case TOUCH_PRESS:
+				
+				
 					ESP_LOGI(TAG,  
 							 "Touch press on pad %d (via integrator)",
 							 event.data.touch.pad);
 					// Sua lógica para toque simples aqui
+					static bool led_state = false;
+                    led_state = !led_state; // Alterna estado
+                    gpio_set_level(LED_GPIO, led_state);
+                    ESP_LOGI(TAG, "LED %s", led_state ? "LIGADO" : "DESLIGADO");
+					
 					break;
 
 				case TOUCH_HOLD:
@@ -83,6 +97,15 @@ static void integrated_event_handler_task(void *pvParameters) {
 							 "Touch hold press on pad %d (via integrator)",
 							 event.data.touch.pad);
 					// Sua lógica para toque longo aqui (ex: aumentar brilho)
+					// --- NOVO: Piscar LED 3x para toque longo ---
+                    for (int i = 0; i < 3; i++) {
+                        gpio_set_level(LED_GPIO, 1);
+                        vTaskDelay(pdMS_TO_TICKS(200));
+                        gpio_set_level(LED_GPIO, 0);
+                        vTaskDelay(pdMS_TO_TICKS(200));
+                    }
+                    ESP_LOGI(TAG, "LED piscou 3x");
+					
 					break;
 //				case TOUCH_HOLD_REPEAT:
 //					ESP_LOGI("Integrated Event: TOUCH",
