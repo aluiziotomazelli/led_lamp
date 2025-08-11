@@ -1,7 +1,7 @@
 #include "touch_button.h"
 #include "esp_log.h"
 #include "freertos/task.h"
-#include "driver/touch_sens.h" // Use the new touch sensor driver
+#include "driver/touch_sensor.h" // Use the new touch sensor driver
 #include "project_config.h"
 #include <inttypes.h>
 
