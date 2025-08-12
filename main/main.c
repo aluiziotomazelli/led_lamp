@@ -98,13 +98,9 @@ static void integrated_event_handler_task(void *pvParameters) {
 							 event.data.touch.pad);
 					// Sua lógica para toque longo aqui (ex: aumentar brilho)
 					// --- NOVO: Piscar LED 3x para toque longo ---
-                    for (int i = 0; i < 3; i++) {
-                        gpio_set_level(LED_GPIO, 1);
-                        vTaskDelay(pdMS_TO_TICKS(200));
-                        gpio_set_level(LED_GPIO, 0);
-                        vTaskDelay(pdMS_TO_TICKS(200));
-                    }
-                    ESP_LOGI(TAG, "LED piscou 3x");
+                    led_state = !led_state; // Alterna estado
+                    gpio_set_level(LED_GPIO, led_state);
+                    ESP_LOGI(TAG, "LED %s", led_state ? "LIGADO" : "DESLIGADO");
 					
 					break;
 //				case TOUCH_HOLD_REPEAT:
@@ -208,7 +204,7 @@ void app_main(void) {
 
 // Initialize Touch
 touch_config_t touch_cfg = {
-        .pad = TOUCH_PAD_PIN,
+        .pad = TOUCH_PAD1_PIN,
         .threshold_percent = TOUCH_THRESHOLD_PERCENT,
         .debounce_press_ms = TOUCH_DEBOUNCE_PRESS_MS,
         .debounce_release_ms = TOUCH_DEBOUNCE_RELEASE_MS,

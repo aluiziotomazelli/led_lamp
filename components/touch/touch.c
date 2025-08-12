@@ -5,7 +5,7 @@
 #include "freertos/projdefs.h"
 #include "portmacro.h"
 #include <stdint.h>
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "driver/touch_pad.h"
 #include "esp_log.h"
 #include "esp_timer.h"
