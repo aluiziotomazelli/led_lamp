@@ -147,7 +147,7 @@ static void integrated_event_handler_task(void *pvParameters) {
 }
 
 void app_main(void) {
-	esp_log_level_set(TAG, ESP_LOG_DEBUG);
+	esp_log_level_set("Touch", ESP_LOG_DEBUG);
 
 	// Create Queues
 	button_event_queue =
@@ -215,13 +215,13 @@ touch_config_t touch_cfg = {
         .hold_time_ms = TOUCH_HOLD_TIME_MS,
         .hold_repeat_interval_ms = TOUCH_HOLD_REPEAT_TIME_MS,
         .recalibration_interval_min = TOUCH_RECALIBRATION_INTERVAL_MIN,
-        .enable_hold_repeat = false
+        .enable_hold_repeat = true
     };
 
 	touch_t *touch_handle =
 		touch_create(&touch_cfg, touch_event_queue);
 	configASSERT(touch_handle != NULL);
-	ESP_LOGI(TAG, "Touch button initialized on pad %d", TOUCH_PAD_PIN);
+	ESP_LOGI(TAG, "Touch button initialized on pad %d", TOUCH_PAD1_PIN);
 
 	// Initialize Input Integrator
 	queue_manager = init_queue_manager(
