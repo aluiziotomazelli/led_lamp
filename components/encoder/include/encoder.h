@@ -5,38 +5,41 @@
 #include "freertos/queue.h"
 #include "esp_err.h"
 
-// Opaque handle for the encoder component
+/**
+ * @brief Opaque handle for rotary encoder instance
+ */
 typedef struct encoder_s* encoder_handle_t;
 
-// Event structure for encoder output
+/**
+ * @brief Encoder event structure
+ */
 typedef struct {
-    int32_t steps; // Number of steps rotated (positive for CW, negative for CCW)
-    // Future additions: direction, accumulated value, etc.
+    int32_t steps;  ///< Number of steps rotated (positive for CW, negative for CCW)
 } encoder_event_t;
 
-// Configuration structure for encoder creation
+/**
+ * @brief Encoder configuration parameters
+ */
 typedef struct {
-    gpio_num_t pin_a;                   // GPIO pin for phase A
-    gpio_num_t pin_b;                   // GPIO pin for phase B
-    bool half_step_mode;              // True for half-step, false for full-step
-    bool acceleration_enabled;        // True to enable dynamic acceleration
-    uint16_t accel_gap_ms;            // Time (ms) between steps to consider for max acceleration
-    uint8_t accel_max_multiplier;     // Max multiplier for steps when acceleration is active
+    gpio_num_t pin_a;            ///< GPIO pin for encoder channel A
+    gpio_num_t pin_b;            ///< GPIO pin for encoder channel B
+    bool half_step_mode;         ///< True enables higher resolution half-step mode
+    bool acceleration_enabled;   ///< Enable dynamic step acceleration
+    uint16_t accel_gap_ms;       ///< Time threshold (ms) for max acceleration
+    uint8_t accel_max_multiplier; ///< Maximum step multiplier when accelerating
 } encoder_config_t;
 
 /**
- * @brief Create a new encoder instance.
- *
- * @param config Pointer to the encoder configuration structure.
- * @param output_queue Handle to the queue where encoder events will be sent.
- * @return encoder_handle_t Handle to the created encoder, or NULL on failure.
+ * @brief Create a new rotary encoder instance
+ * @param config Encoder configuration parameters
+ * @param output_queue FreeRTOS queue for encoder events
+ * @return encoder_handle_t Encoder instance handle, NULL on failure
  */
 encoder_handle_t encoder_create(const encoder_config_t* config, QueueHandle_t output_queue);
 
 /**
- * @brief Delete an encoder instance and free associated resources.
- *
- * @param enc Handle to the encoder to delete.
- * @return ESP_OK on success, ESP_ERR_INVALID_ARG if enc is NULL.
+ * @brief Delete encoder instance and free resources
+ * @param enc Encoder handle to delete
+ * @return esp_err_t ESP_OK on success, ESP_ERR_INVALID_ARG on invalid handle
  */
 esp_err_t encoder_delete(encoder_handle_t enc);

@@ -24,6 +24,7 @@ set(COMPONENTS
     button
     encoder
     input_integrator
+    touch
 )
 
 # Configuração definitiva
@@ -32,6 +33,7 @@ set(EXTRA_COMPONENT_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/components/button
     ${CMAKE_CURRENT_SOURCE_DIR}/components/input_integrator
     ${CMAKE_CURRENT_SOURCE_DIR}/components/encoder
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/touch
 )
 
 project(app-template)
