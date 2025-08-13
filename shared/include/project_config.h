@@ -14,7 +14,6 @@ extern "C" {
 #define ENCODER_PIN_A        17      			// Rotary encoder channel A
 #define ENCODER_PIN_B        16      			// Rotary encoder channel B
 #define TOUCH_PAD1_PIN       TOUCH_PAD_NUM0  	// GPIO4 for touch button
-#define LED_DATA_PIN	
 
 // ==================================================
 // Queue Configuration
@@ -25,18 +24,16 @@ extern "C" {
 #define ESPNOW_QUEUE_SIZE    10      // ESPNOW message queue size
 #define LED_CMD_QUEUE_SIZE   10
 
-
 // ==================================================
 // Task Configuration
 // ==================================================
 // Stack sizes (in bytes)
-#define BUTTON_TASK_STACK_SIZE   	2044
-#define ENCODER_TASK_STACK_SIZE  	3072
-#define TOUCH_TASK_STACK_SIZE    	2048
-#define ESPNOW_TASK_STACK_SIZE   	4096
-#define FSM_STACK_SIZE           	4096   // Finite State Machine stack
-#define INTEGRATOR_TASK_STACK_SIZE 	4096
-#define LED_CTRL_STACK_SIZE 		4096
+#define BUTTON_TASK_STACK_SIZE   2044
+#define ENCODER_TASK_STACK_SIZE  3072
+#define TOUCH_TASK_STACK_SIZE    2048
+#define ESPNOW_TASK_STACK_SIZE   4096
+#define FSM_STACK_SIZE           4096   // Finite State Machine stack
+#define INTEGRATOR_TASK_STACK_SIZE 4096
 
 // Task priorities
 #define BUTTON_TASK_PRIORITY     10
@@ -45,13 +42,6 @@ extern "C" {
 #define ESPNOW_TASK_PRIORITY     10
 #define FSM_TASK_PRIORITY         5
 #define INTEGRATOR_TASK_PRIORITY  5
-#define LED_CTRL_TASK_PRIORITY 	  5
-
-// ==================================================
-// LED STRIP CONFIGURATION
-// ==================================================
-#define NUM_LEDS 		10
-
 
 // ==================================================
 // Touch Button Configuration
@@ -84,6 +74,11 @@ extern "C" {
 // ==================================================
 #define FSM_TIMEOUT_MS         100     // Default state timeout
 #define FSM_MODE_TIMEOUT_MS   30000    // Mode change timeout (30s)
+
+// ==================================================
+// LED Controller Configuration
+// ==================================================
+#define NUM_LEDS 60 // Number of LEDs in the strip
 
 // ==================================================
 // System Assertion Configuration
