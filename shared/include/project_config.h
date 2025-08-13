@@ -22,6 +22,7 @@ extern "C" {
 #define ENCODER_QUEUE_SIZE   10      // Encoder event queue size
 #define TOUCH_QUEUE_SIZE      5      // Touch event queue size
 #define ESPNOW_QUEUE_SIZE    10      // ESPNOW message queue size
+#define LED_CMD_QUEUE_SIZE   10
 
 // ==================================================
 // Task Configuration
@@ -32,13 +33,15 @@ extern "C" {
 #define TOUCH_TASK_STACK_SIZE    2048
 #define ESPNOW_TASK_STACK_SIZE   4096
 #define FSM_STACK_SIZE           4096   // Finite State Machine stack
+#define INTEGRATOR_TASK_STACK_SIZE 4096
 
 // Task priorities
 #define BUTTON_TASK_PRIORITY     10
 #define ENCODER_TASK_PRIORITY    10
 #define TOUCH_TASK_PRIORITY      10
 #define ESPNOW_TASK_PRIORITY     10
-#define FSM_PRIORITY              5
+#define FSM_TASK_PRIORITY         5
+#define INTEGRATOR_TASK_PRIORITY  5
 
 // ==================================================
 // Touch Button Configuration
