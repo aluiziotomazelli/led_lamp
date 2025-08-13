@@ -14,6 +14,7 @@
 #include "esp_system.h"
 #include "fsm.h" // FSM incremental
 #include "led_controller.h"
+#include "led_driver.h"
 
 static const char *TAG = "main";
 
@@ -119,6 +120,10 @@ void app_main(void) {
     led_strip_queue = led_controller_init(led_cmd_queue);
     configASSERT(led_strip_queue != NULL);
     ESP_LOGI(TAG, "Real LED Controller initialized.");
+
+    // Inicializa o LED Driver
+    led_driver_init(led_strip_queue);
+    ESP_LOGI(TAG, "LED Driver initialized.");
 
 	// Criação das tasks
 	BaseType_t task_created;

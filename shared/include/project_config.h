@@ -14,7 +14,6 @@ extern "C" {
 #define ENCODER_PIN_A        17      			// Rotary encoder channel A
 #define ENCODER_PIN_B        16      			// Rotary encoder channel B
 #define TOUCH_PAD1_PIN       TOUCH_PAD_NUM0  	// GPIO4 for touch button
-#define LED_DATA_PIN
 
 // ==================================================
 // Queue Configuration
@@ -82,6 +81,15 @@ extern "C" {
 // LED Controller Configuration
 // ==================================================
 #define NUM_LEDS 60 // Number of LEDs in the strip
+
+// ==================================================
+// LED Driver Configuration
+// ==================================================
+#define LED_STRIP_GPIO              2        // GPIO for the LED strip data line
+#define LED_STRIP_SPI_HOST          SPI2_HOST // SPI host for the LED strip
+#define LED_DRIVER_TASK_STACK_SIZE  4096     // Stack size for the LED driver task
+#define LED_DRIVER_TASK_PRIORITY    5        // Priority for the LED driver task
+
 
 // ==================================================
 // System Assertion Configuration
