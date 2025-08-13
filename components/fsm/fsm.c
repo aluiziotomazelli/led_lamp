@@ -59,90 +59,128 @@ static void send_led_command(led_cmd_type_t cmd, uint32_t timestamp,
  * @return True if event should be processed
  */
 static bool process_button_event(const button_event_t *button_evt,
-								 uint32_t timestamp) {
-	switch (button_evt->type) {
-	case BUTTON_CLICK:
-		if (fsm_state == MODE_OFF) {
-			fsm_state = MODE_DISPLAY;
-			send_led_command(LED_CMD_TURN_ON, timestamp, 0);
-			ESP_LOGI(TAG, "MODE_OFF -> MODE_DISPLAY (button click)");
-		} else if (fsm_state == MODE_DISPLAY) {
-			fsm_state = MODE_OFF;
-			send_led_command(LED_CMD_TURN_OFF, timestamp, 0);
-			ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_OFF (button click)");
-		} else if (fsm_state == MODE_EFFECT_SELECT) {
-			fsm_state = MODE_DISPLAY;
-			send_led_command(LED_CMD_SET_EFFECT, timestamp, 0);
-			ESP_LOGI(TAG,
-					 "MODE_EFFECT_SELECT -> MODE_DISPLAY (effect selected)");
-		} else if (fsm_state == MODE_EFFECT_SETUP) {
-			send_led_command(LED_CMD_NEXT_EFFECT_PARAM, timestamp, 0);
-			ESP_LOGI(TAG, "MODE_EFFECT_SETUP Next Param");
-		} else if (fsm_state == MODE_SYSTEM_SETUP) {
-			send_led_command(LED_CMD_NEXT_SYSTEM_PARAM, timestamp, 0);
-			ESP_LOGI(TAG, "MODE_SYSTEM_SETUP Next Param");
-		}
-		return true;
+                                uint32_t timestamp) {
+    switch (fsm_state) {
+        case MODE_OFF:
+            switch (button_evt->type) {
+                case BUTTON_CLICK:
+                    fsm_state = MODE_DISPLAY;
+                    send_led_command(LED_CMD_TURN_ON, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_OFF -> MODE_DISPLAY (button click)");
+                    return true;
+                case BUTTON_LONG_CLICK:
+                    fsm_state = MODE_DISPLAY;
+                    send_led_command(LED_CMD_TURN_ON_FADE, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_OFF -> MODE_DISPLAY_FADE (long click)");
+                    return true;
+                default:
+                    return false;
+            }
 
-	case BUTTON_DOUBLE_CLICK:
-		if (fsm_state == MODE_DISPLAY) {
-			fsm_state = MODE_EFFECT_SELECT;
-			ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SELECT");
-		} else if (fsm_state == MODE_EFFECT_SELECT ||
-				   fsm_state == MODE_EFFECT_SETUP ||
-				   fsm_state == MODE_SYSTEM_SETUP) {
-			send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0);
-			fsm_state = MODE_DISPLAY;
-			if (fsm_state == MODE_EFFECT_SELECT) {
-				ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (cancelled)");
-			} else if (fsm_state == MODE_EFFECT_SETUP) {
-				ESP_LOGI(TAG,
-						 "MODE_MODE_EFFECT_SETUP -> MODE_DISPLAY (cancelled)");
-			} else if (fsm_state == MODE_SYSTEM_SETUP) {
-				ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (cancelled)");
-			}
-		}
-		return true;
+        case MODE_DISPLAY:
+            switch (button_evt->type) {
+                case BUTTON_CLICK:
+                    fsm_state = MODE_OFF;
+                    send_led_command(LED_CMD_TURN_OFF, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_OFF (button click)");
+                    return true;
+                case BUTTON_DOUBLE_CLICK:
+                    fsm_state = MODE_EFFECT_SELECT;
+                    ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SELECT");
+                    return true;
+                case BUTTON_LONG_CLICK:
+                    fsm_state = MODE_EFFECT_SETUP;
+                    ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SETUP");
+                    return true;
+                case BUTTON_VERY_LONG_CLICK:
+                    fsm_state = MODE_SYSTEM_SETUP;
+                    ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_SYSTEM_SETUP");
+                    return true;
+                default:
+                    return false;
+            }
 
-	case BUTTON_LONG_CLICK:
-		if (fsm_state == MODE_OFF) {
-			fsm_state = MODE_DISPLAY;
-			send_led_command(LED_CMD_TURN_ON_FADE, timestamp, 0);
-			ESP_LOGI(TAG, "MODE_OFF -> MODE_DISPLAY_FADE (long click)");
-		} else if (fsm_state == MODE_DISPLAY) {
-			fsm_state = MODE_EFFECT_SETUP;
-			ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SETUP");
-		} else if (fsm_state == MODE_EFFECT_SETUP ||
-				   fsm_state == MODE_SYSTEM_SETUP) {
-			fsm_state = MODE_DISPLAY;
-			send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
-			ESP_LOGI(TAG, "MODE_*_SETUP -> MODE_DISPLAY (saved)");
-		}
-		return true;
+        case MODE_EFFECT_SELECT:
+            switch (button_evt->type) {
+                case BUTTON_CLICK:
+                    fsm_state = MODE_DISPLAY;
+                    send_led_command(LED_CMD_SET_EFFECT, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (effect selected)");
+                    return true;
+                case BUTTON_DOUBLE_CLICK:
+                    send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0);
+                    fsm_state = MODE_DISPLAY;
+                    ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (cancelled)");
+                    return true;
+                case BUTTON_TIMEOUT:
+                    fsm_state = MODE_DISPLAY;
+                    send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (timeout)");
+                    return true;
+                default:
+                    return false;
+            }
 
-	case BUTTON_VERY_LONG_CLICK:
-		if (fsm_state == MODE_DISPLAY) {
-			fsm_state = MODE_SYSTEM_SETUP;
-			ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_SYSTEM_SETUP");
-		}
-		return true;
+        case MODE_EFFECT_SETUP:
+            switch (button_evt->type) {
+                case BUTTON_CLICK:
+                    send_led_command(LED_CMD_NEXT_EFFECT_PARAM, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_EFFECT_SETUP Next Param");
+                    return true;
+                case BUTTON_DOUBLE_CLICK:
+                    send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0);
+                    fsm_state = MODE_DISPLAY;
+                    ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (cancelled)");
+                    return true;
+                case BUTTON_LONG_CLICK:
+                    fsm_state = MODE_DISPLAY;
+                    send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (saved)");
+                    return true;
+                case BUTTON_TIMEOUT:
+                    fsm_state = MODE_DISPLAY;
+                    send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (timeout)");
+                    return true;
+                default:
+                    return false;
+            }
 
-	case BUTTON_TIMEOUT:
-		if (fsm_state == MODE_EFFECT_SELECT || fsm_state == MODE_EFFECT_SETUP ||
-			fsm_state == MODE_SYSTEM_SETUP) {
-			fsm_state = MODE_DISPLAY;
-			send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
-			ESP_LOGI(TAG, "MODE_* -> MODE_DISPLAY (timeout)");
-		}
-		return true;
+        case MODE_SYSTEM_SETUP:
+            switch (button_evt->type) {
+                case BUTTON_CLICK:
+                    send_led_command(LED_CMD_NEXT_SYSTEM_PARAM, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_SYSTEM_SETUP Next Param");
+                    return true;
+                case BUTTON_DOUBLE_CLICK:
+                    send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0);
+                    fsm_state = MODE_DISPLAY;
+                    ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (cancelled)");
+                    return true;
+                case BUTTON_LONG_CLICK:
+                    fsm_state = MODE_DISPLAY;
+                    send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (saved)");
+                    return true;
+                case BUTTON_TIMEOUT:
+                    fsm_state = MODE_DISPLAY;
+                    send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
+                    ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (timeout)");
+                    return true;
+                default:
+                    return false;
+            }
 
-	case BUTTON_NONE_CLICK:
-	case BUTTON_ERROR:
-		send_led_command(LED_CMD_BUTTON_ERROR, timestamp, 0);
-		return true;
-	default:
-		return false;
-	}
+        default:
+            switch (button_evt->type) {
+                case BUTTON_NONE_CLICK:
+                case BUTTON_ERROR:
+                    send_led_command(LED_CMD_BUTTON_ERROR, timestamp, 0);
+                    return true;
+                default:
+                    return false;
+            }
+    }
 }
 
 /**
