@@ -90,10 +90,18 @@ static void handle_command(const led_command_t *cmd) {
             ESP_LOGI(TAG, "LEDs OFF");
             break;
 
-        case LED_CMD_INC_BRIGHTNESS:
-            master_brightness = (uint8_t)__builtin_sadd_overflow(master_brightness, cmd->value, (int*)&(uint8_t){0}, &(uint8_t){255});
+        case LED_CMD_INC_BRIGHTNESS: {
+            int32_t new_brightness = (int32_t)master_brightness + cmd->value;
+            if (new_brightness > 255) {
+                master_brightness = 255;
+            } else if (new_brightness < 0) {
+                master_brightness = 0;
+            } else {
+                master_brightness = (uint8_t)new_brightness;
+            }
             ESP_LOGI(TAG, "Brightness: %d", master_brightness);
             break;
+        }
 
         case LED_CMD_INC_EFFECT: {
             int32_t new_index = current_effect_index + cmd->value;
