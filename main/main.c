@@ -13,6 +13,7 @@
 
 #include "esp_system.h"
 #include "fsm.h" // FSM incremental
+#include "led_controller.h"
 
 static const char *TAG = "main";
 
@@ -22,86 +23,10 @@ QueueHandle_t encoder_event_queue;
 QueueHandle_t espnow_event_queue;
 QueueHandle_t touch_event_queue;
 QueueHandle_t integrated_event_queue;
-QueueHandle_t led_cmd_queue; // Saída da FSM para o LED Manager
+QueueHandle_t led_cmd_queue; // Saída da FSM para o LED Controller
+QueueHandle_t led_strip_queue; // Saída do LED Controller para o driver de LED
 
 queue_manager_t queue_manager;
-
-// -----------------------------------------------------------------------------
-// Mock LED Manager Task
-// -----------------------------------------------------------------------------
-static void led_manager_task(void *pv) {
-    led_command_t cmd;
-    while (1) {
-        if (xQueueReceive(led_cmd_queue, &cmd, portMAX_DELAY) == pdTRUE) {
-            ESP_LOGI("LED_MANAGER", "CMD %d | TS: %" PRIu64 " | Val: %d", 
-                    cmd.cmd, cmd.timestamp, cmd.value);
-            
-            switch (cmd.cmd) {
-                case LED_CMD_TURN_ON:
-                    ESP_LOGI("LED_MANAGER", "Ligar LEDs");
-                    break;
-
-                case LED_CMD_TURN_ON_FADE:
-                    ESP_LOGI("LED_MANAGER", "Ligar LED com Fade");
-                    break;
-                    
-                case LED_CMD_TURN_OFF:
-                    ESP_LOGI("LED_MANAGER", "Desligar LEDs");
-                    break;
-                    
-                case LED_CMD_INC_BRIGHTNESS:
-                    ESP_LOGI("LED_MANAGER", "Brilho += %d", cmd.value);
-                    if(abs(cmd.value) > 10) {
-                        ESP_LOGW("LED_MANAGER", "Grande ajuste de brilho!");
-                    }
-                    break;
-                    
-                case LED_CMD_INC_EFFECT:
-                    ESP_LOGI("LED_MANAGER", "Efeito += %d", cmd.value);
-                    break;
-                    
-                case LED_CMD_INC_EFFECT_PARAM:
-                    ESP_LOGI("LED_MANAGER", "Parâmetro do efeito += %d", cmd.value);
-                    break;
-                
-                case LED_CMD_NEXT_EFFECT_PARAM:
-                    ESP_LOGI("LED_MANAGER", "Next Effect param");
-                    break;
-                    
-                case LED_CMD_INC_SYSTEM_PARAM:
-                    ESP_LOGI("LED_MANAGER", "Parâmetro do sistema += %d", cmd.value);
-                    break;
-
-                case LED_CMD_NEXT_SYSTEM_PARAM:
-                    ESP_LOGI("LED_MANAGER", "Next System param");
-                    break;
-                    
-                case LED_CMD_SET_EFFECT:
-                    ESP_LOGI("LED_MANAGER", "Confirmar efeito atual");
-                    break;
-                    
-                case LED_CMD_SAVE_CONFIG:
-                    ESP_LOGI("LED_MANAGER", "Salvando configurações...");
-                    vTaskDelay(pdMS_TO_TICKS(100)); // Simula escrita não-volátil
-                    ESP_LOGI("LED_MANAGER", "Configurações salvas");
-                    break;
-
-                case LED_CMD_CANCEL_CONFIG:
-                    ESP_LOGI("LED_MANAGER", "Cancelando configurações...");
-                    break;
-                    
-               case LED_CMD_BUTTON_ERROR:
-                    ESP_LOGE("LED_MANAGER", "Erro no botao");
-                    break;
-               
-                    
-                default:
-                    ESP_LOGE("LED_MANAGER", "Comando desconhecido: %d", cmd.cmd);
-                    break;
-            }
-        }
-    }
-}
 
 // -----------------------------------------------------------------------------
 // Função principal
@@ -190,15 +115,16 @@ void app_main(void) {
 	// Inicializa FSM incremental
 	fsm_init(integrated_event_queue, led_cmd_queue);
 
+    // Inicializa o LED Controller real
+    led_strip_queue = led_controller_init(led_cmd_queue);
+    configASSERT(led_strip_queue != NULL);
+    ESP_LOGI(TAG, "Real LED Controller initialized.");
+
 	// Criação das tasks
 	BaseType_t task_created;
 	task_created = xTaskCreate(integrator_task, "integrator_task",
 							   INTEGRATOR_TASK_STACK_SIZE, &queue_manager,
 							   INTEGRATOR_TASK_PRIORITY, NULL);
-	configASSERT(task_created == pdPASS);
-
-	task_created =
-		xTaskCreate(led_manager_task, "led_manager_task", 4096, NULL, 4, NULL);
 	configASSERT(task_created == pdPASS);
 
 	ESP_LOGI(TAG, "System initialized. Monitoring events...");
