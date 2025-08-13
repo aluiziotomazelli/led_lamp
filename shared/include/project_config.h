@@ -14,6 +14,7 @@ extern "C" {
 #define ENCODER_PIN_A        17      			// Rotary encoder channel A
 #define ENCODER_PIN_B        16      			// Rotary encoder channel B
 #define TOUCH_PAD1_PIN       TOUCH_PAD_NUM0  	// GPIO4 for touch button
+#define LED_DATA_PIN
 
 // ==================================================
 // Queue Configuration
@@ -34,6 +35,7 @@ extern "C" {
 #define ESPNOW_TASK_STACK_SIZE   4096
 #define FSM_STACK_SIZE           4096   // Finite State Machine stack
 #define INTEGRATOR_TASK_STACK_SIZE 4096
+#define LED_CTRL_STACK_SIZE			4069
 
 // Task priorities
 #define BUTTON_TASK_PRIORITY     10
@@ -42,6 +44,7 @@ extern "C" {
 #define ESPNOW_TASK_PRIORITY     10
 #define FSM_TASK_PRIORITY         5
 #define INTEGRATOR_TASK_PRIORITY  5
+#define LED_CTRL_TASK_PRIORITY    5
 
 // ==================================================
 // Touch Button Configuration
