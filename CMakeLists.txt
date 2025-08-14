@@ -19,15 +19,12 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # Lista TODOS os componentes, incluindo o shared
 set(COMPONENTS 
-    button
-    encoder
-    fsm
-    input_integrator
-    led_controller
-    led_driver
-    touch
     main
     shared
+    button
+    encoder
+    input_integrator
+    touch
 )
 
 # Configuração definitiva
