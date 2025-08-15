@@ -62,10 +62,19 @@ typedef struct {
 typedef void (*effect_run_t)(const effect_param_t *params, uint8_t num_params, uint8_t brightness, uint64_t time_ms, rgb_t *pixels, uint16_t num_pixels);
 
 /**
+ * @brief Enum to distinguish between static and dynamic effects
+ */
+typedef enum {
+    EFFECT_TYPE_STATIC,  ///< Effect renders once and waits for parameter changes
+    EFFECT_TYPE_DYNAMIC, ///< Effect requires continuous rendering for animation
+} effect_type_t;
+
+/**
  * @brief Effect definition structure
  */
 typedef struct effect_t {
     const char *name;
+    effect_type_t type; // Determines how the renderer task handles this effect
     effect_run_t run;
     effect_param_t *params;
     uint8_t num_params;

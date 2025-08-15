@@ -1,5 +1,24 @@
 #pragma once
 
+/**
+ * @file fsm.c
+ * @brief Implements the main Finite State Machine (FSM) for user interaction.
+ *
+ * @details This component is the "brain" of the user interface. It receives
+ * integrated input events (from buttons, encoders, etc.) from a single queue
+ * and, based on its current state, decides what action to take.
+ *
+ * Its primary responsibility is to manage the application's mode (e.g.,
+ * MODE_DISPLAY, MODE_EFFECT_SELECT) and translate user inputs into abstract
+ * commands (led_command_t).
+ *
+ * It does NOT have any knowledge of how the LEDs work, what the effects are,
+ * or how to render colors. It is completely decoupled from the led_controller.
+ * Communication is done via a command queue (`qOutput`), which sends abstract
+ * instructions to be interpreted by the downstream controller. This design
+ * improves modularity and separation of concerns.
+ */
+
 #include "fsm.h"
 #include "esp_log.h"
 #include "esp_timer.h"

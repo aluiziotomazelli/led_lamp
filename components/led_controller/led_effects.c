@@ -85,6 +85,7 @@ static void run_rainbow(const effect_param_t *params, uint8_t num_params, uint8_
 
 effect_t effect_static_color = {
     .name = "Static Color",
+    .type = EFFECT_TYPE_STATIC,
     .run = run_static_color,
     .params = params_static_color,
     .num_params = sizeof(params_static_color) / sizeof(effect_param_t)
@@ -92,6 +93,7 @@ effect_t effect_static_color = {
 
 effect_t effect_rainbow = {
     .name = "Rainbow",
+    .type = EFFECT_TYPE_DYNAMIC,
     .run = run_rainbow,
     .params = params_rainbow,
     .num_params = sizeof(params_rainbow) / sizeof(effect_param_t)

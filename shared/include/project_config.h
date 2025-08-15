@@ -35,7 +35,8 @@ extern "C" {
 #define ESPNOW_TASK_STACK_SIZE   4096
 #define FSM_STACK_SIZE           4096   // Finite State Machine stack
 #define INTEGRATOR_TASK_STACK_SIZE 4096
-#define LED_CTRL_STACK_SIZE			4069
+#define LED_CMD_STACK_SIZE		 2048   // LED command handler task
+#define LED_RENDER_STACK_SIZE	 4096   // LED renderer task
 
 // Task priorities
 #define BUTTON_TASK_PRIORITY     10
@@ -44,7 +45,8 @@ extern "C" {
 #define ESPNOW_TASK_PRIORITY     10
 #define FSM_TASK_PRIORITY         5
 #define INTEGRATOR_TASK_PRIORITY  5
-#define LED_CTRL_TASK_PRIORITY    5
+#define LED_CMD_TASK_PRIORITY     6     // Higher priority for responsiveness
+#define LED_RENDER_TASK_PRIORITY  5     // Lower priority for rendering
 
 // ==================================================
 // Touch Button Configuration
