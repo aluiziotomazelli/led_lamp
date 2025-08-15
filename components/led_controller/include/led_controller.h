@@ -12,16 +12,17 @@
  * physical LED strip.
  */
 typedef struct {
-    rgb_t *pixels;       // Pointer to the buffer of pixel data
-    uint16_t num_pixels; // Number of pixels in the buffer
+	color_t *pixels;
+	uint16_t num_pixels; // Number of pixels in the buffer
+	bool is_hsv;
 } led_strip_t;
 
 /**
  * @brief Initialize the LED Controller component.
  *
- * This function creates the LED controller task, initializes the effects engine,
- * and sets up the necessary queues. The controller will listen for commands
- * on the `cmd_queue`.
+ * This function creates the LED controller task, initializes the effects
+ * engine, and sets up the necessary queues. The controller will listen for
+ * commands on the `cmd_queue`.
  *
  * @param cmd_queue The queue for receiving `led_command_t` from the FSM.
  * @return QueueHandle_t The handle to the output queue, which will contain

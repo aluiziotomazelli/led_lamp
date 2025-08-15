@@ -1,4 +1,7 @@
 #include "led_controller.h"
+#include "freertos/projdefs.h"
+#include "led_effects.h"
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "fsm.h"
@@ -9,7 +12,7 @@
 static const char *TAG = "LED_CTRL";
 
 // The pixel buffer that holds the current LED colors
-static rgb_t *pixel_buffer = NULL;
+static color_t *pixel_buffer = NULL;
 
 // State variables
 static bool is_on = false;
@@ -97,19 +100,18 @@ static void handle_command(const led_command_t *cmd) {
 		ESP_LOGI(TAG, "LEDs OFF");
 		break;
 
-
-        case LED_CMD_INC_BRIGHTNESS: {
-            int32_t new_brightness = (int32_t)master_brightness + cmd->value;
-            if (new_brightness > 255) {
-                master_brightness = 255;
-            } else if (new_brightness < 0) {
-                master_brightness = 0;
-            } else {
-                master_brightness = (uint8_t)new_brightness;
-            }
-            ESP_LOGI(TAG, "Brightness: %d", master_brightness);
-            break;
-        }
+	case LED_CMD_INC_BRIGHTNESS: {
+		int32_t new_brightness = (int32_t)master_brightness + cmd->value;
+		if (new_brightness > 255) {
+			master_brightness = 255;
+		} else if (new_brightness < 0) {
+			master_brightness = 0;
+		} else {
+			master_brightness = (uint8_t)new_brightness;
+		}
+		ESP_LOGI(TAG, "Brightness: %d", master_brightness);
+		break;
+	}
 
 	case LED_CMD_INC_EFFECT: {
 		int32_t new_index = current_effect_index + cmd->value;
@@ -179,7 +181,7 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
 	}
 	q_commands_in = cmd_queue;
 
-	pixel_buffer = malloc(sizeof(rgb_t) * NUM_LEDS);
+	pixel_buffer = malloc(sizeof(color_t) * NUM_LEDS);
 	if (!pixel_buffer) {
 		ESP_LOGE(TAG, "Failed to allocate pixel buffer");
 		return NULL;
@@ -208,41 +210,45 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
 
 static void led_controller_task(void *pv) {
 	led_command_t cmd;
-	led_strip_t strip_data = {.pixels = pixel_buffer, .num_pixels = NUM_LEDS};
+	led_strip_t strip_data;
+
+	strip_data.num_pixels = NUM_LEDS; // Inicializa tamanho
 
 	TickType_t last_wake_time = xTaskGetTickCount();
-	const TickType_t tick_rate = pdMS_TO_TICKS(30); // ~33 FPS
+	uint16_t current_update_rate = 30; // Valor padrão inicial
 
 	while (1) {
-		// 1. Check for incoming commands (non-blocking)
+		// 1. Processa comandos
 		if (xQueueReceive(q_commands_in, &cmd, 0) == pdTRUE) {
 			handle_command(&cmd);
 		}
 
-		// 2. Run the current effect's logic
-		if (is_on) {
-			effect_t *current_effect = effects[current_effect_index];
-			if (current_effect->run) {
-				current_effect->run(
-					current_effect->params, current_effect->num_params,
-					master_brightness, esp_timer_get_time() / 1000,
-					pixel_buffer, NUM_LEDS);
-			}
-			// Apply master brightness
-			for (uint16_t i = 0; i < NUM_LEDS; i++) {
-				pixel_buffer[i] =
-					apply_brightness(pixel_buffer[i], master_brightness);
-			}
-		} else {
-			// If off, just clear the buffer
-			memset(pixel_buffer, 0, sizeof(rgb_t) * NUM_LEDS);
+		effect_t *current_effect = effects[current_effect_index];
+		current_update_rate = current_effect->params[0].value;
+		if (current_update_rate == 0) {
+			current_update_rate = 100;
 		}
 
-		// 3. Send the final pixel buffer to the output queue
-		// Use xQueueOverwrite to always send the latest frame
+		// 2. Configura o tipo de buffer com base no efeito atual
+		if (is_on && current_effect->run) {
+			strip_data.is_hsv =
+				(current_effect->pixel_format == PIXEL_FORMAT_HSV);
+			current_effect->run(current_effect->params,
+								current_effect->num_params, master_brightness,
+								esp_timer_get_time() / 1000, pixel_buffer,
+								NUM_LEDS);
+		} else {
+			// Desliga LEDs (sempre usa RGB para "preto")
+			strip_data.is_hsv = false;
+			memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
+		}
+
+		strip_data.pixels = pixel_buffer; // Atribui o buffer
+
+		// 4. Envia os dados para o driver
 		xQueueOverwrite(q_strip_out, &strip_data);
 
-		// 4. Wait for the next cycle
-		vTaskDelayUntil(&last_wake_time, tick_rate);
+		// 5. Espera pelo próximo ciclo
+		vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(current_update_rate));
 	}
 }
