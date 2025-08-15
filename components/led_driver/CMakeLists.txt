@@ -1,3 +1,3 @@
-idf_component_register(SRCS "led_driver.c"
+idf_component_register(SRCS "led_driver.cpp"
                     INCLUDE_DIRS "include"
-                    REQUIRES shared led_strip led_controller)
+                    REQUIRES shared FastLED-idf led_controller)
