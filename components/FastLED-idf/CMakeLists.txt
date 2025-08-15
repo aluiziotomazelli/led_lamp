@@ -1,0 +1,13 @@
+idf_component_register(SRCS "FastLED.cpp"
+                           "bitswap.cpp"
+                           "colorpalettes.cpp"
+                           "colorutils.cpp"
+                           "esp32-hal-gpio.c"
+                           "esp32-hal.c"
+                           "hsv2rgb.cpp"
+                           "lib8tion.cpp"
+                           "noise.cpp"
+                           "power_mgt.cpp"
+                           "wiring.cpp"
+                    INCLUDE_DIRS "include"
+                    REQUIRES rmt)
