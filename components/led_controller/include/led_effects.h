@@ -26,6 +26,22 @@ typedef struct {
 } hsv_t;
 
 /**
+ * @brief Union to hold either RGB or HSV color
+ */
+typedef union {
+    rgb_t rgb;
+    hsv_t hsv;
+} color_t;
+
+/**
+ * @brief Enum to indicate the color mode used by an effect
+ */
+typedef enum {
+    COLOR_MODE_RGB,
+    COLOR_MODE_HSV,
+} color_mode_t;
+
+/**
  * @brief Enum for parameter types
  */
 typedef enum {
@@ -56,10 +72,10 @@ typedef struct {
  * @param num_params Number of parameters
  * @param brightness Master brightness (0-255)
  * @param time_ms Current time in milliseconds
- * @param pixels Output pixel buffer
+ * @param pixels Output pixel buffer (array of color_t)
  * @param num_pixels Number of pixels in the buffer
  */
-typedef void (*effect_run_t)(const effect_param_t *params, uint8_t num_params, uint8_t brightness, uint64_t time_ms, rgb_t *pixels, uint16_t num_pixels);
+typedef void (*effect_run_t)(const effect_param_t *params, uint8_t num_params, uint8_t brightness, uint64_t time_ms, color_t *pixels, uint16_t num_pixels);
 
 /**
  * @brief Effect definition structure
@@ -67,6 +83,7 @@ typedef void (*effect_run_t)(const effect_param_t *params, uint8_t num_params, u
 typedef struct effect_t {
     const char *name;
     effect_run_t run;
+    color_mode_t color_mode; // The color mode this effect outputs
     effect_param_t *params;
     uint8_t num_params;
 } effect_t;

@@ -9,7 +9,7 @@
 static const char *TAG = "LED_CTRL";
 
 // The pixel buffer that holds the current LED colors
-static rgb_t *pixel_buffer = NULL;
+static color_t *pixel_buffer = NULL;
 
 // State variables
 static bool is_on = false;
@@ -179,7 +179,7 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
 	}
 	q_commands_in = cmd_queue;
 
-	pixel_buffer = malloc(sizeof(rgb_t) * NUM_LEDS);
+	pixel_buffer = malloc(sizeof(color_t) * NUM_LEDS);
 	if (!pixel_buffer) {
 		ESP_LOGE(TAG, "Failed to allocate pixel buffer");
 		return NULL;
@@ -208,7 +208,7 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
 
 static void led_controller_task(void *pv) {
 	led_command_t cmd;
-	led_strip_t strip_data = {.pixels = pixel_buffer, .num_pixels = NUM_LEDS};
+	led_strip_t strip_data = {.pixels = pixel_buffer, .num_pixels = NUM_LEDS, .mode = COLOR_MODE_RGB};
 
 	TickType_t last_wake_time = xTaskGetTickCount();
 	const TickType_t tick_rate = pdMS_TO_TICKS(30); // ~33 FPS
@@ -219,30 +219,41 @@ static void led_controller_task(void *pv) {
 			handle_command(&cmd);
 		}
 
+		effect_t *current_effect = effects[current_effect_index];
+		strip_data.mode = current_effect->color_mode; // Set the mode for the driver
+
 		// 2. Run the current effect's logic
 		if (is_on) {
-			effect_t *current_effect = effects[current_effect_index];
 			if (current_effect->run) {
 				current_effect->run(
 					current_effect->params, current_effect->num_params,
 					master_brightness, esp_timer_get_time() / 1000,
 					pixel_buffer, NUM_LEDS);
 			}
-			// Apply master brightness
-			for (uint16_t i = 0; i < NUM_LEDS; i++) {
-				pixel_buffer[i] =
-					apply_brightness(pixel_buffer[i], master_brightness);
+
+			// 3. Apply master brightness based on color mode
+			if (strip_data.mode == COLOR_MODE_HSV) {
+				for (uint16_t i = 0; i < NUM_LEDS; i++) {
+					// Scale the effect's V value (0-100) by the master brightness (0-255)
+					uint8_t v = (pixel_buffer[i].hsv.v * master_brightness) / 255;
+					pixel_buffer[i].hsv.v = v;
+				}
+			} else { // It's RGB
+				for (uint16_t i = 0; i < NUM_LEDS; i++) {
+					pixel_buffer[i].rgb =
+						apply_brightness(pixel_buffer[i].rgb, master_brightness);
+				}
 			}
 		} else {
-			// If off, just clear the buffer
-			memset(pixel_buffer, 0, sizeof(rgb_t) * NUM_LEDS);
+			// If off, we send black RGB pixels, which is what memset(0) does
+			memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
+			strip_data.mode = COLOR_MODE_RGB;
 		}
 
-		// 3. Send the final pixel buffer to the output queue
-		// Use xQueueOverwrite to always send the latest frame
+		// 4. Send the final pixel buffer to the output queue
 		xQueueOverwrite(q_strip_out, &strip_data);
 
-		// 4. Wait for the next cycle
+		// 5. Wait for the next cycle
 		vTaskDelayUntil(&last_wake_time, tick_rate);
 	}
 }

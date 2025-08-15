@@ -12,8 +12,9 @@
  * physical LED strip.
  */
 typedef struct {
-    rgb_t *pixels;       // Pointer to the buffer of pixel data
-    uint16_t num_pixels; // Number of pixels in the buffer
+    color_t *pixels;      // Pointer to the buffer of pixel data
+    uint16_t num_pixels;  // Number of pixels in the buffer
+    color_mode_t mode;    // The color mode of the pixel data (RGB or HSV)
 } led_strip_t;
 
 /**

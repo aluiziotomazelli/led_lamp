@@ -83,12 +83,25 @@ static void led_driver_task(void *pv) {
                 continue;
             }
 
-            // Update the strip pixel by pixel
-            for (uint16_t i = 0; i < strip_data.num_pixels; i++) {
-                rgb_t pixel = strip_data.pixels[i];
-                err = led_strip_set_pixel(led_strip_handle, i, pixel.r, pixel.g, pixel.b);
-                if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "Failed to set pixel %d: %s", i, esp_err_to_name(err));
+            // Update the strip pixel by pixel based on the color mode
+            if (strip_data.mode == COLOR_MODE_HSV) {
+                for (uint16_t i = 0; i < strip_data.num_pixels; i++) {
+                    hsv_t pixel_hsv = strip_data.pixels[i].hsv;
+                    // Scale S and V from 0-100 range (from effect) to 0-255 range (for driver)
+                    uint8_t s_scaled = (pixel_hsv.s * 255) / 100;
+                    uint8_t v_scaled = (pixel_hsv.v * 255) / 100;
+                    err = led_strip_set_pixel_hsv(led_strip_handle, i, pixel_hsv.h, s_scaled, v_scaled);
+                    if (err != ESP_OK) {
+                        ESP_LOGE(TAG, "Failed to set HSV pixel %d: %s", i, esp_err_to_name(err));
+                    }
+                }
+            } else { // It's RGB
+                for (uint16_t i = 0; i < strip_data.num_pixels; i++) {
+                    rgb_t pixel_rgb = strip_data.pixels[i].rgb;
+                    err = led_strip_set_pixel(led_strip_handle, i, pixel_rgb.r, pixel_rgb.g, pixel_rgb.b);
+                    if (err != ESP_OK) {
+                        ESP_LOGE(TAG, "Failed to set RGB pixel %d: %s", i, esp_err_to_name(err));
+                    }
                 }
             }
 

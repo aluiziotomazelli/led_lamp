@@ -46,18 +46,15 @@ static effect_param_t params_static_color[] = {
     { .name = "Saturation", .type = PARAM_TYPE_SATURATION, .value = 100, .min_value = 0, .max_value = 100, .step = 5 },
 };
 
-static void run_static_color(const effect_param_t *params, uint8_t num_params, uint8_t brightness, uint64_t time_ms, rgb_t *pixels, uint16_t num_pixels) {
+static void run_static_color(const effect_param_t *params, uint8_t num_params, uint8_t brightness, uint64_t time_ms, color_t *pixels, uint16_t num_pixels) {
     hsv_t color = {
         .h = params[0].value,
         .s = params[1].value,
-        .v = 100
+        .v = 100 // We'll apply master brightness in the controller
     };
 
-    rgb_t rgb_color;
-    hsv_to_rgb(color, &rgb_color);
-
     for (uint16_t i = 0; i < num_pixels; i++) {
-        pixels[i] = rgb_color;
+        pixels[i].hsv = color;
     }
 }
 
@@ -69,14 +66,15 @@ static effect_param_t params_rainbow[] = {
     { .name = "Saturation", .type = PARAM_TYPE_SATURATION, .value = 100, .min_value = 0, .max_value = 100, .step = 5 },
 };
 
-static void run_rainbow(const effect_param_t *params, uint8_t num_params, uint8_t brightness, uint64_t time_ms, rgb_t *pixels, uint16_t num_pixels) {
+static void run_rainbow(const effect_param_t *params, uint8_t num_params, uint8_t brightness, uint64_t time_ms, color_t *pixels, uint16_t num_pixels) {
     uint8_t speed = params[0].value;
     uint8_t saturation = params[1].value;
 
     for (uint16_t i = 0; i < num_pixels; i++) {
         uint32_t hue = ((time_ms * speed / 10) + (i * 360 / num_pixels)) % 360;
-        hsv_t hsv = { .h = (uint16_t)hue, .s = saturation, .v = 100 };
-        hsv_to_rgb(hsv, &pixels[i]);
+        pixels[i].hsv.h = (uint16_t)hue;
+        pixels[i].hsv.s = saturation;
+        pixels[i].hsv.v = 100; // We'll apply master brightness in the controller
     }
 }
 
@@ -89,7 +87,7 @@ static effect_param_t params_breathing[] = {
     { .name = "Saturation", .type = PARAM_TYPE_SATURATION, .value = 100, .min_value = 0, .max_value = 100, .step = 5 },
 };
 
-static void run_breathing(const effect_param_t *params, uint8_t num_params, uint8_t brightness, uint64_t time_ms, rgb_t *pixels, uint16_t num_pixels) {
+static void run_breathing(const effect_param_t *params, uint8_t num_params, uint8_t brightness, uint64_t time_ms, color_t *pixels, uint16_t num_pixels) {
     float speed = (float)params[0].value / 20.0f;
     uint16_t hue = params[1].value;
     uint8_t saturation = params[2].value;
@@ -102,11 +100,9 @@ static void run_breathing(const effect_param_t *params, uint8_t num_params, uint
     uint8_t hsv_v = (uint8_t)(wave * 100.0f);
 
     hsv_t hsv = { .h = hue, .s = saturation, .v = hsv_v };
-    rgb_t rgb_color;
-    hsv_to_rgb(hsv, &rgb_color);
 
     for (uint16_t i = 0; i < num_pixels; i++) {
-        pixels[i] = rgb_color;
+        pixels[i].hsv = hsv;
     }
 }
 
@@ -116,6 +112,7 @@ static void run_breathing(const effect_param_t *params, uint8_t num_params, uint
 effect_t effect_breathing = {
     .name = "Breathing",
     .run = run_breathing,
+    .color_mode = COLOR_MODE_HSV,
     .params = params_breathing,
     .num_params = sizeof(params_breathing) / sizeof(effect_param_t)
 };
@@ -123,6 +120,7 @@ effect_t effect_breathing = {
 effect_t effect_static_color = {
     .name = "Static Color",
     .run = run_static_color,
+    .color_mode = COLOR_MODE_HSV,
     .params = params_static_color,
     .num_params = sizeof(params_static_color) / sizeof(effect_param_t)
 };
@@ -130,6 +128,7 @@ effect_t effect_static_color = {
 effect_t effect_rainbow = {
     .name = "Rainbow",
     .run = run_rainbow,
+    .color_mode = COLOR_MODE_HSV,
     .params = params_rainbow,
     .num_params = sizeof(params_rainbow) / sizeof(effect_param_t)
 };
