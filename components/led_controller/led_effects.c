@@ -3,10 +3,14 @@
 #include <math.h>
 #include <stdlib.h>
 
+#include "hsv2rgb.h"
+
+
+
 /* --- Effect: Static Color --- */
 
 static effect_param_t params_static_color[] = {
-    { .name = "Hue", .type = PARAM_TYPE_HUE, .value = 0, .min_value = 0, .max_value = 359, .step = 1 },
+    { .name = "Hue", .type = PARAM_TYPE_HUE, .value = 250, .min_value = 0, .max_value = 359, .step = 1 },
     { .name = "Saturation", .type = PARAM_TYPE_SATURATION, .value = 255, .min_value = 0, .max_value = 255, .step = 5 },
 };
 
@@ -16,9 +20,16 @@ static void run_static_color(const effect_param_t *params, uint8_t num_params, u
         .s = params[1].value,
         .v = 255 // Full brightness, master brightness is applied in controller
     };
-
+//        ESP_LOGI("Cor estatica", "HSV, H = %d, S = %d, V = %d", color.h, color.s, color.v);
+	
+	rgb_t rgb;
+	hsv_to_rgb_spectrum_deg(color.h, color.s, color.v, &rgb.r, &rgb.g, &rgb.b);
+	rgb.r = gamma8(rgb.r);
+	rgb.g = gamma8(rgb.g);
+	rgb.b = gamma8(rgb.b);
+	
     for (uint16_t i = 0; i < num_pixels; i++) {
-        pixels[i].hsv = color;
+        pixels[i].rgb = rgb;
     }
 }
 
@@ -74,8 +85,8 @@ static void run_breathing(const effect_param_t *params, uint8_t num_params, uint
 /* --- Effect: Candle --- */
 
 static effect_param_t params_candle[] = {
-    {.name = "Speed", .type = PARAM_TYPE_SPEED, .value = 50, .min_value = 10, .max_value = 100, .step = 1},
-    {.name = "Hue", .type = PARAM_TYPE_HUE, .value = 16, .min_value = 5, .max_value = 30, .step = 1},
+    {.name = "Speed", .type = PARAM_TYPE_SPEED, .value = 5, .min_value = 1, .max_value = 50, .step = 1},
+    {.name = "Hue", .type = PARAM_TYPE_HUE, .value = 20, .min_value = 5, .max_value = 80, .step = 1},
     {.name = "Saturation", .type = PARAM_TYPE_SATURATION, .value = 255, .min_value = 0, .max_value = 255, .step = 1},
     {.name = "Segments", .type = PARAM_TYPE_VALUE, .value = 4, .min_value = 1, .max_value = 10, .step = 1},
 };
@@ -140,7 +151,7 @@ effect_t effect_breathing = {
 effect_t effect_static_color = {
     .name = "Static Color",
     .run = run_static_color,
-    .color_mode = COLOR_MODE_HSV,
+    .color_mode = COLOR_MODE_RGB,
     .params = params_static_color,
     .num_params = sizeof(params_static_color) / sizeof(effect_param_t),
     .is_dynamic = false

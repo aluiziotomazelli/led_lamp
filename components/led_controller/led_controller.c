@@ -239,7 +239,7 @@ static void led_render_task(void *pv) {
 	led_strip_t strip_data = {.pixels = pixel_buffer,
 							  .num_pixels = NUM_LEDS,
 							  .mode = COLOR_MODE_RGB};
-	const TickType_t tick_rate = pdMS_TO_TICKS(30); // ~33 FPS
+	const TickType_t tick_rate = pdMS_TO_TICKS(LED_RENDER_INTERVAL_MS); // ~33 FPS
 
 	while (1) {
 		effect_t *current_effect = effects[current_effect_index];

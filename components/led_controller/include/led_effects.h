@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include "project_config.h"
 
+
 // Forward declaration
 struct effect_t;
 

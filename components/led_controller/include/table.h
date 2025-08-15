@@ -4,7 +4,7 @@
 
 #define CANDLE_TABLE_SIZE 10486
 
-uint8_t CANDLE_TABLE[] = {
+const uint8_t CANDLE_TABLE[] = {
 	4	,
 5	,
 7	,
@@ -12882,3 +12882,4 @@ uint8_t CANDLE_TABLE[] = {
 72	,
 72	,
 72
+};
