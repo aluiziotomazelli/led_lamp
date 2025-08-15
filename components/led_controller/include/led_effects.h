@@ -20,9 +20,9 @@ typedef struct {
  * @brief HSV color structure
  */
 typedef struct {
-    uint16_t h; // 0-360
-    uint8_t s;  // 0-100
-    uint8_t v;  // 0-100
+    uint16_t h; // Hue: 0-359
+    uint8_t s;  // Saturation: 0-255
+    uint8_t v;  // Value: 0-255
 } hsv_t;
 
 /**

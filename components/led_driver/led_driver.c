@@ -87,10 +87,8 @@ static void led_driver_task(void *pv) {
             if (strip_data.mode == COLOR_MODE_HSV) {
                 for (uint16_t i = 0; i < strip_data.num_pixels; i++) {
                     hsv_t pixel_hsv = strip_data.pixels[i].hsv;
-                    // Scale S and V from 0-100 range (from effect) to 0-255 range (for driver)
-                    uint8_t s_scaled = (pixel_hsv.s * 255) / 100;
-                    uint8_t v_scaled = (pixel_hsv.v * 255) / 100;
-                    err = led_strip_set_pixel_hsv(led_strip_handle, i, pixel_hsv.h, s_scaled, v_scaled);
+                    // HSV values are now in the correct range for the driver (H: 0-359, S/V: 0-255)
+                    err = led_strip_set_pixel_hsv(led_strip_handle, i, pixel_hsv.h, pixel_hsv.s, pixel_hsv.v);
                     if (err != ESP_OK) {
                         ESP_LOGE(TAG, "Failed to set HSV pixel %d: %s", i, esp_err_to_name(err));
                     }
