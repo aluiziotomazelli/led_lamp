@@ -8,6 +8,7 @@
 
 // Includes from IDF and components
 #include "esp_err.h"
+#include "hsv2rgb.h"
 #include "led_strip.h"
 
 static const char *TAG = "LED_DRIVER";
@@ -17,6 +18,11 @@ static led_strip_handle_t led_strip_handle;
 
 // Queue for receiving pixel data from the controller
 static QueueHandle_t q_pixels_in = NULL;
+
+// Global color correction values
+static uint16_t g_correction_r = 255;
+static uint16_t g_correction_g = 200;
+static uint16_t g_correction_b = 140;
 
 /**
  * @brief Configure the LED strip driver.
@@ -69,6 +75,9 @@ static esp_err_t configure_led_strip(void) {
 	return ESP_OK;
 }
 
+/* The hsv_to_rgb function was removed, as we will now use the existing
+ * hsv_to_rgb_spectrum_deg function from hsv2rgb.h */
+
 /**
  * @brief The main task for the LED driver.
  *
@@ -95,36 +104,35 @@ static void led_driver_task(void *pv) {
 				continue;
 			}
 
-			// Update the strip pixel by pixel based on the color mode
-			if (strip_data.mode == COLOR_MODE_HSV) {
-				//				ESP_LOGI("LED Driver", "HSV, H = %d, S = %d, V =
-				//%d", strip_data.pixels->hsv.h, strip_data.pixels->hsv.s,
-				//strip_data.pixels->hsv.v);
-				for (uint16_t i = 0; i < strip_data.num_pixels; i++) {
-					hsv_t pixel_hsv = strip_data.pixels[i].hsv;
-//					ESP_LOGI("LED Driver", "HSV, H = %d, S = %d, V = %d",
-//							 pixel_hsv.h, pixel_hsv.s, pixel_hsv.v);
-					// HSV values are now in the correct range for the driver
-					// (H: 0-359, S/V: 0-255)
-					err = led_strip_set_pixel_hsv(led_strip_handle, i,
-												  pixel_hsv.h, pixel_hsv.s,
-												  pixel_hsv.v);
-					if (err != ESP_OK) {
-						ESP_LOGE(TAG, "Failed to set HSV pixel %d: %s", i,
-								 esp_err_to_name(err));
-					}
+			// Loop through all the pixels, apply color correction, and set
+			// them.
+			for (uint16_t i = 0; i < strip_data.num_pixels; i++) {
+				rgb_t final_rgb;
+
+				// First, get the pixel color in RGB format
+				if (strip_data.mode == COLOR_MODE_HSV) {
+					hsv_t hsv = strip_data.pixels[i].hsv;
+					hsv_to_rgb_spectrum_deg(hsv.h, hsv.s, hsv.v, &final_rgb.r,
+											&final_rgb.g, &final_rgb.b);
+				} else {
+					final_rgb = strip_data.pixels[i].rgb;
 				}
-			} else { // It's RGB
-				for (uint16_t i = 0; i < strip_data.num_pixels; i++) {
-					rgb_t pixel_rgb = strip_data.pixels[i].rgb;
-					ESP_LOGI("LED Driver", "RGB, r = %d, g = %d, n = %d",
-							 pixel_rgb.r, pixel_rgb.g, pixel_rgb.b);
-					err = led_strip_set_pixel(led_strip_handle, i, pixel_rgb.r,
-											  pixel_rgb.g, pixel_rgb.b);
-					if (err != ESP_OK) {
-						ESP_LOGE(TAG, "Failed to set RGB pixel %d: %s", i,
-								 esp_err_to_name(err));
-					}
+
+				final_rgb.r =
+					(uint8_t)(((uint16_t)final_rgb.r * g_correction_r) >> 8);
+				final_rgb.g =
+					(uint8_t)(((uint16_t)final_rgb.g * g_correction_g) >> 8);
+				final_rgb.b =
+					(uint8_t)(((uint16_t)final_rgb.b * g_correction_b) >> 8);
+//				ESP_LOGI(TAG, "r = %d, g = %d, b = %d", final_rgb.r,
+//						 final_rgb.g, final_rgb.b);
+
+				// Set the pixel color on the strip
+				err = led_strip_set_pixel(led_strip_handle, i, final_rgb.r,
+										  final_rgb.g, final_rgb.b);
+				if (err != ESP_OK) {
+					ESP_LOGE(TAG, "Failed to set pixel %d: %s", i,
+							 esp_err_to_name(err));
 				}
 			}
 
@@ -136,6 +144,16 @@ static void led_driver_task(void *pv) {
 			}
 		}
 	}
+}
+
+/**
+ * @brief Public function to set the global color correction.
+ */
+void led_driver_set_correction(uint8_t r, uint8_t g, uint8_t b) {
+	g_correction_r = r;
+	g_correction_g = g;
+	g_correction_b = b;
+	ESP_LOGI(TAG, "Set color correction to R:%d, G:%d, B:%d", r, g, b);
 }
 
 /**
