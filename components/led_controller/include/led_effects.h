@@ -86,4 +86,5 @@ typedef struct effect_t {
     color_mode_t color_mode; // The color mode this effect outputs
     effect_param_t *params;
     uint8_t num_params;
+    bool is_dynamic;
 } effect_t;

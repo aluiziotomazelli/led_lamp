@@ -164,7 +164,8 @@ effect_t effect_candle = {
     .run = run_candle,
     .color_mode = COLOR_MODE_HSV,
     .params = params_candle,
-    .num_params = sizeof(params_candle) / sizeof(effect_param_t)
+    .num_params = sizeof(params_candle) / sizeof(effect_param_t),
+    .is_dynamic = true
 };
 
 effect_t effect_breathing = {
@@ -172,7 +173,8 @@ effect_t effect_breathing = {
     .run = run_breathing,
     .color_mode = COLOR_MODE_HSV,
     .params = params_breathing,
-    .num_params = sizeof(params_breathing) / sizeof(effect_param_t)
+    .num_params = sizeof(params_breathing) / sizeof(effect_param_t),
+    .is_dynamic = true
 };
 
 effect_t effect_static_color = {
@@ -180,7 +182,8 @@ effect_t effect_static_color = {
     .run = run_static_color,
     .color_mode = COLOR_MODE_HSV,
     .params = params_static_color,
-    .num_params = sizeof(params_static_color) / sizeof(effect_param_t)
+    .num_params = sizeof(params_static_color) / sizeof(effect_param_t),
+    .is_dynamic = false
 };
 
 effect_t effect_rainbow = {
@@ -188,7 +191,8 @@ effect_t effect_rainbow = {
     .run = run_rainbow,
     .color_mode = COLOR_MODE_HSV,
     .params = params_rainbow,
-    .num_params = sizeof(params_rainbow) / sizeof(effect_param_t)
+    .num_params = sizeof(params_rainbow) / sizeof(effect_param_t),
+    .is_dynamic = true
 };
 
 effect_t *effects[] = {

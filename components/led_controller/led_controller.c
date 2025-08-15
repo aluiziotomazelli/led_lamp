@@ -16,6 +16,7 @@ static bool is_on = false;
 static uint8_t master_brightness = 100;
 static uint8_t current_effect_index = 0;
 static uint8_t current_param_index = 0;
+static bool needs_render = true; // Flag to force render
 
 // Temporary storage for parameters when in setup mode (for cancel
 // functionality)
@@ -24,13 +25,15 @@ static effect_param_t *temp_params = NULL;
 // Handles for FreeRTOS objects
 static QueueHandle_t q_commands_in = NULL;
 static QueueHandle_t q_strip_out = NULL;
+static TaskHandle_t render_task_handle = NULL;
 
 // External variables from led_effects.c
 extern effect_t *effects[];
 extern const uint8_t effects_count;
 
-// Forward declaration
-static void led_controller_task(void *pv);
+// Forward declarations
+static void led_command_task(void *pv);
+static void led_render_task(void *pv);
 
 /**
  * @brief Applies the master brightness to a single RGB color.
@@ -97,19 +100,18 @@ static void handle_command(const led_command_t *cmd) {
 		ESP_LOGI(TAG, "LEDs OFF");
 		break;
 
-
-        case LED_CMD_INC_BRIGHTNESS: {
-            int32_t new_brightness = (int32_t)master_brightness + cmd->value;
-            if (new_brightness > 255) {
-                master_brightness = 255;
-            } else if (new_brightness < 0) {
-                master_brightness = 0;
-            } else {
-                master_brightness = (uint8_t)new_brightness;
-            }
-            ESP_LOGI(TAG, "Brightness: %d", master_brightness);
-            break;
-        }
+	case LED_CMD_INC_BRIGHTNESS: {
+		int32_t new_brightness = (int32_t)master_brightness + cmd->value;
+		if (new_brightness > 255) {
+			master_brightness = 255;
+		} else if (new_brightness < 0) {
+			master_brightness = 0;
+		} else {
+			master_brightness = (uint8_t)new_brightness;
+		}
+		ESP_LOGI(TAG, "Brightness: %d", master_brightness);
+		break;
+	}
 
 	case LED_CMD_INC_EFFECT: {
 		int32_t new_index = current_effect_index + cmd->value;
@@ -170,6 +172,7 @@ static void handle_command(const led_command_t *cmd) {
 		// Other commands are ignored by the controller
 		break;
 	}
+	needs_render = true; // Signal that a change occurred
 }
 
 QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
@@ -192,11 +195,23 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
 		return NULL;
 	}
 
-	BaseType_t result =
-		xTaskCreate(led_controller_task, "LED_CTRL_T", LED_CTRL_STACK_SIZE,
-					NULL, LED_CTRL_TASK_PRIORITY, NULL);
+	// Create the rendering task
+	BaseType_t result = xTaskCreate(
+		led_render_task, "LED_RENDER_T", LED_CTRL_STACK_SIZE, NULL,
+		LED_CTRL_TASK_PRIORITY, &render_task_handle);
 	if (result != pdPASS) {
-		ESP_LOGE(TAG, "Failed to create LED controller task");
+		ESP_LOGE(TAG, "Failed to create LED render task");
+		vQueueDelete(q_strip_out);
+		free(pixel_buffer);
+		return NULL;
+	}
+
+	// Create the command handling task
+	result = xTaskCreate(led_command_task, "LED_CMD_T", LED_CTRL_STACK_SIZE,
+						 NULL, LED_CTRL_TASK_PRIORITY, NULL);
+	if (result != pdPASS) {
+		ESP_LOGE(TAG, "Failed to create LED command task");
+		vTaskDelete(render_task_handle); // Clean up the other task
 		vQueueDelete(q_strip_out);
 		free(pixel_buffer);
 		return NULL;
@@ -206,54 +221,73 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
 	return q_strip_out;
 }
 
-static void led_controller_task(void *pv) {
+static void led_command_task(void *pv) {
 	led_command_t cmd;
-	led_strip_t strip_data = {.pixels = pixel_buffer, .num_pixels = NUM_LEDS, .mode = COLOR_MODE_RGB};
+	while (1) {
+		// Block and wait for a command indefinitely
+		if (xQueueReceive(q_commands_in, &cmd, portMAX_DELAY) == pdTRUE) {
+			handle_command(&cmd);
+			// Notify the render task to wake up and render immediately
+			if (render_task_handle) {
+				xTaskNotifyGive(render_task_handle);
+			}
+		}
+	}
+}
 
-	TickType_t last_wake_time = xTaskGetTickCount();
+static void led_render_task(void *pv) {
+	led_strip_t strip_data = {.pixels = pixel_buffer,
+							  .num_pixels = NUM_LEDS,
+							  .mode = COLOR_MODE_RGB};
 	const TickType_t tick_rate = pdMS_TO_TICKS(30); // ~33 FPS
 
 	while (1) {
-		// 1. Check for incoming commands (non-blocking)
-		if (xQueueReceive(q_commands_in, &cmd, 0) == pdTRUE) {
-			handle_command(&cmd);
-		}
-
 		effect_t *current_effect = effects[current_effect_index];
-		strip_data.mode = current_effect->color_mode; // Set the mode for the driver
+		strip_data.mode = current_effect->color_mode;
 
-		// 2. Run the current effect's logic
-		if (is_on) {
-			if (current_effect->run) {
-				current_effect->run(
-					current_effect->params, current_effect->num_params,
-					master_brightness, esp_timer_get_time() / 1000,
-					pixel_buffer, NUM_LEDS);
-			}
+		// Determine if we need to re-calculate the effect
+		bool should_run_effect = needs_render || current_effect->is_dynamic;
 
-			// 3. Apply master brightness based on color mode
-			if (strip_data.mode == COLOR_MODE_HSV) {
-				for (uint16_t i = 0; i < NUM_LEDS; i++) {
-					// Scale the effect's V value (0-100) by the master brightness (0-255)
-					uint8_t v = (pixel_buffer[i].hsv.v * master_brightness) / 255;
-					pixel_buffer[i].hsv.v = v;
+		if (should_run_effect) {
+			if (is_on) {
+				if (current_effect->run) {
+					current_effect->run(current_effect->params,
+										current_effect->num_params,
+										master_brightness,
+										esp_timer_get_time() / 1000,
+										pixel_buffer, NUM_LEDS);
 				}
-			} else { // It's RGB
-				for (uint16_t i = 0; i < NUM_LEDS; i++) {
-					pixel_buffer[i].rgb =
-						apply_brightness(pixel_buffer[i].rgb, master_brightness);
+
+				// Apply master brightness
+				if (strip_data.mode == COLOR_MODE_HSV) {
+					for (uint16_t i = 0; i < NUM_LEDS; i++) {
+						uint8_t v = (pixel_buffer[i].hsv.v *
+									 master_brightness) /
+									255;
+						pixel_buffer[i].hsv.v = v;
+					}
+				} else { // It's RGB
+					for (uint16_t i = 0; i < NUM_LEDS; i++) {
+						pixel_buffer[i].rgb = apply_brightness(
+							pixel_buffer[i].rgb, master_brightness);
+					}
 				}
+			} else {
+				// If the strip is off, we just need to render black once
+				memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
+				strip_data.mode = COLOR_MODE_RGB;
 			}
-		} else {
-			// If off, we send black RGB pixels, which is what memset(0) does
-			memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
-			strip_data.mode = COLOR_MODE_RGB;
 		}
 
-		// 4. Send the final pixel buffer to the output queue
+		// Always reset the flag after checking it for a cycle
+		if (needs_render) {
+			needs_render = false;
+		}
+
+		// Always send the current buffer to the driver
 		xQueueOverwrite(q_strip_out, &strip_data);
 
-		// 5. Wait for the next cycle
-		vTaskDelayUntil(&last_wake_time, tick_rate);
+		// Wait for a notification or timeout
+		ulTaskNotifyTake(pdTRUE, tick_rate);
 	}
 }
