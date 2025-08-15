@@ -80,12 +80,12 @@ extern "C" {
 // ==================================================
 // LED Controller Configuration
 // ==================================================
-#define NUM_LEDS 60 // Number of LEDs in the strip
+#define NUM_LEDS 24 // Number of LEDs in the strip
 
 // ==================================================
 // LED Driver Configuration
 // ==================================================
-#define LED_STRIP_GPIO              2        // GPIO for the LED strip data line
+#define LED_STRIP_GPIO              13        // GPIO for the LED strip data line
 #define LED_STRIP_SPI_HOST          SPI2_HOST // SPI host for the LED strip
 #define LED_DRIVER_TASK_STACK_SIZE  4096     // Stack size for the LED driver task
 #define LED_DRIVER_TASK_PRIORITY    5        // Priority for the LED driver task
