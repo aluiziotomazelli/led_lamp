@@ -11,9 +11,15 @@ static const char *TAG = "LED_CTRL";
 // The pixel buffer that holds the current LED colors
 static color_t *pixel_buffer = NULL;
 
-// State variables
+// State variables//
+
+// Fade in
+static bool is_fading = false;
+static uint32_t fade_start_time = 0;
+static uint8_t fade_start_brightness = 0;
+
 static bool is_on = false;
-static uint8_t master_brightness = 100;
+static uint8_t master_brightness = 75;
 static uint8_t current_effect_index = 0;
 static uint8_t current_param_index = 0;
 static bool needs_render = true; // Flag to force render
@@ -90,9 +96,16 @@ static void handle_command(const led_command_t *cmd) {
 
 	switch (cmd->cmd) {
 	case LED_CMD_TURN_ON:
-	case LED_CMD_TURN_ON_FADE:
 		is_on = true;
 		ESP_LOGI(TAG, "LEDs ON");
+		break;
+	case LED_CMD_TURN_ON_FADE:
+		is_on = true;
+		is_fading = true;
+		fade_start_time = esp_timer_get_time() / 1000;
+		fade_start_brightness = master_brightness;
+		master_brightness = 0; // começa do mínimo
+		ESP_LOGI(TAG, "LEDs ON with fade");
 		break;
 
 	case LED_CMD_TURN_OFF:
@@ -104,8 +117,8 @@ static void handle_command(const led_command_t *cmd) {
 		int32_t new_brightness = (int32_t)master_brightness + cmd->value;
 		if (new_brightness > 255) {
 			master_brightness = 255;
-		} else if (new_brightness < 0) {
-			master_brightness = 0;
+		} else if (new_brightness < MIN_BRIGHTNESS) {
+			master_brightness = MIN_BRIGHTNESS;
 		} else {
 			master_brightness = (uint8_t)new_brightness;
 		}
@@ -196,9 +209,9 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
 	}
 
 	// Create the rendering task
-	BaseType_t result = xTaskCreate(
-		led_render_task, "LED_RENDER_T", LED_CTRL_STACK_SIZE, NULL,
-		LED_CTRL_TASK_PRIORITY, &render_task_handle);
+	BaseType_t result =
+		xTaskCreate(led_render_task, "LED_RENDER_T", LED_CTRL_STACK_SIZE, NULL,
+					LED_CTRL_TASK_PRIORITY, &render_task_handle);
 	if (result != pdPASS) {
 		ESP_LOGE(TAG, "Failed to create LED render task");
 		vQueueDelete(q_strip_out);
@@ -236,12 +249,32 @@ static void led_command_task(void *pv) {
 }
 
 static void led_render_task(void *pv) {
-	led_strip_t strip_data = {.pixels = pixel_buffer,
-							  .num_pixels = NUM_LEDS,
-							  .mode = COLOR_MODE_RGB};
-	const TickType_t tick_rate = pdMS_TO_TICKS(LED_RENDER_INTERVAL_MS); // ~33 FPS
+	led_strip_t strip_data = {
+		.pixels = pixel_buffer, .num_pixels = NUM_LEDS, .mode = COLOR_MODE_RGB};
+	const TickType_t tick_rate =
+		pdMS_TO_TICKS(LED_RENDER_INTERVAL_MS); // ~33 FPS
 
 	while (1) {
+		//		if (master_brightness < MIN_BRIGHTNESS) {
+		//			master_brightness = MIN_BRIGHTNESS;
+		//		}
+		
+		if (is_fading && is_on) {
+			 uint32_t now = esp_timer_get_time() / 1000;
+            uint32_t elapsed = now - fade_start_time;
+            
+            if (elapsed >= FADE_DURATION_MS) {
+                // Fade complete
+                is_fading = false;
+                master_brightness = fade_start_brightness;
+            } else {
+                // Calculate current brightness during fade
+                float progress = (float)elapsed / FADE_DURATION_MS;
+                master_brightness = (uint8_t)((fade_start_brightness) * progress);
+            }
+            needs_render = true; // Force render each frame during fade
+		}
+
 		effect_t *current_effect = effects[current_effect_index];
 		strip_data.mode = current_effect->color_mode;
 
@@ -251,19 +284,17 @@ static void led_render_task(void *pv) {
 		if (should_run_effect) {
 			if (is_on) {
 				if (current_effect->run) {
-					current_effect->run(current_effect->params,
-										current_effect->num_params,
-										master_brightness,
-										esp_timer_get_time() / 1000,
-										pixel_buffer, NUM_LEDS);
+					current_effect->run(
+						current_effect->params, current_effect->num_params,
+						master_brightness, esp_timer_get_time() / 1000,
+						pixel_buffer, NUM_LEDS);
 				}
 
 				// Apply master brightness
 				if (strip_data.mode == COLOR_MODE_HSV) {
 					for (uint16_t i = 0; i < NUM_LEDS; i++) {
-						uint8_t v = (pixel_buffer[i].hsv.v *
-									 master_brightness) /
-									255;
+						uint8_t v =
+							(pixel_buffer[i].hsv.v * master_brightness) / 255;
 						pixel_buffer[i].hsv.v = v;
 					}
 				} else { // It's RGB

@@ -80,9 +80,10 @@ extern "C" {
 // ==================================================
 // LED Controller Configuration
 // ==================================================
-#define NUM_LEDS 24 // Number of LEDs in the strip
+#define NUM_LEDS 48 // Number of LEDs in the strip
 #define LED_RENDER_INTERVAL_MS 10
-
+#define MIN_BRIGHTNESS 20
+#define FADE_DURATION_MS 5000
 // ==================================================
 // LED Driver Configuration
 // ==================================================
