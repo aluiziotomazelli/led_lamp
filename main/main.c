@@ -113,9 +113,14 @@ void app_main(void) {
 	ESP_LOGI(TAG, "Touch button initialized on pad %d", TOUCH_PAD1_PIN);
 
     // Inicializa switch
-    esp_err_t switch_err = switch_init(SWITCH_PIN_1, switch_event_queue);
-    configASSERT(switch_err == ESP_OK);
-    ESP_LOGI(TAG, "Switch initialized on pin %d", SWITCH_PIN_1);
+    switch_config_t switch_cfg = {
+        .pin = SWITCH_PIN_1,
+        .active_low = true, // Assumes the switch pulls the pin to GND when closed
+        .debounce_ms = 50
+    };
+    switch_t switch_handle = switch_create(&switch_cfg, switch_event_queue);
+    configASSERT(switch_handle != NULL);
+    ESP_LOGI(TAG, "Switch created on pin %d", SWITCH_PIN_1);
 
 	// Inicializa integrador de inputs
 	queue_manager = init_queue_manager(button_event_queue, encoder_event_queue,
