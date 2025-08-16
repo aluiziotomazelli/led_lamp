@@ -259,19 +259,32 @@ static void handle_command(const led_command_t *cmd) {
 		if (current_effect->num_params > 0) {
 			effect_param_t *param =
 				&current_effect->params[current_param_index];
-			param->value += cmd->value * param->step;
+
+			// Calculate new potential value
+			int32_t new_value = (int32_t)param->value + (cmd->value * param->step);
 
             if (param->is_wrap) {
-                if (param->value > param->max_value) {
+                if (new_value > param->max_value) {
                     param->value = param->min_value;
-                } else if (param->value < param->min_value) {
+                } else if (new_value < param->min_value) {
                     param->value = param->max_value;
-                }
+                } else {
+					param->value = (int16_t)new_value;
+				}
             } else {
-                if (param->value > param->max_value)
+                if (new_value > param->max_value) {
                     param->value = param->max_value;
-                if (param->value < param->min_value)
+					current_feedback = FEEDBACK_TYPE_LIMIT;
+					feedback_start_time_ms = esp_timer_get_time() / 1000;
+					feedback_blink_count = 2;
+                } else if (new_value < param->min_value) {
                     param->value = param->min_value;
+					current_feedback = FEEDBACK_TYPE_LIMIT;
+					feedback_start_time_ms = esp_timer_get_time() / 1000;
+					feedback_blink_count = 2;
+                } else {
+                    param->value = (int16_t)new_value;
+                }
             }
 			ESP_LOGI(TAG, "Param '%s' changed to: %d", param->name,
 					 param->value);
