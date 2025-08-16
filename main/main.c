@@ -8,6 +8,7 @@
 #include "input_integrator.h"
 #include "project_config.h"
 #include "touch.h"
+#include "switch.h"
 #include <inttypes.h>
 #include <stdio.h>
 
@@ -23,6 +24,7 @@ QueueHandle_t button_event_queue;
 QueueHandle_t encoder_event_queue;
 QueueHandle_t espnow_event_queue;
 QueueHandle_t touch_event_queue;
+QueueHandle_t switch_event_queue;
 QueueHandle_t integrated_event_queue;
 QueueHandle_t led_cmd_queue; // Saída da FSM para o LED Controller
 QueueHandle_t led_strip_queue; // Saída do LED Controller para o driver de LED
@@ -50,13 +52,17 @@ void app_main(void) {
 	configASSERT(touch_event_queue != NULL);
 	ESP_LOGI(TAG, "Touch event queue created (size: %d)", TOUCH_QUEUE_SIZE);
 
+    switch_event_queue = xQueueCreate(SWITCH_QUEUE_SIZE, sizeof(switch_event_t));
+	configASSERT(switch_event_queue != NULL);
+	ESP_LOGI(TAG, "Switch event queue created (size: %d)", SWITCH_QUEUE_SIZE);
+
 	espnow_event_queue =
 		xQueueCreate(ESPNOW_QUEUE_SIZE, sizeof(espnow_event_t));
 	configASSERT(espnow_event_queue != NULL);
 	ESP_LOGI(TAG, "ESP-NOW event queue created (size: %d)", ESPNOW_QUEUE_SIZE);
 
 	UBaseType_t integrated_queue_len = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE +
-									   ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE;
+									   ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE + SWITCH_QUEUE_SIZE;
 	integrated_event_queue =
 		xQueueCreate(integrated_queue_len, sizeof(integrated_event_t));
 	configASSERT(integrated_event_queue != NULL);
@@ -106,9 +112,15 @@ void app_main(void) {
 	configASSERT(touch_handle != NULL);
 	ESP_LOGI(TAG, "Touch button initialized on pad %d", TOUCH_PAD1_PIN);
 
+    // Inicializa switch
+    esp_err_t switch_err = switch_init(SWITCH_PIN_1, switch_event_queue);
+    configASSERT(switch_err == ESP_OK);
+    ESP_LOGI(TAG, "Switch initialized on pin %d", SWITCH_PIN_1);
+
 	// Inicializa integrador de inputs
 	queue_manager = init_queue_manager(button_event_queue, encoder_event_queue,
 									   espnow_event_queue, touch_event_queue,
+                                       switch_event_queue,
 									   integrated_event_queue);
 	configASSERT(queue_manager.queue_set != NULL);
 	ESP_LOGI(TAG, "Input integrator initialized.");

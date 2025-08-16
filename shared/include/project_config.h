@@ -14,6 +14,7 @@ extern "C" {
 #define ENCODER_PIN_A        17      			// Rotary encoder channel A
 #define ENCODER_PIN_B        16      			// Rotary encoder channel B
 #define TOUCH_PAD1_PIN       TOUCH_PAD_NUM0  	// GPIO4 for touch button
+#define SWITCH_PIN_1         18                 // GPIO for the mode switch
 
 // ==================================================
 // Queue Configuration
