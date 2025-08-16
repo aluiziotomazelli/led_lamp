@@ -1,4 +1,4 @@
-idf_component_register(SRCS "led_controller.c" "led_effects.c"
+idf_component_register(SRCS "led_controller.c" "led_effects.c" "candle_math.c"
                     INCLUDE_DIRS "include"
                     
 					REQUIRES 	fsm
