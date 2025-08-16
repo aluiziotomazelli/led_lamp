@@ -114,6 +114,7 @@ static bool process_button_event(const button_event_t *button_evt,
                     return true;
                 case BUTTON_DOUBLE_CLICK:
                     send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0);
+                    send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
                     fsm_state = MODE_DISPLAY;
                     ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (cancelled)");
                     return true;
