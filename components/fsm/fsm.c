@@ -86,11 +86,13 @@ static bool process_button_event(const button_event_t *button_evt,
                     return true;
                 case BUTTON_DOUBLE_CLICK:
                     fsm_state = MODE_EFFECT_SELECT;
+                    send_led_command(LED_CMD_ENTER_EFFECT_SELECT, timestamp, 0);
                     send_led_command(LED_CMD_FEEDBACK_EFFECT_COLOR, timestamp, 0);
                     ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SELECT");
                     return true;
                 case BUTTON_LONG_CLICK:
                     fsm_state = MODE_EFFECT_SETUP;
+                    send_led_command(LED_CMD_ENTER_EFFECT_SETUP, timestamp, 0);
                     send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0);
                     ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SETUP");
                     return true;

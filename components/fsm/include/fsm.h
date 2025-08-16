@@ -35,6 +35,8 @@ typedef enum {
     LED_CMD_SET_EFFECT,      	///< Set current effect directly
     LED_CMD_SAVE_CONFIG,      	///< Save current configuration
     LED_CMD_CANCEL_CONFIG,      	///< Cancel current configuration
+    LED_CMD_ENTER_EFFECT_SETUP,
+    LED_CMD_ENTER_EFFECT_SELECT,
 
     // --- Feedback Commands ---
     LED_CMD_FEEDBACK_GREEN,     ///< Play a green confirmation blink

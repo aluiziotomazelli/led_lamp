@@ -44,6 +44,7 @@ static bool needs_render = true; // Flag to force render
 // Temporary storage for parameters when in setup mode (for cancel
 // functionality)
 static effect_param_t *temp_params = NULL;
+static uint8_t temp_effect_index = 255;
 
 // Handles for FreeRTOS objects
 static QueueHandle_t q_commands_in = NULL;
@@ -248,7 +249,10 @@ static void handle_command(const led_command_t *cmd) {
 
 	case LED_CMD_SET_EFFECT:
 		ESP_LOGI(TAG, "Effect set to: %s", current_effect->name);
-		save_temp_params(); // Save params when entering effect setup
+        // This acts as a save/commit of the new effect index
+        if (temp_effect_index != 255) {
+            temp_effect_index = 255;
+        }
 		break;
 
 	case LED_CMD_INC_EFFECT_PARAM:
@@ -280,13 +284,28 @@ static void handle_command(const led_command_t *cmd) {
 			free(temp_params);
 			temp_params = NULL;
 		}
+        if (temp_effect_index != 255) {
+            temp_effect_index = 255;
+        }
 		// Here you would save to NVS
 		break;
 
 	case LED_CMD_CANCEL_CONFIG:
 		ESP_LOGI(TAG, "Configuration cancelled.");
 		restore_temp_params();
+        if (temp_effect_index != 255) {
+            current_effect_index = temp_effect_index;
+            temp_effect_index = 255;
+        }
 		break;
+
+    case LED_CMD_ENTER_EFFECT_SETUP:
+        save_temp_params();
+        break;
+
+    case LED_CMD_ENTER_EFFECT_SELECT:
+        temp_effect_index = current_effect_index;
+        break;
 
     case LED_CMD_FEEDBACK_GREEN:
         current_feedback = FEEDBACK_TYPE_GREEN;
