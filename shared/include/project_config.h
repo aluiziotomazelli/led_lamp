@@ -21,6 +21,7 @@ extern "C" {
 #define BUTTON_QUEUE_SIZE     5      // Button event queue size
 #define ENCODER_QUEUE_SIZE   10      // Encoder event queue size
 #define TOUCH_QUEUE_SIZE      5      // Touch event queue size
+#define SWITCH_QUEUE_SIZE     5      // Switch event queue size
 #define ESPNOW_QUEUE_SIZE    10      // ESPNOW message queue size
 #define LED_CMD_QUEUE_SIZE   10
 

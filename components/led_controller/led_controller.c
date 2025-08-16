@@ -30,6 +30,10 @@ static color_t *pixel_buffer = NULL;
 
 // State variables//
 
+// Strip mode state
+static uint16_t led_offset = 0;
+static uint16_t active_num_leds = NUM_LEDS;
+
 // Fade in
 static bool is_fading = false;
 static uint32_t fade_start_time = 0;
@@ -255,6 +259,17 @@ static void handle_command(const led_command_t *cmd) {
         }
 		break;
 
+    case LED_CMD_SET_STRIP_MODE:
+        if (cmd->value == 1) { // Center mode (from switch open)
+            led_offset = 10;
+            active_num_leds = NUM_LEDS - 20;
+        } else { // Full mode (from switch closed)
+            led_offset = 0;
+            active_num_leds = NUM_LEDS;
+        }
+        ESP_LOGI(TAG, "Strip mode set. Offset: %d, Active LEDs: %d", led_offset, active_num_leds);
+        break;
+
 	case LED_CMD_INC_EFFECT_PARAM:
 		if (current_effect->num_params > 0) {
 			effect_param_t *param =
@@ -468,14 +483,22 @@ static void led_render_task(void *pv) {
 
 		if (should_run_effect) {
 			if (is_on) {
+                // Clear the entire buffer to black first.
+                // This ensures LEDs outside the active range are off.
+                memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
+
 				if (current_effect->run) {
+                    // Define the active region for the effect
+                    color_t *effect_buffer = pixel_buffer + led_offset;
 					current_effect->run(
 						current_effect->params, current_effect->num_params,
 						master_brightness, esp_timer_get_time() / 1000,
-						pixel_buffer, NUM_LEDS);
+						effect_buffer, active_num_leds);
 				}
 
-				// Apply master brightness
+				// Apply master brightness. Since the inactive pixels are black,
+                // applying brightness to them has no effect. We can safely
+                // iterate over the entire buffer.
 				if (strip_data.mode == COLOR_MODE_HSV) {
 					for (uint16_t i = 0; i < NUM_LEDS; i++) {
 						uint8_t v =

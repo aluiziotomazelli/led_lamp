@@ -11,6 +11,7 @@
 #include "button.h"
 #include "encoder.h"
 #include "touch.h"
+#include "switch.h"
 // #include <cstdint>
 
 #define TIMEOUT_EFFECT_SELECT_MS 10000
@@ -276,6 +277,20 @@ static bool process_espnow_event(const espnow_event_t *espnow_evt,
 }
 
 /**
+ * @brief Process switch events.
+ * @param switch_evt Switch event from integrated queue
+ * @return True if event should be processed
+ */
+static bool process_switch_event(const switch_event_t *switch_evt,
+								 uint32_t timestamp) {
+    // Value: 0 for full strip (closed), 1 for center strip (open)
+    int16_t mode_value = switch_evt->is_closed ? 0 : 1;
+    send_led_command(LED_CMD_SET_STRIP_MODE, timestamp, mode_value);
+    ESP_LOGI(TAG, "Switch event processed, strip mode set to %d", mode_value);
+    return true; // Always process this event
+}
+
+/**
  * @brief Main FSM task function
  * @param pv Unused parameter
  */
@@ -315,6 +330,11 @@ static void fsm_task(void *pv) {
 				event_processed = process_espnow_event(
 					&integrated_evt.data.espnow, integrated_evt.timestamp);
 				break;
+
+            case EVENT_SOURCE_SWITCH:
+                event_processed = process_switch_event(
+                    &integrated_evt.data.switch_evt, integrated_evt.timestamp);
+                break;
 
 			default:
 				ESP_LOGW(TAG, "Unknown event source: %d",

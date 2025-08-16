@@ -37,6 +37,7 @@ typedef enum {
     LED_CMD_CANCEL_CONFIG,      	///< Cancel current configuration
     LED_CMD_ENTER_EFFECT_SETUP,
     LED_CMD_ENTER_EFFECT_SELECT,
+    LED_CMD_SET_STRIP_MODE,     ///< Set the strip mode (0: Full, 1: Center)
 
     // --- Feedback Commands ---
     LED_CMD_FEEDBACK_GREEN,     ///< Play a green confirmation blink
