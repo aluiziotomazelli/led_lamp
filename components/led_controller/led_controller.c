@@ -260,9 +260,9 @@ static void handle_command(const led_command_t *cmd) {
 		break;
 
     case LED_CMD_SET_STRIP_MODE:
-        if (cmd->value == 1) { // Center mode (from switch open)
-            led_offset = LED_CENTER_OFFSET;
-            active_num_leds = NUM_LEDS - (LED_CENTER_OFFSET * 2);
+        if (cmd->value == 1) { // Restricted mode (from switch open)
+            led_offset = LED_OFFSET_BEGIN;
+            active_num_leds = NUM_LEDS - (LED_OFFSET_BEGIN + LED_OFFSET_END);
         } else { // Full mode (from switch closed)
             led_offset = 0;
             active_num_leds = NUM_LEDS;

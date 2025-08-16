@@ -85,7 +85,8 @@ extern "C" {
 #define LED_RENDER_INTERVAL_MS 10
 #define MIN_BRIGHTNESS 20
 #define FADE_DURATION_MS 5000
-#define LED_CENTER_OFFSET 10      // Number of LEDs to turn off from each side in center mode
+#define LED_OFFSET_BEGIN 10       // Number of LEDs to turn off from the beginning in restricted modes
+#define LED_OFFSET_END 10         // Number of LEDs to turn off from the end in restricted modes
 // ==================================================
 // LED Driver Configuration
 // ==================================================
