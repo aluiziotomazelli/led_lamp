@@ -428,8 +428,8 @@ effect_t effect_candle_math = {.name = "Candle Math",
 											 sizeof(effect_param_t),
 							   .is_dynamic = true};
 
-effect_t *effects[] = {&effect_white_temp,	&effect_candle,
-					   &effect_candle_math, &effect_static_color,
+effect_t *effects[] = {&effect_candle, &effect_white_temp,	
+					   &effect_static_color, &effect_candle_math, 
 					   &effect_breathing,	&effect_rainbow};
 
 const uint8_t effects_count = sizeof(effects) / sizeof(effects[0]);
