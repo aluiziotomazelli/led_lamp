@@ -28,10 +28,10 @@ static void run_white_temp(const effect_param_t *params, uint8_t num_params,
 			rgb = (rgb_t){255, 130, 30};
 			break;
 		case 1: // quente
-			rgb = (rgb_t){255, 140, 50};
+			rgb = (rgb_t){255, 160, 60};
 			break;
 		case 2: // neutro
-			rgb = (rgb_t){255, 197, 143};
+			rgb = (rgb_t){255, 200, 100};
 			break;
 		case 3: // frio
 			rgb = (rgb_t){255, 214, 170};
@@ -40,7 +40,7 @@ static void run_white_temp(const effect_param_t *params, uint8_t num_params,
 			rgb = (rgb_t){255, 255, 255};
 			break;
 		case 5: // gelado
-			rgb = (rgb_t){201, 226, 255};
+			rgb = (rgb_t){180, 210, 255};
 			break;
 		default: // fallback to neutral
 			rgb = (rgb_t){255, 197, 143};
