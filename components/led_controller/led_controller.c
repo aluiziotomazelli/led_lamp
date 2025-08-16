@@ -403,10 +403,18 @@ static void led_render_task(void *pv) {
 		.pixels = pixel_buffer, .num_pixels = NUM_LEDS, .mode = COLOR_MODE_RGB};
 	const TickType_t tick_rate =
 		pdMS_TO_TICKS(LED_RENDER_INTERVAL_MS); // ~33 FPS
+    static bool was_running_feedback = false;
 
 	while (1) {
+        bool is_running_feedback = run_feedback_animation();
+
+        if (was_running_feedback && !is_running_feedback) {
+            needs_render = true;
+        }
+        was_running_feedback = is_running_feedback;
+
         // Prioritize feedback animations over all other rendering
-        if (run_feedback_animation()) {
+        if (is_running_feedback) {
             strip_data.mode = COLOR_MODE_RGB; // Feedback animations are always RGB
             xQueueOverwrite(q_strip_out, &strip_data);
             // Use a shorter delay for smooth animation, but still allow notifications
