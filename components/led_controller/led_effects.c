@@ -266,7 +266,7 @@ static effect_param_t params_candle_math[] = {
     {.name = "Speed", .type = PARAM_TYPE_SPEED, .value = 20, .min_value = 1, .max_value = 100, .step = 1},
     {.name = "Hue", .type = PARAM_TYPE_HUE, .value = 30, .min_value = 0, .max_value = 359, .step = 1},
     {.name = "Saturation", .type = PARAM_TYPE_SATURATION, .value = 255, .min_value = 0, .max_value = 255, .step = 5},
-    {.name = "Segments", .type = PARAM_TYPE_VALUE, .value = 10, .min_value = 1, .max_value = MAX_LEDS, .step = 1},
+    {.name = "Segments", .type = PARAM_TYPE_VALUE, .value = 10, .min_value = 1, .max_value = NUM_LEDS, .step = 1},
     {.name = "Intensity", .type = PARAM_TYPE_VALUE, .value = 30, .min_value = 0, .max_value = 100, .step = 5},
     {.name = "Dip Prob", .type = PARAM_TYPE_VALUE, .value = 2, .min_value = 0, .max_value = 100, .step = 1},
 };
@@ -345,14 +345,6 @@ static void run_candle_math(const effect_param_t *params, uint8_t num_params,
 }
 
 /* --- List of all effects --- */
-effect_t effect_white_temp = {.name = "White Temp",
-						  .run = run_white_temp,
-						  .color_mode = COLOR_MODE_RGB,
-						  .params = params_white_temp,
-						  .num_params =
-							  sizeof(params_white_temp) / sizeof(effect_param_t),
-						  .is_dynamic = false};
-
 effect_t effect_candle = {.name = "Candle",
 						  .run = run_candle,
 						  .color_mode = COLOR_MODE_HSV,
@@ -360,6 +352,14 @@ effect_t effect_candle = {.name = "Candle",
 						  .num_params =
 							  sizeof(params_candle) / sizeof(effect_param_t),
 						  .is_dynamic = true};
+
+effect_t effect_white_temp = {.name = "White Temp",
+						  .run = run_white_temp,
+						  .color_mode = COLOR_MODE_RGB,
+						  .params = params_white_temp,
+						  .num_params =
+							  sizeof(params_white_temp) / sizeof(effect_param_t),
+						  .is_dynamic = false};
 
 effect_t effect_breathing = {.name = "Breathing",
 							 .run = run_breathing,

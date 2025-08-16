@@ -4,6 +4,7 @@
 #include "fsm.h"
 #include "project_config.h"
 #include "hsv2rgb.h"
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -124,35 +125,39 @@ static bool run_feedback_animation() {
 
     uint64_t now = esp_timer_get_time() / 1000;
     uint64_t elapsed = now - feedback_start_time_ms;
+    const uint16_t total_duration = 400;
 
     rgb_t feedback_color = {0, 0, 0};
-    uint16_t anim_duration_ms = feedback_blink_count * 250; // 125ms on, 125ms off per blink
+    uint16_t anim_duration_ms = feedback_blink_count * total_duration; // 125ms on, 125ms off per blink
 
     // Determine the color for the feedback
     switch (current_feedback) {
         case FEEDBACK_TYPE_GREEN:
-            feedback_color = (rgb_t){0, 255, 0};
+            feedback_color = (rgb_t){50, 200, 50};
             break;
         case FEEDBACK_TYPE_RED:
-            feedback_color = (rgb_t){255, 0, 0};
+            feedback_color = (rgb_t){200, 50, 50};
             break;
         case FEEDBACK_TYPE_BLUE:
-            feedback_color = (rgb_t){0, 0, 255};
+            feedback_color = (rgb_t){40, 40, 200};
             break;
         case FEEDBACK_TYPE_EFFECT_COLOR:
-        case FEEDBACK_TYPE_LIMIT: {
-            effect_t* effect = effects[current_effect_index];
-            // Find the Hue parameter to use as base color
-            uint16_t hue = 0;
-            for(int i=0; i < effect->num_params; i++) {
-                if(effect->params[i].type == PARAM_TYPE_HUE) {
-                    hue = effect->params[i].value;
-                    break;
-                }
-            }
-            hsv_to_rgb_spectrum_deg(hue, 255, 255, &feedback_color.r, &feedback_color.g, &feedback_color.b);
+        case FEEDBACK_TYPE_LIMIT: 
+            feedback_color = (rgb_t){200, 120, 20};
             break;
-        }
+//        case FEEDBACK_TYPE_LIMIT: {
+//            effect_t* effect = effects[current_effect_index];
+//            // Find the Hue parameter to use as base color
+//            uint16_t hue = 40;
+//            for(int i=0; i < effect->num_params; i++) {
+//                if(effect->params[i].type == PARAM_TYPE_HUE) {
+//                    hue = effect->params[i].value;
+//                    break;
+//                }
+//            }
+//            hsv_to_rgb_spectrum_deg(hue, 255, 255, &feedback_color.r, &feedback_color.g, &feedback_color.b);
+//            break;
+//        }
         default:
             // Should not happen
             current_feedback = FEEDBACK_TYPE_NONE;
@@ -167,7 +172,7 @@ static bool run_feedback_animation() {
 
     // Determine if the blink is in the ON or OFF phase
     // Each blink is 250ms long. The first half (0-124ms) is ON.
-    bool is_on_phase = (elapsed % 250) < 125;
+    bool is_on_phase = (elapsed % total_duration) < (total_duration/2);
 
     if (is_on_phase) {
         fill_solid_color(apply_brightness(feedback_color, master_brightness));
