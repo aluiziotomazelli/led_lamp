@@ -61,13 +61,15 @@ static effect_param_t params_static_color[] = {
 	 .value = 250,
 	 .min_value = 0,
 	 .max_value = 359,
-	 .step = 1},
+	 .step = 1,
+     .is_wrap = true},
 	{.name = "Saturation",
 	 .type = PARAM_TYPE_SATURATION,
 	 .value = 230,
 	 .min_value = 0,
 	 .max_value = 255,
-	 .step = 5},
+	 .step = 5,
+     .is_wrap = false},
 };
 
 static void run_static_color(const effect_param_t *params, uint8_t num_params,

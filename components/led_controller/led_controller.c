@@ -260,10 +260,19 @@ static void handle_command(const led_command_t *cmd) {
 			effect_param_t *param =
 				&current_effect->params[current_param_index];
 			param->value += cmd->value * param->step;
-			if (param->value > param->max_value)
-				param->value = param->max_value;
-			if (param->value < param->min_value)
-				param->value = param->min_value;
+
+            if (param->is_wrap) {
+                if (param->value > param->max_value) {
+                    param->value = param->min_value;
+                } else if (param->value < param->min_value) {
+                    param->value = param->max_value;
+                }
+            } else {
+                if (param->value > param->max_value)
+                    param->value = param->max_value;
+                if (param->value < param->min_value)
+                    param->value = param->min_value;
+            }
 			ESP_LOGI(TAG, "Param '%s' changed to: %d", param->name,
 					 param->value);
 		}
