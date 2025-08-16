@@ -3,7 +3,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include "freertos/semphr.h"
 #include "driver/gpio.h"
 #include "project_config.h"
 #include <stdlib.h>
@@ -19,8 +18,7 @@ struct switch_s {
     bool active_low;            ///< Active low configuration.
     uint16_t debounce_ms;       ///< Debounce time in ms.
     QueueHandle_t output_queue; ///< Event output queue.
-    SemaphoreHandle_t sem;      ///< Semaphore for ISR to task signaling.
-    TaskHandle_t task_handle;   ///< Associated task handle.
+    TaskHandle_t task_handle;   ///< Associated task handle for notifications.
 };
 
 /**
@@ -31,7 +29,9 @@ struct switch_s {
 static void IRAM_ATTR switch_isr_handler(void *arg) {
     switch_t sw = (switch_t)arg;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    xSemaphoreGiveFromISR(sw->sem, &xHigherPriorityTaskWoken);
+    // Give a notification to the handler task. No need to check for yield,
+    // as vTaskNotifyGiveFromISR handles it.
+    vTaskNotifyGiveFromISR(sw->task_handle, &xHigherPriorityTaskWoken);
     if (xHigherPriorityTaskWoken) {
         portYIELD_FROM_ISR();
     }
@@ -45,9 +45,17 @@ static void IRAM_ATTR switch_isr_handler(void *arg) {
 static void switch_task(void *arg) {
     switch_t sw = (switch_t)arg;
 
+    // A small delay to allow the system to stabilize before the first read.
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    // Perform an initial read to send the boot-up state of the switch.
+    ESP_LOGI(TAG, "Performing initial state read for switch on pin %d", sw->pin);
+    xTaskNotifyGive(sw->task_handle); // Give notification to trigger the first read immediately.
+
     while (1) {
-        // Wait indefinitely for the semaphore from the ISR
-        if (xSemaphoreTake(sw->sem, portMAX_DELAY) == pdTRUE) {
+        // Wait indefinitely for a notification from the ISR (or the initial give above).
+        // pdTRUE clears the notification value, making it behave like a binary semaphore.
+        if (ulTaskNotifyTake(pdTRUE, portMAX_DELAY) > 0) {
             // Disable interrupts during debounce
             gpio_intr_disable(sw->pin);
 
@@ -99,14 +107,6 @@ switch_t switch_create(const switch_config_t *config, QueueHandle_t queue) {
 
     ESP_LOGI(TAG, "Creating switch on GPIO %d", sw->pin);
 
-    // Create a binary semaphore for this instance
-    sw->sem = xSemaphoreCreateBinary();
-    if (sw->sem == NULL) {
-        ESP_LOGE(TAG, "Failed to create semaphore for pin %d", sw->pin);
-        free(sw);
-        return NULL;
-    }
-
     // Configure GPIO pin
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << sw->pin),
@@ -118,18 +118,16 @@ switch_t switch_create(const switch_config_t *config, QueueHandle_t queue) {
     esp_err_t err = gpio_config(&io_conf);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "GPIO config failed for pin %d: %s", sw->pin, esp_err_to_name(err));
-        free(sw->sem);
         free(sw);
         return NULL;
     }
 
-    // Create the switch handling task
+    // Create the switch handling task. The task handle is stored in our instance struct.
     char task_name[configMAX_TASK_NAME_LEN];
     snprintf(task_name, sizeof(task_name), "switch_task_%d", sw->pin);
     BaseType_t task_created = xTaskCreate(switch_task, task_name, SWITCH_TASK_STACK_SIZE, sw, SWITCH_TASK_PRIORITY, &sw->task_handle);
     if (task_created != pdPASS) {
         ESP_LOGE(TAG, "Failed to create switch task for pin %d", sw->pin);
-        free(sw->sem);
         free(sw);
         return NULL;
     }
@@ -139,7 +137,6 @@ switch_t switch_create(const switch_config_t *config, QueueHandle_t queue) {
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
         ESP_LOGE(TAG, "Failed to install ISR service: %s", esp_err_to_name(err));
         vTaskDelete(sw->task_handle);
-        free(sw->sem);
         free(sw);
         return NULL;
     }
@@ -149,7 +146,6 @@ switch_t switch_create(const switch_config_t *config, QueueHandle_t queue) {
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add ISR handler for pin %d: %s", sw->pin, esp_err_to_name(err));
         vTaskDelete(sw->task_handle);
-        free(sw->sem);
         free(sw);
         return NULL;
     }
@@ -169,9 +165,6 @@ void switch_delete(switch_t sw) {
     gpio_isr_handler_remove(sw->pin);
     if (sw->task_handle) {
         vTaskDelete(sw->task_handle);
-    }
-    if (sw->sem) {
-        vSemaphoreDelete(sw->sem);
     }
     free(sw);
 }

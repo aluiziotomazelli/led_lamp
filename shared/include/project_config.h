@@ -14,7 +14,7 @@ extern "C" {
 #define ENCODER_PIN_A        17      			// Rotary encoder channel A
 #define ENCODER_PIN_B        16      			// Rotary encoder channel B
 #define TOUCH_PAD1_PIN       TOUCH_PAD_NUM0  	// GPIO4 for touch button
-#define SWITCH_PIN_1         18                 // GPIO for the mode switch
+#define SWITCH_PIN_1         32                 // GPIO for the mode switch
 
 // ==================================================
 // Queue Configuration
@@ -37,6 +37,8 @@ extern "C" {
 #define FSM_STACK_SIZE           4096   // Finite State Machine stack
 #define INTEGRATOR_TASK_STACK_SIZE 4096
 #define LED_CTRL_STACK_SIZE			4069
+#define LED_RENDER_STACK_SIZE			4069
+#define LED_DRIVER_TASK_STACK_SIZE  4096     // Stack size for the LED driver task
 #define SWITCH_TASK_STACK_SIZE   2048
 
 // Task priorities
@@ -48,6 +50,8 @@ extern "C" {
 #define FSM_TASK_PRIORITY         5
 #define INTEGRATOR_TASK_PRIORITY  5
 #define LED_CTRL_TASK_PRIORITY    5
+#define LED_RENDER_TASK_PRIORITY    5
+#define LED_DRIVER_TASK_PRIORITY    5        // Priority for the LED driver task
 
 // ==================================================
 // Touch Button Configuration
@@ -95,8 +99,6 @@ extern "C" {
 // ==================================================
 #define LED_STRIP_GPIO              13        // GPIO for the LED strip data line
 #define LED_STRIP_SPI_HOST          SPI2_HOST // SPI host for the LED strip
-#define LED_DRIVER_TASK_STACK_SIZE  4096     // Stack size for the LED driver task
-#define LED_DRIVER_TASK_PRIORITY    5        // Priority for the LED driver task
 
 
 // ==================================================

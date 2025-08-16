@@ -397,8 +397,8 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
 
 	// Create the rendering task
 	BaseType_t result =
-		xTaskCreate(led_render_task, "LED_RENDER_T", LED_CTRL_STACK_SIZE, NULL,
-					LED_CTRL_TASK_PRIORITY, &render_task_handle);
+		xTaskCreate(led_render_task, "LED_RENDER_T", LED_RENDER_STACK_SIZE, NULL,
+					LED_RENDER_TASK_PRIORITY, &render_task_handle);
 	if (result != pdPASS) {
 		ESP_LOGE(TAG, "Failed to create LED render task");
 		vQueueDelete(q_strip_out);
