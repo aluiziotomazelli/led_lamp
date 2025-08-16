@@ -3,10 +3,26 @@
 #include "esp_timer.h"
 #include "fsm.h"
 #include "project_config.h"
+#include "hsv2rgb.h"
 #include <stdlib.h>
 #include <string.h>
 
 static const char *TAG = "LED_CTRL";
+
+// --- Feedback Animation State ---
+typedef enum {
+    FEEDBACK_TYPE_NONE,
+    FEEDBACK_TYPE_GREEN,
+    FEEDBACK_TYPE_RED,
+    FEEDBACK_TYPE_BLUE,
+    FEEDBACK_TYPE_EFFECT_COLOR,
+    FEEDBACK_TYPE_LIMIT,
+} feedback_type_t;
+
+static feedback_type_t current_feedback = FEEDBACK_TYPE_NONE;
+static uint64_t feedback_start_time_ms = 0;
+static uint8_t feedback_blink_count = 0;
+
 
 // The pixel buffer that holds the current LED colors
 static color_t *pixel_buffer = NULL;
@@ -89,10 +105,90 @@ static void restore_temp_params() {
 }
 
 /**
+ * @brief Fills the entire pixel buffer with a solid RGB color.
+ */
+static void fill_solid_color(rgb_t color) {
+    for (uint16_t i = 0; i < NUM_LEDS; i++) {
+        pixel_buffer[i].rgb = color;
+    }
+}
+
+/**
+ * @brief Runs the currently active feedback animation.
+ * @return true if an animation is active, false otherwise.
+ */
+static bool run_feedback_animation() {
+    if (current_feedback == FEEDBACK_TYPE_NONE) {
+        return false;
+    }
+
+    uint64_t now = esp_timer_get_time() / 1000;
+    uint64_t elapsed = now - feedback_start_time_ms;
+
+    rgb_t feedback_color = {0, 0, 0};
+    uint16_t anim_duration_ms = feedback_blink_count * 250; // 125ms on, 125ms off per blink
+
+    // Determine the color for the feedback
+    switch (current_feedback) {
+        case FEEDBACK_TYPE_GREEN:
+            feedback_color = (rgb_t){0, 255, 0};
+            break;
+        case FEEDBACK_TYPE_RED:
+            feedback_color = (rgb_t){255, 0, 0};
+            break;
+        case FEEDBACK_TYPE_BLUE:
+            feedback_color = (rgb_t){0, 0, 255};
+            break;
+        case FEEDBACK_TYPE_EFFECT_COLOR:
+        case FEEDBACK_TYPE_LIMIT: {
+            effect_t* effect = effects[current_effect_index];
+            // Find the Hue parameter to use as base color
+            uint16_t hue = 0;
+            for(int i=0; i < effect->num_params; i++) {
+                if(effect->params[i].type == PARAM_TYPE_HUE) {
+                    hue = effect->params[i].value;
+                    break;
+                }
+            }
+            hsv_to_rgb_spectrum_deg(hue, 255, 255, &feedback_color.r, &feedback_color.g, &feedback_color.b);
+            break;
+        }
+        default:
+            // Should not happen
+            current_feedback = FEEDBACK_TYPE_NONE;
+            return false;
+    }
+
+    // Check if animation is finished
+    if (elapsed >= anim_duration_ms) {
+        current_feedback = FEEDBACK_TYPE_NONE;
+        return false;
+    }
+
+    // Determine if the blink is in the ON or OFF phase
+    // Each blink is 250ms long. The first half (0-124ms) is ON.
+    bool is_on_phase = (elapsed % 250) < 125;
+
+    if (is_on_phase) {
+        fill_solid_color(apply_brightness(feedback_color, master_brightness));
+    } else {
+        fill_solid_color((rgb_t){0, 0, 0}); // Off
+    }
+
+    return true;
+}
+
+
+/**
  * @brief Handles an incoming command from the FSM.
  */
 static void handle_command(const led_command_t *cmd) {
 	effect_t *current_effect = effects[current_effect_index];
+
+	// Do not process other commands if a feedback is active, to avoid conflicts
+    if (current_feedback != FEEDBACK_TYPE_NONE && cmd->cmd < LED_CMD_FEEDBACK_GREEN) {
+        return;
+    }
 
 	switch (cmd->cmd) {
 	case LED_CMD_TURN_ON:
@@ -117,8 +213,14 @@ static void handle_command(const led_command_t *cmd) {
 		int32_t new_brightness = (int32_t)master_brightness + cmd->value;
 		if (new_brightness > 255) {
 			master_brightness = 255;
+            current_feedback = FEEDBACK_TYPE_LIMIT;
+            feedback_start_time_ms = esp_timer_get_time() / 1000;
+            feedback_blink_count = 2;
 		} else if (new_brightness < MIN_BRIGHTNESS) {
 			master_brightness = MIN_BRIGHTNESS;
+            current_feedback = FEEDBACK_TYPE_LIMIT;
+            feedback_start_time_ms = esp_timer_get_time() / 1000;
+            feedback_blink_count = 2;
 		} else {
 			master_brightness = (uint8_t)new_brightness;
 		}
@@ -180,6 +282,30 @@ static void handle_command(const led_command_t *cmd) {
 		ESP_LOGI(TAG, "Configuration cancelled.");
 		restore_temp_params();
 		break;
+
+    case LED_CMD_FEEDBACK_GREEN:
+        current_feedback = FEEDBACK_TYPE_GREEN;
+        feedback_start_time_ms = esp_timer_get_time() / 1000;
+        feedback_blink_count = 2; // Double blink
+        break;
+
+    case LED_CMD_FEEDBACK_RED:
+        current_feedback = FEEDBACK_TYPE_RED;
+        feedback_start_time_ms = esp_timer_get_time() / 1000;
+        feedback_blink_count = 2; // Double blink
+        break;
+
+    case LED_CMD_FEEDBACK_BLUE:
+        current_feedback = FEEDBACK_TYPE_BLUE;
+        feedback_start_time_ms = esp_timer_get_time() / 1000;
+        feedback_blink_count = 1; // Single blink
+        break;
+
+    case LED_CMD_FEEDBACK_EFFECT_COLOR:
+        current_feedback = FEEDBACK_TYPE_EFFECT_COLOR;
+        feedback_start_time_ms = esp_timer_get_time() / 1000;
+        feedback_blink_count = 1; // Single blink
+        break;
 
 	default:
 		// Other commands are ignored by the controller
@@ -255,10 +381,15 @@ static void led_render_task(void *pv) {
 		pdMS_TO_TICKS(LED_RENDER_INTERVAL_MS); // ~33 FPS
 
 	while (1) {
-		//		if (master_brightness < MIN_BRIGHTNESS) {
-		//			master_brightness = MIN_BRIGHTNESS;
-		//		}
-		
+        // Prioritize feedback animations over all other rendering
+        if (run_feedback_animation()) {
+            strip_data.mode = COLOR_MODE_RGB; // Feedback animations are always RGB
+            xQueueOverwrite(q_strip_out, &strip_data);
+            // Use a shorter delay for smooth animation, but still allow notifications
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(16)); // ~60 FPS for feedback
+            continue; // Skip the rest of the loop
+        }
+
 		if (is_fading && is_on) {
 			 uint32_t now = esp_timer_get_time() / 1000;
             uint32_t elapsed = now - fade_start_time;

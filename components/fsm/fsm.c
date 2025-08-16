@@ -86,10 +86,12 @@ static bool process_button_event(const button_event_t *button_evt,
                     return true;
                 case BUTTON_DOUBLE_CLICK:
                     fsm_state = MODE_EFFECT_SELECT;
+                    send_led_command(LED_CMD_FEEDBACK_EFFECT_COLOR, timestamp, 0);
                     ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SELECT");
                     return true;
                 case BUTTON_LONG_CLICK:
                     fsm_state = MODE_EFFECT_SETUP;
+                    send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0);
                     ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SETUP");
                     return true;
                 case BUTTON_VERY_LONG_CLICK:
@@ -105,6 +107,7 @@ static bool process_button_event(const button_event_t *button_evt,
                 case BUTTON_CLICK:
                     fsm_state = MODE_DISPLAY;
                     send_led_command(LED_CMD_SET_EFFECT, timestamp, 0);
+                    send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
                     ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (effect selected)");
                     return true;
                 case BUTTON_DOUBLE_CLICK:
@@ -125,16 +128,19 @@ static bool process_button_event(const button_event_t *button_evt,
             switch (button_evt->type) {
                 case BUTTON_CLICK:
                     send_led_command(LED_CMD_NEXT_EFFECT_PARAM, timestamp, 0);
+                    send_led_command(LED_CMD_FEEDBACK_EFFECT_COLOR, timestamp, 0);
                     ESP_LOGI(TAG, "MODE_EFFECT_SETUP Next Param");
                     return true;
                 case BUTTON_DOUBLE_CLICK:
                     send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0);
+                    send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
                     fsm_state = MODE_DISPLAY;
                     ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (cancelled)");
                     return true;
                 case BUTTON_LONG_CLICK:
                     fsm_state = MODE_DISPLAY;
                     send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
+                    send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
                     ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (saved)");
                     return true;
                 case BUTTON_TIMEOUT:
@@ -325,6 +331,7 @@ static void fsm_task(void *pv) {
 				 check_timeout(TIMEOUT_SYSTEM_SETUP_MS))) {
 				fsm_state = MODE_DISPLAY;
 				send_led_command(LED_CMD_SAVE_CONFIG, get_current_time_ms(), 0);
+                send_led_command(LED_CMD_FEEDBACK_GREEN, get_current_time_ms(), 0);
 				ESP_LOGI(TAG, "Timeout in setup mode -> MODE_DISPLAY "
 							  "(auto-save)");
 				last_event_timestamp_ms = get_current_time_ms();
