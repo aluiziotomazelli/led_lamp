@@ -5,6 +5,54 @@
 
 #include "hsv2rgb.h"
 
+/* --- Effect: White Temp --- */
+
+static effect_param_t params_white_temp[] = {
+	{.name = "Temperature",
+	 .type = PARAM_TYPE_VALUE,
+	 .value = 0,
+	 .min_value = 0,
+	 .max_value = 5,
+	 .step = 1},
+};
+
+static void run_white_temp(const effect_param_t *params, uint8_t num_params,
+							 uint8_t brightness, uint64_t time_ms,
+							 color_t *pixels, uint16_t num_pixels) {
+
+	int16_t temp_index = params[0].value;
+	rgb_t rgb;
+
+	switch(temp_index){
+		case 0: // Bem quente
+			rgb = (rgb_t){255, 130, 30};
+			break;
+		case 1: // quente
+			rgb = (rgb_t){255, 140, 50};
+			break;
+		case 2: // neutro
+			rgb = (rgb_t){255, 197, 143};
+			break;
+		case 3: // frio
+			rgb = (rgb_t){255, 214, 170};
+			break;
+		case 4: // mais frio
+			rgb = (rgb_t){255, 255, 255};
+			break;
+		case 5: // gelado
+			rgb = (rgb_t){201, 226, 255};
+			break;
+		default: // fallback to neutral
+			rgb = (rgb_t){255, 197, 143};
+			break;
+	}
+
+	for (uint16_t i = 0; i < num_pixels; i++) {
+		pixels[i].rgb = rgb;
+	}
+}
+
+
 /* --- Effect: Static Color --- */
 
 static effect_param_t params_static_color[] = {
@@ -212,6 +260,13 @@ static void run_candle(const effect_param_t *params, uint8_t num_params,
 }
 
 /* --- List of all effects --- */
+effect_t effect_white_temp = {.name = "White Temp",
+						  .run = run_white_temp,
+						  .color_mode = COLOR_MODE_RGB,
+						  .params = params_white_temp,
+						  .num_params =
+							  sizeof(params_white_temp) / sizeof(effect_param_t),
+						  .is_dynamic = false};
 
 effect_t effect_candle = {.name = "Candle",
 						  .run = run_candle,
@@ -245,7 +300,7 @@ effect_t effect_rainbow = {.name = "Rainbow",
 							   sizeof(params_rainbow) / sizeof(effect_param_t),
 						   .is_dynamic = true};
 
-effect_t *effects[] = {&effect_candle, &effect_static_color, &effect_breathing,
+effect_t *effects[] = {&effect_white_temp, &effect_candle, &effect_static_color, &effect_breathing,
 					   &effect_rainbow};
 
 const uint8_t effects_count = sizeof(effects) / sizeof(effects[0]);
