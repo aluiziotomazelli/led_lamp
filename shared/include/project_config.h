@@ -100,6 +100,22 @@ extern "C" {
 #define LED_STRIP_GPIO              13        // GPIO for the LED strip data line
 #define LED_STRIP_SPI_HOST          SPI2_HOST // SPI host for the LED strip
 
+// ==================================================
+// ESP-NOW Configuration
+// ==================================================
+#define ESP_NOW_ENABLED  1 // 1 to enable, 0 to disable
+#define IS_MASTER        1 // 1 for master, 0 for slave
+#define IS_SLAVE         0 // 1 for slave, 0 for master
+
+// List of slave MAC addresses for the master to send to.
+// The master will not be a slave, and a slave will not be a master.
+// Replace with the actual MAC addresses of your slave devices.
+static uint8_t slave_mac_addresses[][6] = {
+    {0x1A, 0x2B, 0x3C, 0x4D, 0x5E, 0x6F},
+    {0x7A, 0x8B, 0x9C, 0xAD, 0xBE, 0xCF}
+};
+static const int num_slaves = sizeof(slave_mac_addresses) / sizeof(slave_mac_addresses[0]);
+
 
 // ==================================================
 // System Assertion Configuration

@@ -16,6 +16,7 @@
 #include "fsm.h" // FSM incremental
 #include "led_controller.h"
 #include "led_driver.h"
+#include "espnow_controller.h"
 
 static const char *TAG = "main";
 
@@ -60,6 +61,11 @@ void app_main(void) {
 		xQueueCreate(ESPNOW_QUEUE_SIZE, sizeof(espnow_event_t));
 	configASSERT(espnow_event_queue != NULL);
 	ESP_LOGI(TAG, "ESP-NOW event queue created (size: %d)", ESPNOW_QUEUE_SIZE);
+
+    // Initialize ESP-NOW controller
+#if ESP_NOW_ENABLED
+    espnow_controller_init(espnow_event_queue);
+#endif
 
 	UBaseType_t integrated_queue_len = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE +
 									   ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE + SWITCH_QUEUE_SIZE;

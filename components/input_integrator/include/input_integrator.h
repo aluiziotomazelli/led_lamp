@@ -6,14 +6,14 @@
 #include "encoder.h"
 #include "touch.h"
 #include "switch.h"
+#include "espnow_controller.h"
 
 /**
- * @brief ESPNOW event data structure
+ * @brief ESPNOW event data structure, passed in the integrated queue.
  */
 typedef struct {
-    unsigned char mac_addr[6];  ///< MAC address of sender
-    unsigned char *data;        ///< Received data pointer
-    int data_len;               ///< Length of received data
+    uint8_t mac_addr[6];      ///< MAC address of sender
+    espnow_message_t msg;     ///< The received message data
 } espnow_event_t;
 
 /**

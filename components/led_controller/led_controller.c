@@ -4,6 +4,9 @@
 #include "fsm.h"
 #include "project_config.h"
 #include "hsv2rgb.h"
+#if ESP_NOW_ENABLED && IS_MASTER
+#include "espnow_controller.h"
+#endif
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -189,6 +192,16 @@ static bool run_feedback_animation() {
 }
 
 
+#if ESP_NOW_ENABLED && IS_MASTER
+/**
+ * @brief Constructs and sends an ESP-NOW message.
+ */
+static void send_espnow_command(const led_command_t *cmd) {
+    espnow_message_t msg = {.cmd = *cmd};
+    espnow_controller_send(&msg);
+}
+#endif
+
 /**
  * @brief Handles an incoming command from the FSM.
  */
@@ -204,6 +217,9 @@ static void handle_command(const led_command_t *cmd) {
 	case LED_CMD_TURN_ON:
 		is_on = true;
 		ESP_LOGI(TAG, "LEDs ON");
+#if ESP_NOW_ENABLED && IS_MASTER
+        send_espnow_command(cmd);
+#endif
 		break;
 	case LED_CMD_TURN_ON_FADE:
 		is_on = true;
@@ -212,11 +228,17 @@ static void handle_command(const led_command_t *cmd) {
 		fade_start_brightness = master_brightness;
 		master_brightness = 0; // começa do mínimo
 		ESP_LOGI(TAG, "LEDs ON with fade");
+#if ESP_NOW_ENABLED && IS_MASTER
+        send_espnow_command(cmd);
+#endif
 		break;
 
 	case LED_CMD_TURN_OFF:
 		is_on = false;
 		ESP_LOGI(TAG, "LEDs OFF");
+#if ESP_NOW_ENABLED && IS_MASTER
+        send_espnow_command(cmd);
+#endif
 		break;
 
 	case LED_CMD_INC_BRIGHTNESS: {
@@ -235,6 +257,9 @@ static void handle_command(const led_command_t *cmd) {
 			master_brightness = (uint8_t)new_brightness;
 		}
 		ESP_LOGI(TAG, "Brightness: %d", master_brightness);
+#if ESP_NOW_ENABLED && IS_MASTER
+        send_espnow_command(cmd);
+#endif
 		break;
 	}
 
@@ -248,6 +273,9 @@ static void handle_command(const led_command_t *cmd) {
 		current_param_index = 0; // Reset param index when changing effect
 		ESP_LOGI(TAG, "Effect changed to: %s",
 				 effects[current_effect_index]->name);
+#if ESP_NOW_ENABLED && IS_MASTER
+        send_espnow_command(cmd);
+#endif
 		break;
 	}
 
@@ -257,6 +285,9 @@ static void handle_command(const led_command_t *cmd) {
         if (temp_effect_index != 255) {
             temp_effect_index = 255;
         }
+#if ESP_NOW_ENABLED && IS_MASTER
+        send_espnow_command(cmd);
+#endif
 		break;
 
     case LED_CMD_SET_STRIP_MODE:
@@ -268,6 +299,9 @@ static void handle_command(const led_command_t *cmd) {
             active_num_leds = NUM_LEDS;
         }
         ESP_LOGI(TAG, "Strip mode set. Offset: %d, Active LEDs: %d", led_offset, active_num_leds);
+#if ESP_NOW_ENABLED && IS_MASTER
+        send_espnow_command(cmd);
+#endif
         break;
 
 	case LED_CMD_INC_EFFECT_PARAM:
@@ -303,6 +337,9 @@ static void handle_command(const led_command_t *cmd) {
             }
 			ESP_LOGI(TAG, "Param '%s' changed to: %d", param->name,
 					 param->value);
+#if ESP_NOW_ENABLED && IS_MASTER
+            send_espnow_command(cmd);
+#endif
 		}
 		break;
 
@@ -312,6 +349,9 @@ static void handle_command(const led_command_t *cmd) {
 				(current_param_index + 1) % current_effect->num_params;
 			ESP_LOGI(TAG, "Next param: %s",
 					 current_effect->params[current_param_index].name);
+#if ESP_NOW_ENABLED && IS_MASTER
+            send_espnow_command(cmd);
+#endif
 		}
 		break;
 

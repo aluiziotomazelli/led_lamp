@@ -257,23 +257,29 @@ static bool process_touch_event(const touch_event_t *touch_evt,
 }
 
 /**
- * @brief Process ESPNOW events (placeholder for future implementation)
+ * @brief Process ESPNOW events by forwarding them to the LED controller.
  * @param espnow_evt ESPNOW event from integrated queue
  * @return True if event should be processed
  */
 static bool process_espnow_event(const espnow_event_t *espnow_evt,
 								 uint32_t timestamp) {
-	ESP_LOGD(TAG,
-			 "ESPNOW event received from MAC: "
-			 "%02x:%02x:%02x:%02x:%02x:%02x, len=%d",
-			 espnow_evt->mac_addr[0], espnow_evt->mac_addr[1],
-			 espnow_evt->mac_addr[2], espnow_evt->mac_addr[3],
-			 espnow_evt->mac_addr[4], espnow_evt->mac_addr[5],
-			 espnow_evt->data_len);
+#if ESP_NOW_ENABLED && IS_SLAVE
+    ESP_LOGD(TAG, "Processing ESPNOW event from " MACSTR, MAC2STR(espnow_evt->mac_addr));
 
-	// TODO: Implement ESPNOW command parsing
-	// For now, treat as no-op
-	return false;
+    // The received message contains a led_command_t. We just need to forward it.
+    const led_command_t *cmd = &espnow_evt->msg.cmd;
+
+    // A slave should not be in a setup mode. If it is, snap back to display mode.
+    if (fsm_state != MODE_DISPLAY && fsm_state != MODE_OFF) {
+        fsm_state = MODE_DISPLAY;
+        ESP_LOGW(TAG, "Slave was in a setup state, snapping back to MODE_DISPLAY.");
+    }
+
+    send_led_command(cmd->cmd, cmd->timestamp, cmd->value);
+    return true;
+#else
+	return false; // Not a slave, so ignore ESP-NOW events.
+#endif
 }
 
 /**
