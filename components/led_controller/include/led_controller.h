@@ -70,3 +70,24 @@ uint8_t led_controller_inc_effect(int16_t steps);
  * @return The new absolute parameter value, packed as (index << 8 | value).
  */
 uint16_t led_controller_inc_effect_param(int16_t steps, bool *limit_hit);
+
+// --- System Setup Functions ---
+
+/** @brief Enters the system setup mode, saving current state. */
+void led_controller_enter_system_setup(void);
+
+/** @brief Selects the next system parameter to be edited. */
+void led_controller_next_system_param(void);
+
+/**
+ * @brief Increments or decrements the current system parameter.
+ * @param steps The number of steps to change the parameter by.
+ * @param limit_hit Pointer to a boolean that will be set to true if a limit was hit.
+ */
+void led_controller_inc_system_param(int16_t steps, bool *limit_hit);
+
+/** @brief Saves the temporary system settings. */
+void led_controller_save_system_config(void);
+
+/** @brief Cancels any changes to system settings. */
+void led_controller_cancel_system_config(void);

@@ -13,6 +13,10 @@
 
 static const char *TAG = "LED_CTRL";
 
+// --- Global System Variables (defined here, declared in project_config.h) ---
+uint16_t g_led_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
+uint16_t g_led_offset_end = DEFAULT_LED_OFFSET_END;
+
 // --- Feedback Animation State ---
 typedef enum {
 	FEEDBACK_TYPE_NONE,
@@ -51,6 +55,18 @@ static bool needs_render = true; // Flag to force render
 // functionality)
 static effect_param_t *temp_params = NULL;
 static uint8_t temp_effect_index = 255;
+
+// System setup state
+typedef enum {
+	SYS_PARAM_OFFSET_BEGIN,
+	SYS_PARAM_OFFSET_END,
+	SYS_PARAM_RESTORE_DEFAULTS,
+	SYS_PARAM_COUNT
+} system_param_t;
+
+static system_param_t current_sys_param = SYS_PARAM_OFFSET_BEGIN;
+static uint16_t temp_offset_begin = 0;
+static uint16_t temp_offset_end = 0;
 
 // Handles for FreeRTOS objects
 static QueueHandle_t q_commands_in = NULL;
@@ -291,8 +307,8 @@ static void handle_command(const led_command_t *cmd) {
 
 	case LED_CMD_SET_STRIP_MODE:
 		if (cmd->value == 1) { // Restricted mode (from switch open)
-			led_offset = LED_OFFSET_BEGIN;
-			active_num_leds = NUM_LEDS - (LED_OFFSET_BEGIN + LED_OFFSET_END);
+			led_offset = g_led_offset_begin;
+			active_num_leds = NUM_LEDS - (g_led_offset_begin + g_led_offset_end);
 		} else { // Full mode (from switch closed)
 			led_offset = 0;
 			active_num_leds = NUM_LEDS;
@@ -540,6 +556,110 @@ static void led_render_task(void *pv) {
 
 		// Wait for a notification or timeout
 		ulTaskNotifyTake(pdTRUE, tick_rate);
+	}
+}
+
+// --- System Setup Functions ---
+
+void led_controller_enter_system_setup(void) {
+	temp_offset_begin = g_led_offset_begin;
+	temp_offset_end = g_led_offset_end;
+	current_sys_param = SYS_PARAM_OFFSET_BEGIN;
+	ESP_LOGI(TAG, "Entering system setup. Initial offsets: begin=%d, end=%d",
+			 temp_offset_begin, temp_offset_end);
+}
+
+void led_controller_save_system_config(void) {
+	g_led_offset_begin = temp_offset_begin;
+	g_led_offset_end = temp_offset_end;
+	ESP_LOGI(TAG, "System config saved. New offsets: begin=%d, end=%d",
+			 g_led_offset_begin, g_led_offset_end);
+	// In a future implementation, this is where settings would be saved to NVS.
+}
+
+void led_controller_cancel_system_config(void) {
+	// Revert render variables to match the (unchanged) global state.
+	// This is only necessary if the user was previewing changes in restricted
+	// mode.
+	led_offset = g_led_offset_begin;
+	active_num_leds = NUM_LEDS - (g_led_offset_begin + g_led_offset_end);
+	ESP_LOGI(TAG, "System config cancelled. Offsets remain: begin=%d, end=%d",
+			 g_led_offset_begin, g_led_offset_end);
+	needs_render = true;
+	if (render_task_handle) {
+		xTaskNotifyGive(render_task_handle);
+	}
+}
+
+void led_controller_next_system_param(void) {
+	current_sys_param =
+		(system_param_t)((current_sys_param + 1) % SYS_PARAM_COUNT);
+	ESP_LOGI(TAG, "Next system param: %d", current_sys_param);
+	// The FSM is responsible for providing feedback to the user about the
+	// current parameter.
+}
+
+void led_controller_inc_system_param(int16_t steps, bool *limit_hit) {
+	if (limit_hit)
+		*limit_hit = false;
+
+	switch (current_sys_param) {
+	case SYS_PARAM_OFFSET_BEGIN: {
+		int32_t new_offset = (int32_t)temp_offset_begin + steps;
+		if (new_offset < 0) {
+			new_offset = 0;
+			if (limit_hit)
+				*limit_hit = true;
+		}
+		// Ensure the sum of offsets doesn't exceed the available LEDs
+		if (new_offset + temp_offset_end >= NUM_LEDS) {
+			new_offset = NUM_LEDS - temp_offset_end - 1;
+			if (limit_hit)
+				*limit_hit = true;
+		}
+		temp_offset_begin = (uint16_t)new_offset;
+		ESP_LOGI(TAG, "Temp offset begin changed to: %d", temp_offset_begin);
+		break;
+	}
+	case SYS_PARAM_OFFSET_END: {
+		int32_t new_offset = (int32_t)temp_offset_end + steps;
+		if (new_offset < 0) {
+			new_offset = 0;
+			if (limit_hit)
+				*limit_hit = true;
+		}
+		if (temp_offset_begin + new_offset >= NUM_LEDS) {
+			new_offset = NUM_LEDS - temp_offset_begin - 1;
+			if (limit_hit)
+				*limit_hit = true;
+		}
+		temp_offset_end = (uint16_t)new_offset;
+		ESP_LOGI(TAG, "Temp offset end changed to: %d", temp_offset_end);
+		break;
+	}
+	case SYS_PARAM_RESTORE_DEFAULTS:
+		// Any encoder movement on this option triggers the restore
+		if (steps != 0) {
+			temp_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
+			temp_offset_end = DEFAULT_LED_OFFSET_END;
+			ESP_LOGI(TAG,
+					 "Temp offsets restored to defaults: begin=%d, end=%d",
+					 temp_offset_begin, temp_offset_end);
+		}
+		break;
+	default:
+		break;
+	}
+
+	// Immediately apply the temporary values to the render variables for live
+	// preview. This assumes the strip is in "restricted" mode to see the
+	// effect.
+	led_offset = temp_offset_begin;
+	active_num_leds = NUM_LEDS - (temp_offset_begin + temp_offset_end);
+
+	needs_render = true;
+	if (render_task_handle) {
+		xTaskNotifyGive(render_task_handle);
 	}
 }
 

@@ -102,6 +102,8 @@ static bool process_button_event(const button_event_t *button_evt,
 			return true;
 		case BUTTON_VERY_LONG_CLICK:
 			fsm_state = MODE_SYSTEM_SETUP;
+			led_controller_enter_system_setup();
+			send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0); // Feedback for entering mode
 			ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_SYSTEM_SETUP");
 			return true;
 		default:
@@ -165,23 +167,21 @@ static bool process_button_event(const button_event_t *button_evt,
 	case MODE_SYSTEM_SETUP:
 		switch (button_evt->type) {
 		case BUTTON_CLICK:
-			send_led_command(LED_CMD_NEXT_SYSTEM_PARAM, timestamp, 0);
+			led_controller_next_system_param();
+			send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0); // Feedback for next param
 			ESP_LOGI(TAG, "MODE_SYSTEM_SETUP Next Param");
 			return true;
 		case BUTTON_DOUBLE_CLICK:
-			send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0);
+			led_controller_cancel_system_config();
+			send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
 			fsm_state = MODE_DISPLAY;
 			ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (cancelled)");
 			return true;
 		case BUTTON_LONG_CLICK:
 			fsm_state = MODE_DISPLAY;
-			send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
+			led_controller_save_system_config();
+			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
 			ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (saved)");
-			return true;
-		case BUTTON_TIMEOUT:
-			fsm_state = MODE_DISPLAY;
-			send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
-			ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (timeout)");
 			return true;
 		default:
 			return false;
@@ -244,10 +244,15 @@ static bool process_encoder_event(const encoder_event_t *encoder_evt,
 		break;
 	}
 
-	case MODE_SYSTEM_SETUP:
-		send_led_command(LED_CMD_INC_SYSTEM_PARAM, timestamp, steps);
+	case MODE_SYSTEM_SETUP: {
+		bool limit_hit = false;
+		led_controller_inc_system_param(steps, &limit_hit);
+		if (limit_hit) {
+			send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0);
+		}
 		ESP_LOGD(TAG, "System parameter adjustment: %d", steps);
 		break;
+	}
 
 	case MODE_OFF:
 	default:
@@ -425,18 +430,27 @@ static void fsm_task(void *pv) {
 		} else {
 			// Check for timeout
 
-			if ((fsm_state == MODE_EFFECT_SELECT &&
-				 check_timeout(TIMEOUT_EFFECT_SELECT_MS)) ||
-				(fsm_state == MODE_EFFECT_SETUP &&
-				 check_timeout(TIMEOUT_EFFECT_SETUP_MS)) ||
-				(fsm_state == MODE_SYSTEM_SETUP &&
-				 check_timeout(TIMEOUT_SYSTEM_SETUP_MS))) {
+			// Check for timeout
+			fsm_state_t current_state = fsm_get_state();
+			bool timeout = false;
+
+			if (current_state == MODE_EFFECT_SELECT && check_timeout(TIMEOUT_EFFECT_SELECT_MS)) {
+				timeout = true;
+			} else if (current_state == MODE_EFFECT_SETUP && check_timeout(TIMEOUT_EFFECT_SETUP_MS)) {
+				timeout = true;
+			} else if (current_state == MODE_SYSTEM_SETUP && check_timeout(TIMEOUT_SYSTEM_SETUP_MS)) {
+				led_controller_save_system_config(); // Use direct call
+				timeout = true;
+			}
+
+			if (timeout) {
+				if (current_state != MODE_SYSTEM_SETUP) {
+					// Other modes still use the generic command
+					send_led_command(LED_CMD_SAVE_CONFIG, get_current_time_ms(), 0);
+				}
 				fsm_state = MODE_DISPLAY;
-				send_led_command(LED_CMD_SAVE_CONFIG, get_current_time_ms(), 0);
-				send_led_command(LED_CMD_FEEDBACK_GREEN, get_current_time_ms(),
-								 0);
-				ESP_LOGI(TAG, "Timeout in setup mode -> MODE_DISPLAY "
-							  "(auto-save)");
+				send_led_command(LED_CMD_FEEDBACK_GREEN, get_current_time_ms(), 0);
+				ESP_LOGI(TAG, "Timeout in state %d -> MODE_DISPLAY (auto-save)", current_state);
 				last_event_timestamp_ms = get_current_time_ms();
 			}
 		}

@@ -92,8 +92,14 @@ extern "C" {
 #define LED_RENDER_INTERVAL_MS 10
 #define MIN_BRIGHTNESS 20
 #define FADE_DURATION_MS 5000
-#define LED_OFFSET_BEGIN 2       // Number of LEDs to turn off from the beginning in restricted modes
-#define LED_OFFSET_END 2         // Number of LEDs to turn off from the end in restricted modes
+// Default values for LED offsets, used for resetting
+#define DEFAULT_LED_OFFSET_BEGIN 2
+#define DEFAULT_LED_OFFSET_END   2
+
+// Global variables for LED offsets, allowing runtime modification.
+// These are defined in led_controller.c
+extern uint16_t g_led_offset_begin;
+extern uint16_t g_led_offset_end;
 // ==================================================
 // LED Driver Configuration
 // ==================================================
