@@ -28,11 +28,13 @@ typedef enum {
     LED_CMD_TURN_ON_FADE,         	///< Turn LEDs on
     LED_CMD_INC_BRIGHTNESS,  	///< Increment brightness (value = step)
     LED_CMD_INC_EFFECT,       	///< Increment effect selection (value = step)
+    LED_CMD_SET_EFFECT,      	///< Set current effect directly (value = effect_index)
+    LED_CMD_SET_BRIGHTNESS,     ///< Set brightness directly (value = brightness)
     LED_CMD_INC_EFFECT_PARAM, 	///< Increment effect parameter (value = step)
+    LED_CMD_SET_EFFECT_PARAM,   ///< Set an effect parameter directly (value = (param_idx << 8) | param_val)
     LED_CMD_NEXT_EFFECT_PARAM, 	///< Go to next effect parameter (value = step)
     LED_CMD_INC_SYSTEM_PARAM,	///< Increment system parameter (value = step)
     LED_CMD_NEXT_SYSTEM_PARAM,	///< Go to next system parameter (value = step)
-    LED_CMD_SET_EFFECT,      	///< Set current effect directly
     LED_CMD_SAVE_CONFIG,      	///< Save current configuration
     LED_CMD_CANCEL_CONFIG,      	///< Cancel current configuration
     LED_CMD_ENTER_EFFECT_SETUP,

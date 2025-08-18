@@ -280,15 +280,52 @@ static void handle_command(const led_command_t *cmd) {
 	}
 
 	case LED_CMD_SET_EFFECT:
-		ESP_LOGI(TAG, "Effect set to: %s", current_effect->name);
-		// This acts as a save/commit of the new effect index
-		if (temp_effect_index != 255) {
-			temp_effect_index = 255;
-		}
+		if (cmd->value >= 0 && cmd->value < effects_count) {
+			current_effect_index = (uint8_t)cmd->value;
+			current_param_index = 0; // Reset param index
+			ESP_LOGI(TAG, "Effect set to index: %d (%s)",
+					 current_effect_index,
+					 effects[current_effect_index]->name);
 #if ESP_NOW_ENABLED && IS_MASTER
-		send_espnow_command(cmd);
+			send_espnow_command(cmd);
 #endif
+		}
 		break;
+
+	case LED_CMD_SET_BRIGHTNESS:
+		if (cmd->value >= MIN_BRIGHTNESS && cmd->value <= 255) {
+			master_brightness = (uint8_t)cmd->value;
+			ESP_LOGI(TAG, "Brightness set to: %d", master_brightness);
+#if ESP_NOW_ENABLED && IS_MASTER
+			send_espnow_command(cmd);
+#endif
+		}
+		break;
+
+	case LED_CMD_SET_EFFECT_PARAM: {
+		uint8_t param_idx = (cmd->value >> 8) & 0xFF;
+		uint8_t param_val = cmd->value & 0xFF;
+
+		if (current_effect->num_params > 0 &&
+			param_idx < current_effect->num_params) {
+			effect_param_t *param = &current_effect->params[param_idx];
+
+			// Clamp value to its defined min/max
+			if (param_val > param->max_value) {
+				param->value = param->max_value;
+			} else if (param_val < param->min_value) {
+				param->value = param->min_value;
+			} else {
+				param->value = param_val;
+			}
+			ESP_LOGI(TAG, "Param '%s' (#%d) set to: %d", param->name,
+					 param_idx, param->value);
+#if ESP_NOW_ENABLED && IS_MASTER
+			send_espnow_command(cmd);
+#endif
+		}
+		break;
+	}
 
 	case LED_CMD_SET_STRIP_MODE:
 		if (cmd->value == 1) { // Restricted mode (from switch open)
@@ -596,4 +633,25 @@ static void led_render_task(void *pv) {
 		// Wait for a notification or timeout
 		ulTaskNotifyTake(pdTRUE, tick_rate);
 	}
+}
+
+// --- Getter Functions ---
+
+bool led_controller_is_on(void) {
+    return is_on;
+}
+
+uint8_t led_controller_get_brightness(void) {
+    return master_brightness;
+}
+
+uint8_t led_controller_get_effect_index(void) {
+    return current_effect_index;
+}
+
+effect_param_t* led_controller_get_effect_params(uint8_t *num_params) {
+    if (num_params) {
+        *num_params = effects[current_effect_index]->num_params;
+    }
+    return effects[current_effect_index]->params;
 }

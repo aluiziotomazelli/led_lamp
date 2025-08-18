@@ -292,26 +292,51 @@ static bool process_espnow_event(const espnow_event_t *espnow_evt,
 static bool process_switch_event(const switch_event_t *switch_evt,
                                  uint32_t timestamp) {
 #if IS_MASTER
-    // On the master, the switch controls ESP-NOW sending.
-    // is_closed = true means switch is in one state, let's say "ON"
-    bool sending_enabled = switch_evt->is_closed;
-    espnow_controller_set_master_enabled(sending_enabled);
+	// On the master, the switch controls ESP-NOW sending.
+	bool sending_enabled = switch_evt->is_closed;
+	espnow_controller_set_master_enabled(sending_enabled);
 
-    if (sending_enabled) {
-        send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
-        ESP_LOGI(TAG, "Switch event: ESP-NOW Master sending ENABLED.");
-    } else {
-        send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
-        ESP_LOGI(TAG, "Switch event: ESP-NOW Master sending DISABLED.");
-    }
+	if (sending_enabled) {
+		send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
+		ESP_LOGI(TAG, "Switch: ESP-NOW Master sending ENABLED. Syncing slaves...");
+
+		// --- Synchronize Slaves ---
+		// 1. Sync power state
+		if (led_controller_is_on()) {
+			send_led_command(LED_CMD_TURN_ON, timestamp, 0);
+		} else {
+			send_led_command(LED_CMD_TURN_OFF, timestamp, 0);
+		}
+
+		// 2. Sync current effect
+		uint8_t effect_idx = led_controller_get_effect_index();
+		send_led_command(LED_CMD_SET_EFFECT, timestamp, effect_idx);
+
+		// 3. Sync current brightness
+		uint8_t brightness = led_controller_get_brightness();
+		send_led_command(LED_CMD_SET_BRIGHTNESS, timestamp, brightness);
+
+		// 4. Sync all effect parameters
+		uint8_t num_params = 0;
+		effect_param_t *params = led_controller_get_effect_params(&num_params);
+		if (params && num_params > 0) {
+			for (uint8_t i = 0; i < num_params; i++) {
+				uint16_t packed_value = (i << 8) | params[i].value;
+				send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp,
+								 packed_value);
+			}
+		}
+	} else {
+		send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
+		ESP_LOGI(TAG, "Switch: ESP-NOW Master sending DISABLED.");
+	}
 #else
-    // On the slave, the switch controls the strip mode as before.
-    // Value: 0 for full strip (closed), 1 for center strip (open)
-    int16_t mode_value = switch_evt->is_closed ? 0 : 1;
-    send_led_command(LED_CMD_SET_STRIP_MODE, timestamp, mode_value);
-    ESP_LOGI(TAG, "Switch event processed, strip mode set to %d", mode_value);
+	// On the slave, the switch controls the strip mode as before.
+	int16_t mode_value = switch_evt->is_closed ? 0 : 1;
+	send_led_command(LED_CMD_SET_STRIP_MODE, timestamp, mode_value);
+	ESP_LOGI(TAG, "Switch event processed, strip mode set to %d", mode_value);
 #endif
-    return true; // Always process this event
+	return true; // Always process this event
 }
 
 /**

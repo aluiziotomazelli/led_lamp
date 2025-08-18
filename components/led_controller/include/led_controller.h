@@ -29,3 +29,18 @@ typedef struct {
  *         `led_strip_t` data for the LED driver. Returns NULL on failure.
  */
 QueueHandle_t led_controller_init(QueueHandle_t cmd_queue);
+
+
+// --- State Getter Functions ---
+
+/** @brief Gets the power state of the LEDs. */
+bool led_controller_is_on(void);
+
+/** @brief Gets the current master brightness. */
+uint8_t led_controller_get_brightness(void);
+
+/** @brief Gets the index of the currently active effect. */
+uint8_t led_controller_get_effect_index(void);
+
+/** @brief Gets a pointer to the parameters of the current effect. */
+effect_param_t* led_controller_get_effect_params(uint8_t *num_params);
