@@ -2,8 +2,8 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "fsm.h"
-#include "project_config.h"
 #include "hsv2rgb.h"
+#include "project_config.h"
 #if ESP_NOW_ENABLED && IS_MASTER
 #include "espnow_controller.h"
 #endif
@@ -15,18 +15,17 @@ static const char *TAG = "LED_CTRL";
 
 // --- Feedback Animation State ---
 typedef enum {
-    FEEDBACK_TYPE_NONE,
-    FEEDBACK_TYPE_GREEN,
-    FEEDBACK_TYPE_RED,
-    FEEDBACK_TYPE_BLUE,
-    FEEDBACK_TYPE_EFFECT_COLOR,
-    FEEDBACK_TYPE_LIMIT,
+	FEEDBACK_TYPE_NONE,
+	FEEDBACK_TYPE_GREEN,
+	FEEDBACK_TYPE_RED,
+	FEEDBACK_TYPE_BLUE,
+	FEEDBACK_TYPE_EFFECT_COLOR,
+	FEEDBACK_TYPE_LIMIT,
 } feedback_type_t;
 
 static feedback_type_t current_feedback = FEEDBACK_TYPE_NONE;
 static uint64_t feedback_start_time_ms = 0;
 static uint8_t feedback_blink_count = 0;
-
 
 // The pixel buffer that holds the current LED colors
 static color_t *pixel_buffer = NULL;
@@ -117,9 +116,9 @@ static void restore_temp_params() {
  * @brief Fills the entire pixel buffer with a solid RGB color.
  */
 static void fill_solid_color(rgb_t color) {
-    for (uint16_t i = 0; i < NUM_LEDS; i++) {
-        pixel_buffer[i].rgb = color;
-    }
+	for (uint16_t i = 0; i < NUM_LEDS; i++) {
+		pixel_buffer[i].rgb = color;
+	}
 }
 
 /**
@@ -127,78 +126,78 @@ static void fill_solid_color(rgb_t color) {
  * @return true if an animation is active, false otherwise.
  */
 static bool run_feedback_animation() {
-    if (current_feedback == FEEDBACK_TYPE_NONE) {
-        return false;
-    }
+	if (current_feedback == FEEDBACK_TYPE_NONE) {
+		return false;
+	}
 
-    uint64_t now = esp_timer_get_time() / 1000;
-    uint64_t elapsed = now - feedback_start_time_ms;
-    const uint16_t total_duration = 400;
+	uint64_t now = esp_timer_get_time() / 1000;
+	uint64_t elapsed = now - feedback_start_time_ms;
+	const uint16_t total_duration = 400;
 
-    rgb_t feedback_color = {0, 0, 0};
-    uint16_t anim_duration_ms = feedback_blink_count * total_duration; // 125ms on, 125ms off per blink
+	rgb_t feedback_color = {0, 0, 0};
+	uint16_t anim_duration_ms =
+		feedback_blink_count * total_duration; // 125ms on, 125ms off per blink
 
-    // Determine the color for the feedback
-    switch (current_feedback) {
-        case FEEDBACK_TYPE_GREEN:
-            feedback_color = (rgb_t){50, 200, 50};
-            break;
-        case FEEDBACK_TYPE_RED:
-            feedback_color = (rgb_t){200, 50, 50};
-            break;
-        case FEEDBACK_TYPE_BLUE:
-            feedback_color = (rgb_t){40, 40, 200};
-            break;
-        case FEEDBACK_TYPE_EFFECT_COLOR:
-        case FEEDBACK_TYPE_LIMIT: 
-            feedback_color = (rgb_t){200, 120, 20};
-            break;
-//        case FEEDBACK_TYPE_LIMIT: {
-//            effect_t* effect = effects[current_effect_index];
-//            // Find the Hue parameter to use as base color
-//            uint16_t hue = 40;
-//            for(int i=0; i < effect->num_params; i++) {
-//                if(effect->params[i].type == PARAM_TYPE_HUE) {
-//                    hue = effect->params[i].value;
-//                    break;
-//                }
-//            }
-//            hsv_to_rgb_spectrum_deg(hue, 255, 255, &feedback_color.r, &feedback_color.g, &feedback_color.b);
-//            break;
-//        }
-        default:
-            // Should not happen
-            current_feedback = FEEDBACK_TYPE_NONE;
-            return false;
-    }
+	// Determine the color for the feedback
+	switch (current_feedback) {
+	case FEEDBACK_TYPE_GREEN:
+		feedback_color = (rgb_t){50, 200, 50};
+		break;
+	case FEEDBACK_TYPE_RED:
+		feedback_color = (rgb_t){200, 50, 50};
+		break;
+	case FEEDBACK_TYPE_BLUE:
+		feedback_color = (rgb_t){40, 40, 200};
+		break;
+	case FEEDBACK_TYPE_EFFECT_COLOR:
+	case FEEDBACK_TYPE_LIMIT:
+		feedback_color = (rgb_t){150, 100, 20};
+		break;
+		//        case FEEDBACK_TYPE_LIMIT: {
+		//            effect_t* effect = effects[current_effect_index];
+		//            // Find the Hue parameter to use as base color
+		//            uint16_t hue = 40;
+		//            for(int i=0; i < effect->num_params; i++) {
+		//                if(effect->params[i].type == PARAM_TYPE_HUE) {
+		//                    hue = effect->params[i].value;
+		//                    break;
+		//                }
+		//            }
+		//            hsv_to_rgb_spectrum_deg(hue, 255, 255, &feedback_color.r,
+		//            &feedback_color.g, &feedback_color.b); break;
+		//        }
+	default:
+		// Should not happen
+		current_feedback = FEEDBACK_TYPE_NONE;
+		return false;
+	}
 
-    // Check if animation is finished
-    if (elapsed >= anim_duration_ms) {
-        current_feedback = FEEDBACK_TYPE_NONE;
-        return false;
-    }
+	// Check if animation is finished
+	if (elapsed >= anim_duration_ms) {
+		current_feedback = FEEDBACK_TYPE_NONE;
+		return false;
+	}
 
-    // Determine if the blink is in the ON or OFF phase
-    // Each blink is 250ms long. The first half (0-124ms) is ON.
-    bool is_on_phase = (elapsed % total_duration) < (total_duration/2);
+	// Determine if the blink is in the ON or OFF phase
+	// Each blink is 250ms long. The first half (0-124ms) is ON.
+	bool is_on_phase = (elapsed % total_duration) < (total_duration / 2);
 
-    if (is_on_phase) {
-        fill_solid_color(apply_brightness(feedback_color, master_brightness));
-    } else {
-        fill_solid_color((rgb_t){0, 0, 0}); // Off
-    }
+	if (is_on_phase) {
+		fill_solid_color(apply_brightness(feedback_color, master_brightness));
+	} else {
+		fill_solid_color((rgb_t){0, 0, 0}); // Off
+	}
 
-    return true;
+	return true;
 }
-
 
 #if ESP_NOW_ENABLED && IS_MASTER
 /**
  * @brief Constructs and sends an ESP-NOW message.
  */
 static void send_espnow_command(const led_command_t *cmd) {
-    espnow_message_t msg = {.cmd = *cmd};
-    espnow_controller_send(&msg);
+	espnow_message_t msg = {.cmd = *cmd};
+	espnow_controller_send(&msg);
 }
 #endif
 
@@ -209,16 +208,17 @@ static void handle_command(const led_command_t *cmd) {
 	effect_t *current_effect = effects[current_effect_index];
 
 	// Do not process other commands if a feedback is active, to avoid conflicts
-    if (current_feedback != FEEDBACK_TYPE_NONE && cmd->cmd < LED_CMD_FEEDBACK_GREEN) {
-        return;
-    }
+	if (current_feedback != FEEDBACK_TYPE_NONE &&
+		cmd->cmd < LED_CMD_FEEDBACK_GREEN) {
+		return;
+	}
 
 	switch (cmd->cmd) {
 	case LED_CMD_TURN_ON:
 		is_on = true;
 		ESP_LOGI(TAG, "LEDs ON");
 #if ESP_NOW_ENABLED && IS_MASTER
-        send_espnow_command(cmd);
+		send_espnow_command(cmd);
 #endif
 		break;
 	case LED_CMD_TURN_ON_FADE:
@@ -229,7 +229,7 @@ static void handle_command(const led_command_t *cmd) {
 		master_brightness = 0; // começa do mínimo
 		ESP_LOGI(TAG, "LEDs ON with fade");
 #if ESP_NOW_ENABLED && IS_MASTER
-        send_espnow_command(cmd);
+		send_espnow_command(cmd);
 #endif
 		break;
 
@@ -237,7 +237,7 @@ static void handle_command(const led_command_t *cmd) {
 		is_on = false;
 		ESP_LOGI(TAG, "LEDs OFF");
 #if ESP_NOW_ENABLED && IS_MASTER
-        send_espnow_command(cmd);
+		send_espnow_command(cmd);
 #endif
 		break;
 
@@ -245,20 +245,20 @@ static void handle_command(const led_command_t *cmd) {
 		int32_t new_brightness = (int32_t)master_brightness + cmd->value;
 		if (new_brightness > 255) {
 			master_brightness = 255;
-            current_feedback = FEEDBACK_TYPE_LIMIT;
-            feedback_start_time_ms = esp_timer_get_time() / 1000;
-            feedback_blink_count = 2;
+			current_feedback = FEEDBACK_TYPE_LIMIT;
+			feedback_start_time_ms = esp_timer_get_time() / 1000;
+			feedback_blink_count = 2;
 		} else if (new_brightness < MIN_BRIGHTNESS) {
 			master_brightness = MIN_BRIGHTNESS;
-            current_feedback = FEEDBACK_TYPE_LIMIT;
-            feedback_start_time_ms = esp_timer_get_time() / 1000;
-            feedback_blink_count = 2;
+			current_feedback = FEEDBACK_TYPE_LIMIT;
+			feedback_start_time_ms = esp_timer_get_time() / 1000;
+			feedback_blink_count = 2;
 		} else {
 			master_brightness = (uint8_t)new_brightness;
 		}
 		ESP_LOGI(TAG, "Brightness: %d", master_brightness);
 #if ESP_NOW_ENABLED && IS_MASTER
-        send_espnow_command(cmd);
+		send_espnow_command(cmd);
 #endif
 		break;
 	}
@@ -274,35 +274,36 @@ static void handle_command(const led_command_t *cmd) {
 		ESP_LOGI(TAG, "Effect changed to: %s",
 				 effects[current_effect_index]->name);
 #if ESP_NOW_ENABLED && IS_MASTER
-        send_espnow_command(cmd);
+		send_espnow_command(cmd);
 #endif
 		break;
 	}
 
 	case LED_CMD_SET_EFFECT:
 		ESP_LOGI(TAG, "Effect set to: %s", current_effect->name);
-        // This acts as a save/commit of the new effect index
-        if (temp_effect_index != 255) {
-            temp_effect_index = 255;
-        }
+		// This acts as a save/commit of the new effect index
+		if (temp_effect_index != 255) {
+			temp_effect_index = 255;
+		}
 #if ESP_NOW_ENABLED && IS_MASTER
-        send_espnow_command(cmd);
+		send_espnow_command(cmd);
 #endif
 		break;
 
-    case LED_CMD_SET_STRIP_MODE:
-        if (cmd->value == 1) { // Restricted mode (from switch open)
-            led_offset = LED_OFFSET_BEGIN;
-            active_num_leds = NUM_LEDS - (LED_OFFSET_BEGIN + LED_OFFSET_END);
-        } else { // Full mode (from switch closed)
-            led_offset = 0;
-            active_num_leds = NUM_LEDS;
-        }
-        ESP_LOGI(TAG, "Strip mode set. Offset: %d, Active LEDs: %d", led_offset, active_num_leds);
+	case LED_CMD_SET_STRIP_MODE:
+		if (cmd->value == 1) { // Restricted mode (from switch open)
+			led_offset = LED_OFFSET_BEGIN;
+			active_num_leds = NUM_LEDS - (LED_OFFSET_BEGIN + LED_OFFSET_END);
+		} else { // Full mode (from switch closed)
+			led_offset = 0;
+			active_num_leds = NUM_LEDS;
+		}
+		ESP_LOGI(TAG, "Strip mode set. Offset: %d, Active LEDs: %d", led_offset,
+				 active_num_leds);
 #if ESP_NOW_ENABLED && IS_MASTER
-        send_espnow_command(cmd);
+		send_espnow_command(cmd);
 #endif
-        break;
+		break;
 
 	case LED_CMD_INC_EFFECT_PARAM:
 		if (current_effect->num_params > 0) {
@@ -310,35 +311,36 @@ static void handle_command(const led_command_t *cmd) {
 				&current_effect->params[current_param_index];
 
 			// Calculate new potential value
-			int32_t new_value = (int32_t)param->value + (cmd->value * param->step);
+			int32_t new_value =
+				(int32_t)param->value + (cmd->value * param->step);
 
-            if (param->is_wrap) {
-                if (new_value > param->max_value) {
-                    param->value = param->min_value;
-                } else if (new_value < param->min_value) {
-                    param->value = param->max_value;
-                } else {
+			if (param->is_wrap) {
+				if (new_value > param->max_value) {
+					param->value = param->min_value;
+				} else if (new_value < param->min_value) {
+					param->value = param->max_value;
+				} else {
 					param->value = (int16_t)new_value;
 				}
-            } else {
-                if (new_value > param->max_value) {
-                    param->value = param->max_value;
+			} else {
+				if (new_value > param->max_value) {
+					param->value = param->max_value;
 					current_feedback = FEEDBACK_TYPE_LIMIT;
 					feedback_start_time_ms = esp_timer_get_time() / 1000;
 					feedback_blink_count = 2;
-                } else if (new_value < param->min_value) {
-                    param->value = param->min_value;
+				} else if (new_value < param->min_value) {
+					param->value = param->min_value;
 					current_feedback = FEEDBACK_TYPE_LIMIT;
 					feedback_start_time_ms = esp_timer_get_time() / 1000;
 					feedback_blink_count = 2;
-                } else {
-                    param->value = (int16_t)new_value;
-                }
-            }
+				} else {
+					param->value = (int16_t)new_value;
+				}
+			}
 			ESP_LOGI(TAG, "Param '%s' changed to: %d", param->name,
 					 param->value);
 #if ESP_NOW_ENABLED && IS_MASTER
-            send_espnow_command(cmd);
+			send_espnow_command(cmd);
 #endif
 		}
 		break;
@@ -350,7 +352,7 @@ static void handle_command(const led_command_t *cmd) {
 			ESP_LOGI(TAG, "Next param: %s",
 					 current_effect->params[current_param_index].name);
 #if ESP_NOW_ENABLED && IS_MASTER
-            send_espnow_command(cmd);
+			send_espnow_command(cmd);
 #endif
 		}
 		break;
@@ -361,52 +363,75 @@ static void handle_command(const led_command_t *cmd) {
 			free(temp_params);
 			temp_params = NULL;
 		}
-        if (temp_effect_index != 255) {
-            temp_effect_index = 255;
-        }
+		if (temp_effect_index != 255) {
+			temp_effect_index = 255;
+		}
 		// Here you would save to NVS
 		break;
 
 	case LED_CMD_CANCEL_CONFIG:
 		ESP_LOGI(TAG, "Configuration cancelled.");
 		restore_temp_params();
-        if (temp_effect_index != 255) {
-            current_effect_index = temp_effect_index;
-            temp_effect_index = 255;
-        }
+		if (temp_effect_index != 255) {
+			current_effect_index = temp_effect_index;
+			temp_effect_index = 255;
+		}
 		break;
 
-    case LED_CMD_ENTER_EFFECT_SETUP:
-        save_temp_params();
-        break;
+	case LED_CMD_ENTER_EFFECT_SETUP:
+		save_temp_params();
+		break;
 
-    case LED_CMD_ENTER_EFFECT_SELECT:
-        temp_effect_index = current_effect_index;
-        break;
+	case LED_CMD_ENTER_EFFECT_SELECT:
+		temp_effect_index = current_effect_index;
+		break;
 
-    case LED_CMD_FEEDBACK_GREEN:
-        current_feedback = FEEDBACK_TYPE_GREEN;
-        feedback_start_time_ms = esp_timer_get_time() / 1000;
-        feedback_blink_count = 2; // Double blink
-        break;
+	case LED_CMD_FEEDBACK_GREEN:
+		current_feedback = FEEDBACK_TYPE_GREEN;
+		feedback_start_time_ms = esp_timer_get_time() / 1000;
+		feedback_blink_count = 2; // Double blink
+		// Descomentar as 3 linhas abaixo se quiser que o feedback seja enviado
+		// também aos slaves #if ESP_NOW_ENABLED && IS_MASTER
+		// send_espnow_command(cmd); // <--- ADICIONARIA ESTA LINHA
+		// #endif
+		break;
 
-    case LED_CMD_FEEDBACK_RED:
-        current_feedback = FEEDBACK_TYPE_RED;
-        feedback_start_time_ms = esp_timer_get_time() / 1000;
-        feedback_blink_count = 2; // Double blink
-        break;
+		break;
 
-    case LED_CMD_FEEDBACK_BLUE:
-        current_feedback = FEEDBACK_TYPE_BLUE;
-        feedback_start_time_ms = esp_timer_get_time() / 1000;
-        feedback_blink_count = 1; // Single blink
-        break;
+	case LED_CMD_FEEDBACK_RED:
+		current_feedback = FEEDBACK_TYPE_RED;
+		feedback_start_time_ms = esp_timer_get_time() / 1000;
+		feedback_blink_count =
+			2; // Double blink
+			   // Descomentar as 3 linhas abaixo se quiser que o feedback seja
+			   // enviado também aos slaves
+		// #if ESP_NOW_ENABLED && IS_MASTER
+		// send_espnow_command(cmd); // <--- ADICIONARIA ESTA LINHA
+		// #endif
+		break;
 
-    case LED_CMD_FEEDBACK_EFFECT_COLOR:
-        current_feedback = FEEDBACK_TYPE_EFFECT_COLOR;
-        feedback_start_time_ms = esp_timer_get_time() / 1000;
-        feedback_blink_count = 1; // Single blink
-        break;
+	case LED_CMD_FEEDBACK_BLUE:
+		current_feedback = FEEDBACK_TYPE_BLUE;
+		feedback_start_time_ms = esp_timer_get_time() / 1000;
+		feedback_blink_count =
+			1; // Single blink
+			   // Descomentar as 3 linhas abaixo se quiser que o feedback seja
+			   // enviado também aos slaves
+		// #if ESP_NOW_ENABLED && IS_MASTER
+		// send_espnow_command(cmd); // <--- ADICIONARIA ESTA LINHA
+		// #endif
+		break;
+
+	case LED_CMD_FEEDBACK_EFFECT_COLOR:
+		current_feedback = FEEDBACK_TYPE_EFFECT_COLOR;
+		feedback_start_time_ms = esp_timer_get_time() / 1000;
+		feedback_blink_count = 1; // Single blink
+// Descomentar as 3 linhas abaixo se quiser que o feedback seja enviado também
+// aos slaves
+#if ESP_NOW_ENABLED && IS_MASTER
+		send_espnow_command(cmd); // <--- ADICIONARIA ESTA LINHA
+#endif
+		break;
 
 	default:
 		// Other commands are ignored by the controller
@@ -437,8 +462,8 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
 
 	// Create the rendering task
 	BaseType_t result =
-		xTaskCreate(led_render_task, "LED_RENDER_T", LED_RENDER_STACK_SIZE, NULL,
-					LED_RENDER_TASK_PRIORITY, &render_task_handle);
+		xTaskCreate(led_render_task, "LED_RENDER_T", LED_RENDER_STACK_SIZE,
+					NULL, LED_RENDER_TASK_PRIORITY, &render_task_handle);
 	if (result != pdPASS) {
 		ESP_LOGE(TAG, "Failed to create LED render task");
 		vQueueDelete(q_strip_out);
@@ -480,39 +505,41 @@ static void led_render_task(void *pv) {
 		.pixels = pixel_buffer, .num_pixels = NUM_LEDS, .mode = COLOR_MODE_RGB};
 	const TickType_t tick_rate =
 		pdMS_TO_TICKS(LED_RENDER_INTERVAL_MS); // ~33 FPS
-    static bool was_running_feedback = false;
+	static bool was_running_feedback = false;
 
 	while (1) {
-        bool is_running_feedback = run_feedback_animation();
+		bool is_running_feedback = run_feedback_animation();
 
-        if (was_running_feedback && !is_running_feedback) {
-            needs_render = true;
-        }
-        was_running_feedback = is_running_feedback;
+		if (was_running_feedback && !is_running_feedback) {
+			needs_render = true;
+		}
+		was_running_feedback = is_running_feedback;
 
-        // Prioritize feedback animations over all other rendering
-        if (is_running_feedback) {
-            strip_data.mode = COLOR_MODE_RGB; // Feedback animations are always RGB
-            xQueueOverwrite(q_strip_out, &strip_data);
-            // Use a shorter delay for smooth animation, but still allow notifications
-            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(16)); // ~60 FPS for feedback
-            continue; // Skip the rest of the loop
-        }
+		// Prioritize feedback animations over all other rendering
+		if (is_running_feedback) {
+			strip_data.mode =
+				COLOR_MODE_RGB; // Feedback animations are always RGB
+			xQueueOverwrite(q_strip_out, &strip_data);
+			// Use a shorter delay for smooth animation, but still allow
+			// notifications
+			ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(16)); // ~60 FPS for feedback
+			continue; // Skip the rest of the loop
+		}
 
 		if (is_fading && is_on) {
-			 uint32_t now = esp_timer_get_time() / 1000;
-            uint32_t elapsed = now - fade_start_time;
-            
-            if (elapsed >= FADE_DURATION_MS) {
-                // Fade complete
-                is_fading = false;
-                master_brightness = fade_start_brightness;
-            } else {
-                // Calculate current brightness during fade
-                float progress = (float)elapsed / FADE_DURATION_MS;
-                master_brightness = (uint8_t)((fade_start_brightness) * progress);
-            }
-            needs_render = true; // Force render each frame during fade
+			uint32_t now = esp_timer_get_time() / 1000;
+			uint32_t elapsed = now - fade_start_time;
+
+			if (elapsed >= FADE_DURATION_MS) {
+				// Fade complete
+				is_fading = false;
+				master_brightness = fade_start_brightness;
+			} else {
+				// Calculate current brightness during fade
+				float progress = (float)elapsed / FADE_DURATION_MS;
+				master_brightness = (uint8_t)((fade_start_brightness)*progress);
+			}
+			needs_render = true; // Force render each frame during fade
 		}
 
 		effect_t *current_effect = effects[current_effect_index];
@@ -523,13 +550,13 @@ static void led_render_task(void *pv) {
 
 		if (should_run_effect) {
 			if (is_on) {
-                // Clear the entire buffer to black first.
-                // This ensures LEDs outside the active range are off.
-                memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
+				// Clear the entire buffer to black first.
+				// This ensures LEDs outside the active range are off.
+				memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
 
 				if (current_effect->run) {
-                    // Define the active region for the effect
-                    color_t *effect_buffer = pixel_buffer + led_offset;
+					// Define the active region for the effect
+					color_t *effect_buffer = pixel_buffer + led_offset;
 					current_effect->run(
 						current_effect->params, current_effect->num_params,
 						master_brightness, esp_timer_get_time() / 1000,
@@ -537,8 +564,8 @@ static void led_render_task(void *pv) {
 				}
 
 				// Apply master brightness. Since the inactive pixels are black,
-                // applying brightness to them has no effect. We can safely
-                // iterate over the entire buffer.
+				// applying brightness to them has no effect. We can safely
+				// iterate over the entire buffer.
 				if (strip_data.mode == COLOR_MODE_HSV) {
 					for (uint16_t i = 0; i < NUM_LEDS; i++) {
 						uint8_t v =

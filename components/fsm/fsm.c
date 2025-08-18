@@ -3,6 +3,7 @@
 #include "fsm.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_mac.h"
 #include "input_integrator.h"
 #include "led_controller.h"
 #include "project_config.h"

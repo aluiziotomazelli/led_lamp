@@ -25,6 +25,7 @@ set(COMPONENTS
     encoder
     input_integrator
     touch
+    espnow_controller
 )
 
 # Configuração definitiva

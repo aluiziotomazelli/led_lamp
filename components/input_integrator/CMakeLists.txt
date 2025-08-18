@@ -6,6 +6,7 @@ idf_component_register(SRCS "input_integrator.c"
                     			shared 
                     			touch
                     			switch
+                    			espnow_controller
                     			)
 
 

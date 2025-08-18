@@ -2,6 +2,7 @@
 #include "esp_log.h"
 #include "esp_now.h"
 #include "esp_wifi.h"
+#include "esp_mac.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "input_integrator.h"
