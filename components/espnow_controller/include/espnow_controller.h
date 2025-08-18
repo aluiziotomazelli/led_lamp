@@ -31,3 +31,17 @@ void espnow_controller_init(QueueHandle_t espnow_queue);
  * @param msg The message to send.
  */
 void espnow_controller_send(const espnow_message_t *msg);
+
+/**
+ * @brief Enables or disables the master's sending functionality.
+ *
+ * @param enabled True to enable sending, false to disable.
+ */
+void espnow_controller_set_master_enabled(bool enabled);
+
+/**
+ * @brief Checks if the master's sending functionality is currently enabled.
+ *
+ * @return True if sending is enabled, false otherwise.
+ */
+bool espnow_controller_is_master_enabled(void);

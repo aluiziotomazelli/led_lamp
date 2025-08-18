@@ -11,6 +11,9 @@
 
 static const char *TAG = "ESPNOW_CTRL";
 static QueueHandle_t q_espnow_events = NULL;
+#if IS_MASTER
+static bool master_enabled = true;
+#endif
 
 // Callback function for when data is sent
 static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -92,9 +95,26 @@ void espnow_controller_init(QueueHandle_t espnow_queue) {
 
 void espnow_controller_send(const espnow_message_t *msg) {
 #if ESP_NOW_ENABLED && IS_MASTER
+    if (!master_enabled) {
+        return; // Master sending is disabled
+    }
     esp_err_t result = esp_now_send(NULL, (uint8_t *)msg, sizeof(espnow_message_t));
     if (result != ESP_OK) {
         ESP_LOGE(TAG, "Failed to send broadcast message: %s", esp_err_to_name(result));
     }
+#endif
+}
+
+void espnow_controller_set_master_enabled(bool enabled) {
+#if IS_MASTER
+    master_enabled = enabled;
+#endif
+}
+
+bool espnow_controller_is_master_enabled(void) {
+#if IS_MASTER
+    return master_enabled;
+#else
+    return false;
 #endif
 }

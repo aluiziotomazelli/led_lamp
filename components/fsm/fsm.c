@@ -7,6 +7,7 @@
 #include "input_integrator.h"
 #include "led_controller.h"
 #include "project_config.h"
+#include "espnow_controller.h"
 
 // Direct includes para acesso às estruturas originais
 #include "button.h"
@@ -289,11 +290,27 @@ static bool process_espnow_event(const espnow_event_t *espnow_evt,
  * @return True if event should be processed
  */
 static bool process_switch_event(const switch_event_t *switch_evt,
-								 uint32_t timestamp) {
+                                 uint32_t timestamp) {
+#if IS_MASTER
+    // On the master, the switch controls ESP-NOW sending.
+    // is_closed = true means switch is in one state, let's say "ON"
+    bool sending_enabled = switch_evt->is_closed;
+    espnow_controller_set_master_enabled(sending_enabled);
+
+    if (sending_enabled) {
+        send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
+        ESP_LOGI(TAG, "Switch event: ESP-NOW Master sending ENABLED.");
+    } else {
+        send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
+        ESP_LOGI(TAG, "Switch event: ESP-NOW Master sending DISABLED.");
+    }
+#else
+    // On the slave, the switch controls the strip mode as before.
     // Value: 0 for full strip (closed), 1 for center strip (open)
     int16_t mode_value = switch_evt->is_closed ? 0 : 1;
     send_led_command(LED_CMD_SET_STRIP_MODE, timestamp, mode_value);
     ESP_LOGI(TAG, "Switch event processed, strip mode set to %d", mode_value);
+#endif
     return true; // Always process this event
 }
 
