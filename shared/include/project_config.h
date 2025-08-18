@@ -115,6 +115,9 @@ extern "C" {
 #define IS_MASTER        1 // 1 for master, 0 for slave
 #define IS_SLAVE         0 // 1 for slave, 0 for master
 
+// Set to 0 to disable all feedback animations (blinks) on the slave device.
+#define SLAVE_ENABLE_FEEDBACK 1
+
 // List of slave MAC addresses for the master to send to.
 // The master will not be a slave, and a slave will not be a master.
 // Replace with the actual MAC addresses of your slave devices.

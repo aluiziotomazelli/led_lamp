@@ -213,28 +213,30 @@ static bool process_encoder_event(const encoder_event_t *encoder_evt,
 
 	switch (fsm_state) {
 	case MODE_DISPLAY: {
-		uint8_t new_brightness = led_controller_inc_brightness(steps);
+		bool limit_hit = false;
+		uint8_t new_brightness = led_controller_inc_brightness(steps, &limit_hit);
 		send_led_command(LED_CMD_SET_BRIGHTNESS, timestamp, new_brightness);
+		if (limit_hit) {
+			send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0);
+		}
 		ESP_LOGD(TAG, "Brightness set to: %d", new_brightness);
 		break;
 	}
 
 	case MODE_EFFECT_SELECT: {
 		uint8_t new_effect_idx = led_controller_inc_effect(steps);
-		// In selection mode, we don't want to broadcast, so we use an INC command
-		// that the slave will ignore. The final SET command on click will be broadcast.
-		// Let's re-evaluate this. The best way is to have the led_controller know
-		// not to broadcast.
-		// For now, let's just send the SET command. This is the new architecture.
 		send_led_command(LED_CMD_SET_EFFECT, timestamp, new_effect_idx);
 		ESP_LOGD(TAG, "Effect selection preview: %d", new_effect_idx);
 		break;
 	}
 
 	case MODE_EFFECT_SETUP: {
-		uint16_t new_param_packed = led_controller_inc_effect_param(steps);
-		send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp,
-						 new_param_packed);
+		bool limit_hit = false;
+		uint16_t new_param_packed = led_controller_inc_effect_param(steps, &limit_hit);
+		send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp, new_param_packed);
+		if (limit_hit) {
+			send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0);
+		}
 		ESP_LOGD(TAG, "Effect param set to: %u", new_param_packed);
 		break;
 	}

@@ -43,6 +43,7 @@ typedef enum {
     LED_CMD_FEEDBACK_RED,       ///< Play a red cancellation blink
     LED_CMD_FEEDBACK_BLUE,      ///< Play a blue info blink
     LED_CMD_FEEDBACK_EFFECT_COLOR, ///< Play a blink with the effect's base color
+    LED_CMD_FEEDBACK_LIMIT,     ///< Play a blink indicating a parameter limit was hit
 
     LED_CMD_BUTTON_ERROR      	///< Cancel current configuration
     

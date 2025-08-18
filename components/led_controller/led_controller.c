@@ -346,49 +346,35 @@ static void handle_command(const led_command_t *cmd) {
 		break;
 
 	case LED_CMD_FEEDBACK_GREEN:
-		current_feedback = FEEDBACK_TYPE_GREEN;
-		feedback_start_time_ms = esp_timer_get_time() / 1000;
-		feedback_blink_count = 2; // Double blink
-		// Descomentar as 3 linhas abaixo se quiser que o feedback seja enviado
-		// também aos slaves #if ESP_NOW_ENABLED && IS_MASTER
-		// send_espnow_command(cmd); // <--- ADICIONARIA ESTA LINHA
-		// #endif
-		break;
-
-		break;
-
 	case LED_CMD_FEEDBACK_RED:
-		current_feedback = FEEDBACK_TYPE_RED;
-		feedback_start_time_ms = esp_timer_get_time() / 1000;
-		feedback_blink_count =
-			2; // Double blink
-			   // Descomentar as 3 linhas abaixo se quiser que o feedback seja
-			   // enviado também aos slaves
-		// #if ESP_NOW_ENABLED && IS_MASTER
-		// send_espnow_command(cmd); // <--- ADICIONARIA ESTA LINHA
-		// #endif
-		break;
-
 	case LED_CMD_FEEDBACK_BLUE:
-		current_feedback = FEEDBACK_TYPE_BLUE;
-		feedback_start_time_ms = esp_timer_get_time() / 1000;
-		feedback_blink_count =
-			1; // Single blink
-			   // Descomentar as 3 linhas abaixo se quiser que o feedback seja
-			   // enviado também aos slaves
-		// #if ESP_NOW_ENABLED && IS_MASTER
-		// send_espnow_command(cmd); // <--- ADICIONARIA ESTA LINHA
-		// #endif
-		break;
-
 	case LED_CMD_FEEDBACK_EFFECT_COLOR:
-		current_feedback = FEEDBACK_TYPE_EFFECT_COLOR;
+	case LED_CMD_FEEDBACK_LIMIT:
+#if IS_SLAVE && !SLAVE_ENABLE_FEEDBACK
+		// Do nothing on slave if feedback is disabled
+#else
+		if (cmd->cmd == LED_CMD_FEEDBACK_GREEN) {
+			current_feedback = FEEDBACK_TYPE_GREEN;
+			feedback_blink_count = 2;
+		} else if (cmd->cmd == LED_CMD_FEEDBACK_RED) {
+			current_feedback = FEEDBACK_TYPE_RED;
+			feedback_blink_count = 2;
+		} else if (cmd->cmd == LED_CMD_FEEDBACK_BLUE) {
+			current_feedback = FEEDBACK_TYPE_BLUE;
+			feedback_blink_count = 1;
+		} else if (cmd->cmd == LED_CMD_FEEDBACK_EFFECT_COLOR) {
+			current_feedback = FEEDBACK_TYPE_EFFECT_COLOR;
+			feedback_blink_count = 1;
+		} else if (cmd->cmd == LED_CMD_FEEDBACK_LIMIT) {
+			current_feedback = FEEDBACK_TYPE_LIMIT;
+			feedback_blink_count = 2;
+		}
 		feedback_start_time_ms = esp_timer_get_time() / 1000;
-		feedback_blink_count = 1; // Single blink
-// Descomentar as 3 linhas abaixo se quiser que o feedback seja enviado também
-// aos slaves
+#endif
+
+		// Master always broadcasts the feedback command
 #if ESP_NOW_ENABLED && IS_MASTER
-		send_espnow_command(cmd); // <--- ADICIONARIA ESTA LINHA
+		send_espnow_command(cmd);
 #endif
 		break;
 
@@ -580,21 +566,20 @@ effect_param_t* led_controller_get_effect_params(uint8_t *num_params) {
 
 // --- State Modifier Functions ---
 
-uint8_t led_controller_inc_brightness(int16_t steps) {
+uint8_t led_controller_inc_brightness(int16_t steps, bool *limit_hit) {
+	if (limit_hit) *limit_hit = false;
 	int32_t new_brightness = (int32_t)master_brightness + steps;
+
 	if (new_brightness > 255) {
 		master_brightness = 255;
-		current_feedback = FEEDBACK_TYPE_LIMIT;
-		feedback_start_time_ms = esp_timer_get_time() / 1000;
-		feedback_blink_count = 2;
+		if (limit_hit) *limit_hit = true;
 	} else if (new_brightness < MIN_BRIGHTNESS) {
 		master_brightness = MIN_BRIGHTNESS;
-		current_feedback = FEEDBACK_TYPE_LIMIT;
-		feedback_start_time_ms = esp_timer_get_time() / 1000;
-		feedback_blink_count = 2;
+		if (limit_hit) *limit_hit = true;
 	} else {
 		master_brightness = (uint8_t)new_brightness;
 	}
+
 	needs_render = true;
 	if (render_task_handle) {
 		xTaskNotifyGive(render_task_handle);
@@ -619,8 +604,10 @@ uint8_t led_controller_inc_effect(int16_t steps) {
 	return current_effect_index;
 }
 
-uint16_t led_controller_inc_effect_param(int16_t steps) {
+uint16_t led_controller_inc_effect_param(int16_t steps, bool *limit_hit) {
+	if (limit_hit) *limit_hit = false;
 	effect_t *current_effect = effects[current_effect_index];
+
 	if (current_effect->num_params > 0) {
 		effect_param_t *param = &current_effect->params[current_param_index];
 		int32_t new_value = (int32_t)param->value + (steps * param->step);
@@ -636,14 +623,10 @@ uint16_t led_controller_inc_effect_param(int16_t steps) {
 		} else {
 			if (new_value > param->max_value) {
 				param->value = param->max_value;
-				current_feedback = FEEDBACK_TYPE_LIMIT;
-				feedback_start_time_ms = esp_timer_get_time() / 1000;
-				feedback_blink_count = 2;
+				if (limit_hit) *limit_hit = true;
 			} else if (new_value < param->min_value) {
 				param->value = param->min_value;
-				current_feedback = FEEDBACK_TYPE_LIMIT;
-				feedback_start_time_ms = esp_timer_get_time() / 1000;
-				feedback_blink_count = 2;
+				if (limit_hit) *limit_hit = true;
 			} else {
 				param->value = (int16_t)new_value;
 			}
@@ -654,7 +637,8 @@ uint16_t led_controller_inc_effect_param(int16_t steps) {
 		}
 		return (current_param_index << 8) | (param->value & 0xFF);
 	}
-	// Should not happen if called correctly from FSM, but as a fallback:
+
+	// Fallback
 	uint8_t p_val = (current_effect->num_params > 0)
 						? effects[current_effect_index]
 							  ->params[current_param_index]
