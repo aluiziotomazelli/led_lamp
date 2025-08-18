@@ -2,18 +2,18 @@
 
 #include "fsm.h"
 #include "esp_log.h"
-#include "esp_timer.h"
 #include "esp_mac.h"
+#include "esp_timer.h"
+#include "espnow_controller.h"
 #include "input_integrator.h"
 #include "led_controller.h"
 #include "project_config.h"
-#include "espnow_controller.h"
 
 // Direct includes para acesso às estruturas originais
 #include "button.h"
 #include "encoder.h"
-#include "touch.h"
 #include "switch.h"
+#include "touch.h"
 // #include <cstdint>
 
 #define TIMEOUT_EFFECT_SELECT_MS 10000
@@ -113,7 +113,8 @@ static bool process_button_event(const button_event_t *button_evt,
 		case BUTTON_CLICK:
 			fsm_state = MODE_DISPLAY;
 			uint8_t selected_effect_index = led_controller_get_effect_index();
-			send_led_command(LED_CMD_SET_EFFECT, timestamp, selected_effect_index);
+			send_led_command(LED_CMD_SET_EFFECT, timestamp,
+							 selected_effect_index);
 			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
 			ESP_LOGI(TAG,
 					 "MODE_EFFECT_SELECT -> MODE_DISPLAY (effect selected)");
@@ -214,7 +215,8 @@ static bool process_encoder_event(const encoder_event_t *encoder_evt,
 	switch (fsm_state) {
 	case MODE_DISPLAY: {
 		bool limit_hit = false;
-		uint8_t new_brightness = led_controller_inc_brightness(steps, &limit_hit);
+		uint8_t new_brightness =
+			led_controller_inc_brightness(steps, &limit_hit);
 		send_led_command(LED_CMD_SET_BRIGHTNESS, timestamp, new_brightness);
 		if (limit_hit) {
 			send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0);
@@ -232,7 +234,8 @@ static bool process_encoder_event(const encoder_event_t *encoder_evt,
 
 	case MODE_EFFECT_SETUP: {
 		bool limit_hit = false;
-		uint16_t new_param_packed = led_controller_inc_effect_param(steps, &limit_hit);
+		uint16_t new_param_packed =
+			led_controller_inc_effect_param(steps, &limit_hit);
 		send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp, new_param_packed);
 		if (limit_hit) {
 			send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0);
@@ -281,19 +284,23 @@ static bool process_touch_event(const touch_event_t *touch_evt,
 static bool process_espnow_event(const espnow_event_t *espnow_evt,
 								 uint32_t timestamp) {
 #if ESP_NOW_ENABLED && IS_SLAVE
-    ESP_LOGD(TAG, "Processing ESPNOW event from " MACSTR, MAC2STR(espnow_evt->mac_addr));
+	ESP_LOGD(TAG, "Processing ESPNOW event from " MACSTR,
+			 MAC2STR(espnow_evt->mac_addr));
 
-    // The received message contains a led_command_t. We just need to forward it.
-    const led_command_t *cmd = &espnow_evt->msg.cmd;
+	// The received message contains a led_command_t. We just need to forward
+	// it.
+	const led_command_t *cmd = &espnow_evt->msg.cmd;
 
-    // A slave should not be in a setup mode. If it is, snap back to display mode.
-    if (fsm_state != MODE_DISPLAY && fsm_state != MODE_OFF) {
-        fsm_state = MODE_DISPLAY;
-        ESP_LOGW(TAG, "Slave was in a setup state, snapping back to MODE_DISPLAY.");
-    }
+	// A slave should not be in a setup mode. If it is, snap back to display
+	// mode.
+	if (fsm_state != MODE_DISPLAY && fsm_state != MODE_OFF) {
+		fsm_state = MODE_DISPLAY;
+		ESP_LOGW(TAG,
+				 "Slave was in a setup state, snapping back to MODE_DISPLAY.");
+	}
 
-    send_led_command(cmd->cmd, cmd->timestamp, cmd->value);
-    return true;
+	send_led_command(cmd->cmd, cmd->timestamp, cmd->value);
+	return true;
 #else
 	return false; // Not a slave, so ignore ESP-NOW events.
 #endif
@@ -305,14 +312,15 @@ static bool process_espnow_event(const espnow_event_t *espnow_evt,
  * @return True if event should be processed
  */
 static bool process_switch_event(const switch_event_t *switch_evt,
-                                 uint32_t timestamp) {
+								 uint32_t timestamp) {
 #if IS_MASTER
 	// On the master, the switch controls ESP-NOW sending.
 	bool sending_enabled = switch_evt->is_closed;
 	espnow_controller_set_master_enabled(sending_enabled);
 
 	if (sending_enabled) {
-		ESP_LOGI(TAG, "Switch: ESP-NOW Master sending ENABLED. Syncing slaves...");
+		ESP_LOGI(TAG,
+				 "Switch: ESP-NOW Master sending ENABLED. Syncing slaves...");
 
 		// --- Synchronize Slaves ---
 		// 1. Sync power state
@@ -342,10 +350,13 @@ static bool process_switch_event(const switch_event_t *switch_evt,
 		}
 
 		// 5. Send feedback last, so it doesn't block the sync commands
-		send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
+		if (fsm_state != MODE_OFF)
+			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
 	} else {
-		send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
-		ESP_LOGI(TAG, "Switch: ESP-NOW Master sending DISABLED.");
+		if (fsm_state != MODE_OFF) {
+			send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
+			ESP_LOGI(TAG, "Switch: ESP-NOW Master sending DISABLED.");
+		}
 	}
 #else
 	// On the slave, the switch controls the strip mode as before.
@@ -397,10 +408,10 @@ static void fsm_task(void *pv) {
 					&integrated_evt.data.espnow, integrated_evt.timestamp);
 				break;
 
-            case EVENT_SOURCE_SWITCH:
-                event_processed = process_switch_event(
-                    &integrated_evt.data.switch_evt, integrated_evt.timestamp);
-                break;
+			case EVENT_SOURCE_SWITCH:
+				event_processed = process_switch_event(
+					&integrated_evt.data.switch_evt, integrated_evt.timestamp);
+				break;
 
 			default:
 				ESP_LOGW(TAG, "Unknown event source: %d",

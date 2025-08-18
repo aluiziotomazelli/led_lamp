@@ -88,12 +88,12 @@ extern "C" {
 // ==================================================
 // LED Controller Configuration
 // ==================================================
-#define NUM_LEDS 48 // Number of LEDs in the strip
+#define NUM_LEDS 10 // Number of LEDs in the strip
 #define LED_RENDER_INTERVAL_MS 10
 #define MIN_BRIGHTNESS 20
 #define FADE_DURATION_MS 5000
-#define LED_OFFSET_BEGIN 10       // Number of LEDs to turn off from the beginning in restricted modes
-#define LED_OFFSET_END 10         // Number of LEDs to turn off from the end in restricted modes
+#define LED_OFFSET_BEGIN 2       // Number of LEDs to turn off from the beginning in restricted modes
+#define LED_OFFSET_END 2         // Number of LEDs to turn off from the end in restricted modes
 // ==================================================
 // LED Driver Configuration
 // ==================================================
@@ -116,7 +116,7 @@ extern "C" {
 #define IS_SLAVE         0 // 1 for slave, 0 for master
 
 // Set to 0 to disable all feedback animations (blinks) on the slave device.
-#define SLAVE_ENABLE_FEEDBACK 1
+#define SLAVE_ENABLE_FEEDBACK 0
 
 // List of slave MAC addresses for the master to send to.
 // The master will not be a slave, and a slave will not be a master.
