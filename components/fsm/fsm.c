@@ -103,7 +103,7 @@ static bool process_button_event(const button_event_t *button_evt,
 		case BUTTON_VERY_LONG_CLICK:
 			fsm_state = MODE_SYSTEM_SETUP;
 			led_controller_enter_system_setup();
-			send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0); // Feedback for entering mode
+			send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0);
 			ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_SYSTEM_SETUP");
 			return true;
 		default:
@@ -155,6 +155,11 @@ static bool process_button_event(const button_event_t *button_evt,
 			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
 			ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (saved)");
 			return true;
+		case BUTTON_VERY_LONG_CLICK:
+			led_controller_restore_effect_defaults();
+			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0); // Give positive feedback
+			ESP_LOGI(TAG, "MODE_EFFECT_SETUP: Restored effect parameters to defaults.");
+			return true;
 		case BUTTON_TIMEOUT:
 			fsm_state = MODE_DISPLAY;
 			send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
@@ -168,7 +173,7 @@ static bool process_button_event(const button_event_t *button_evt,
 		switch (button_evt->type) {
 		case BUTTON_CLICK:
 			led_controller_next_system_param();
-			send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0); // Feedback for next param
+			send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0);
 			ESP_LOGI(TAG, "MODE_SYSTEM_SETUP Next Param");
 			return true;
 		case BUTTON_DOUBLE_CLICK:

@@ -65,6 +65,7 @@ typedef struct {
     int16_t max_value;
     int16_t step;
     bool is_wrap;
+    int16_t default_value;
 } effect_param_t;
 
 /**

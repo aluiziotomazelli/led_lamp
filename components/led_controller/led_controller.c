@@ -14,6 +14,7 @@
 static const char *TAG = "LED_CTRL";
 
 // --- Global System Variables (defined here, declared in project_config.h) ---
+uint8_t g_min_brightness = DEFAULT_MIN_BRIGHTNESS;
 uint16_t g_led_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
 uint16_t g_led_offset_end = DEFAULT_LED_OFFSET_END;
 
@@ -60,13 +61,14 @@ static uint8_t temp_effect_index = 255;
 typedef enum {
 	SYS_PARAM_OFFSET_BEGIN,
 	SYS_PARAM_OFFSET_END,
-	SYS_PARAM_RESTORE_DEFAULTS,
+	SYS_PARAM_MIN_BRIGHTNESS,
 	SYS_PARAM_COUNT
 } system_param_t;
 
 static system_param_t current_sys_param = SYS_PARAM_OFFSET_BEGIN;
 static uint16_t temp_offset_begin = 0;
 static uint16_t temp_offset_end = 0;
+static uint8_t temp_min_brightness = 0;
 
 // Handles for FreeRTOS objects
 static QueueHandle_t q_commands_in = NULL;
@@ -271,7 +273,7 @@ static void handle_command(const led_command_t *cmd) {
 		break;
 
 	case LED_CMD_SET_BRIGHTNESS:
-		if (cmd->value >= MIN_BRIGHTNESS && cmd->value <= 255) {
+		if (cmd->value >= g_min_brightness && cmd->value <= 255) {
 			master_brightness = (uint8_t)cmd->value;
 			ESP_LOGI(TAG, "Brightness set to: %d", master_brightness);
 #if ESP_NOW_ENABLED && IS_MASTER
@@ -562,29 +564,29 @@ static void led_render_task(void *pv) {
 // --- System Setup Functions ---
 
 void led_controller_enter_system_setup(void) {
+	// Copy current global values to temporary variables for editing
 	temp_offset_begin = g_led_offset_begin;
 	temp_offset_end = g_led_offset_end;
+	temp_min_brightness = g_min_brightness;
 	current_sys_param = SYS_PARAM_OFFSET_BEGIN;
-	ESP_LOGI(TAG, "Entering system setup. Initial offsets: begin=%d, end=%d",
-			 temp_offset_begin, temp_offset_end);
+	ESP_LOGI(TAG, "Entering system setup.");
 }
 
 void led_controller_save_system_config(void) {
+	// Copy temporary values to global variables
 	g_led_offset_begin = temp_offset_begin;
 	g_led_offset_end = temp_offset_end;
-	ESP_LOGI(TAG, "System config saved. New offsets: begin=%d, end=%d",
-			 g_led_offset_begin, g_led_offset_end);
-	// In a future implementation, this is where settings would be saved to NVS.
+	g_min_brightness = temp_min_brightness;
+	ESP_LOGI(TAG, "System config saved. Offsets: %d/%d, Min Brightness: %d",
+			 g_led_offset_begin, g_led_offset_end, g_min_brightness);
+	// Future: Save to NVS here.
 }
 
 void led_controller_cancel_system_config(void) {
-	// Revert render variables to match the (unchanged) global state.
-	// This is only necessary if the user was previewing changes in restricted
-	// mode.
+	// Discard temporary values and revert any live preview
 	led_offset = g_led_offset_begin;
 	active_num_leds = NUM_LEDS - (g_led_offset_begin + g_led_offset_end);
-	ESP_LOGI(TAG, "System config cancelled. Offsets remain: begin=%d, end=%d",
-			 g_led_offset_begin, g_led_offset_end);
+	ESP_LOGI(TAG, "System config cancelled.");
 	needs_render = true;
 	if (render_task_handle) {
 		xTaskNotifyGive(render_task_handle);
@@ -595,8 +597,6 @@ void led_controller_next_system_param(void) {
 	current_sys_param =
 		(system_param_t)((current_sys_param + 1) % SYS_PARAM_COUNT);
 	ESP_LOGI(TAG, "Next system param: %d", current_sys_param);
-	// The FSM is responsible for providing feedback to the user about the
-	// current parameter.
 }
 
 void led_controller_inc_system_param(int16_t steps, bool *limit_hit) {
@@ -611,14 +611,13 @@ void led_controller_inc_system_param(int16_t steps, bool *limit_hit) {
 			if (limit_hit)
 				*limit_hit = true;
 		}
-		// Ensure the sum of offsets doesn't exceed the available LEDs
 		if (new_offset + temp_offset_end >= NUM_LEDS) {
 			new_offset = NUM_LEDS - temp_offset_end - 1;
 			if (limit_hit)
 				*limit_hit = true;
 		}
 		temp_offset_begin = (uint16_t)new_offset;
-		ESP_LOGI(TAG, "Temp offset begin changed to: %d", temp_offset_begin);
+		ESP_LOGI(TAG, "Temp offset begin: %d", temp_offset_begin);
 		break;
 	}
 	case SYS_PARAM_OFFSET_END: {
@@ -634,29 +633,47 @@ void led_controller_inc_system_param(int16_t steps, bool *limit_hit) {
 				*limit_hit = true;
 		}
 		temp_offset_end = (uint16_t)new_offset;
-		ESP_LOGI(TAG, "Temp offset end changed to: %d", temp_offset_end);
+		ESP_LOGI(TAG, "Temp offset end: %d", temp_offset_end);
 		break;
 	}
-	case SYS_PARAM_RESTORE_DEFAULTS:
-		// Any encoder movement on this option triggers the restore
-		if (steps != 0) {
-			temp_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
-			temp_offset_end = DEFAULT_LED_OFFSET_END;
-			ESP_LOGI(TAG,
-					 "Temp offsets restored to defaults: begin=%d, end=%d",
-					 temp_offset_begin, temp_offset_end);
+	case SYS_PARAM_MIN_BRIGHTNESS: {
+		int32_t new_brightness = (int32_t)temp_min_brightness + steps;
+		if (new_brightness < 0) {
+			new_brightness = 0;
+			if (limit_hit)
+				*limit_hit = true;
 		}
+		if (new_brightness > 255) {
+			new_brightness = 255;
+			if (limit_hit)
+				*limit_hit = true;
+		}
+		temp_min_brightness = (uint8_t)new_brightness;
+		ESP_LOGI(TAG, "Temp min brightness: %d", temp_min_brightness);
 		break;
+	}
 	default:
 		break;
 	}
 
-	// Immediately apply the temporary values to the render variables for live
-	// preview. This assumes the strip is in "restricted" mode to see the
-	// effect.
+	// Live preview for offsets
 	led_offset = temp_offset_begin;
 	active_num_leds = NUM_LEDS - (temp_offset_begin + temp_offset_end);
 
+	needs_render = true;
+	if (render_task_handle) {
+		xTaskNotifyGive(render_task_handle);
+	}
+}
+
+void led_controller_restore_effect_defaults(void) {
+	ESP_LOGI(TAG, "Restoring all effect parameters to default values.");
+	for (int i = 0; i < effects_count; i++) {
+		effect_t *effect = effects[i];
+		for (int j = 0; j < effect->num_params; j++) {
+			effect->params[j].value = effect->params[j].default_value;
+		}
+	}
 	needs_render = true;
 	if (render_task_handle) {
 		xTaskNotifyGive(render_task_handle);
@@ -693,8 +710,8 @@ uint8_t led_controller_inc_brightness(int16_t steps, bool *limit_hit) {
 	if (new_brightness > 255) {
 		master_brightness = 255;
 		if (limit_hit) *limit_hit = true;
-	} else if (new_brightness < MIN_BRIGHTNESS) {
-		master_brightness = MIN_BRIGHTNESS;
+	} else if (new_brightness < g_min_brightness) {
+		master_brightness = g_min_brightness;
 		if (limit_hit) *limit_hit = true;
 	} else {
 		master_brightness = (uint8_t)new_brightness;

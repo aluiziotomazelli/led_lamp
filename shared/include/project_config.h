@@ -90,14 +90,16 @@ extern "C" {
 // ==================================================
 #define NUM_LEDS 10 // Number of LEDs in the strip
 #define LED_RENDER_INTERVAL_MS 10
-#define MIN_BRIGHTNESS 20
 #define FADE_DURATION_MS 5000
-// Default values for LED offsets, used for resetting
+
+// Default values for configurable parameters
+#define DEFAULT_MIN_BRIGHTNESS 20
 #define DEFAULT_LED_OFFSET_BEGIN 2
 #define DEFAULT_LED_OFFSET_END   2
 
-// Global variables for LED offsets, allowing runtime modification.
-// These are defined in led_controller.c
+// Global configurable parameters
+// (Defined in led_controller.c)
+extern uint8_t g_min_brightness;
 extern uint16_t g_led_offset_begin;
 extern uint16_t g_led_offset_end;
 // ==================================================
