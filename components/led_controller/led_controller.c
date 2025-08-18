@@ -241,44 +241,6 @@ static void handle_command(const led_command_t *cmd) {
 #endif
 		break;
 
-	case LED_CMD_INC_BRIGHTNESS: {
-		int32_t new_brightness = (int32_t)master_brightness + cmd->value;
-		if (new_brightness > 255) {
-			master_brightness = 255;
-			current_feedback = FEEDBACK_TYPE_LIMIT;
-			feedback_start_time_ms = esp_timer_get_time() / 1000;
-			feedback_blink_count = 2;
-		} else if (new_brightness < MIN_BRIGHTNESS) {
-			master_brightness = MIN_BRIGHTNESS;
-			current_feedback = FEEDBACK_TYPE_LIMIT;
-			feedback_start_time_ms = esp_timer_get_time() / 1000;
-			feedback_blink_count = 2;
-		} else {
-			master_brightness = (uint8_t)new_brightness;
-		}
-		ESP_LOGI(TAG, "Brightness: %d", master_brightness);
-#if ESP_NOW_ENABLED && IS_MASTER
-		send_espnow_command(cmd);
-#endif
-		break;
-	}
-
-	case LED_CMD_INC_EFFECT: {
-		int32_t new_index = current_effect_index + cmd->value;
-		if (new_index < 0)
-			new_index = effects_count - 1;
-		if (new_index >= effects_count)
-			new_index = 0;
-		current_effect_index = new_index;
-		current_param_index = 0; // Reset param index when changing effect
-		ESP_LOGI(TAG, "Effect changed to: %s",
-				 effects[current_effect_index]->name);
-#if ESP_NOW_ENABLED && IS_MASTER
-		send_espnow_command(cmd);
-#endif
-		break;
-	}
-
 	case LED_CMD_SET_EFFECT:
 		if (cmd->value >= 0 && cmd->value < effects_count) {
 			current_effect_index = (uint8_t)cmd->value;
@@ -340,46 +302,6 @@ static void handle_command(const led_command_t *cmd) {
 #if ESP_NOW_ENABLED && IS_MASTER
 		send_espnow_command(cmd);
 #endif
-		break;
-
-	case LED_CMD_INC_EFFECT_PARAM:
-		if (current_effect->num_params > 0) {
-			effect_param_t *param =
-				&current_effect->params[current_param_index];
-
-			// Calculate new potential value
-			int32_t new_value =
-				(int32_t)param->value + (cmd->value * param->step);
-
-			if (param->is_wrap) {
-				if (new_value > param->max_value) {
-					param->value = param->min_value;
-				} else if (new_value < param->min_value) {
-					param->value = param->max_value;
-				} else {
-					param->value = (int16_t)new_value;
-				}
-			} else {
-				if (new_value > param->max_value) {
-					param->value = param->max_value;
-					current_feedback = FEEDBACK_TYPE_LIMIT;
-					feedback_start_time_ms = esp_timer_get_time() / 1000;
-					feedback_blink_count = 2;
-				} else if (new_value < param->min_value) {
-					param->value = param->min_value;
-					current_feedback = FEEDBACK_TYPE_LIMIT;
-					feedback_start_time_ms = esp_timer_get_time() / 1000;
-					feedback_blink_count = 2;
-				} else {
-					param->value = (int16_t)new_value;
-				}
-			}
-			ESP_LOGI(TAG, "Param '%s' changed to: %d", param->name,
-					 param->value);
-#if ESP_NOW_ENABLED && IS_MASTER
-			send_espnow_command(cmd);
-#endif
-		}
 		break;
 
 	case LED_CMD_NEXT_EFFECT_PARAM:
@@ -654,4 +576,89 @@ effect_param_t* led_controller_get_effect_params(uint8_t *num_params) {
         *num_params = effects[current_effect_index]->num_params;
     }
     return effects[current_effect_index]->params;
+}
+
+// --- State Modifier Functions ---
+
+uint8_t led_controller_inc_brightness(int16_t steps) {
+	int32_t new_brightness = (int32_t)master_brightness + steps;
+	if (new_brightness > 255) {
+		master_brightness = 255;
+		current_feedback = FEEDBACK_TYPE_LIMIT;
+		feedback_start_time_ms = esp_timer_get_time() / 1000;
+		feedback_blink_count = 2;
+	} else if (new_brightness < MIN_BRIGHTNESS) {
+		master_brightness = MIN_BRIGHTNESS;
+		current_feedback = FEEDBACK_TYPE_LIMIT;
+		feedback_start_time_ms = esp_timer_get_time() / 1000;
+		feedback_blink_count = 2;
+	} else {
+		master_brightness = (uint8_t)new_brightness;
+	}
+	needs_render = true;
+	if (render_task_handle) {
+		xTaskNotifyGive(render_task_handle);
+	}
+	return master_brightness;
+}
+
+uint8_t led_controller_inc_effect(int16_t steps) {
+	int32_t new_index = current_effect_index + steps;
+	if (new_index < 0) {
+		new_index = effects_count - 1;
+	}
+	if (new_index >= effects_count) {
+		new_index = 0;
+	}
+	current_effect_index = new_index;
+	current_param_index = 0; // Reset param index when changing effect
+	needs_render = true;
+	if (render_task_handle) {
+		xTaskNotifyGive(render_task_handle);
+	}
+	return current_effect_index;
+}
+
+uint16_t led_controller_inc_effect_param(int16_t steps) {
+	effect_t *current_effect = effects[current_effect_index];
+	if (current_effect->num_params > 0) {
+		effect_param_t *param = &current_effect->params[current_param_index];
+		int32_t new_value = (int32_t)param->value + (steps * param->step);
+
+		if (param->is_wrap) {
+			if (new_value > param->max_value) {
+				param->value = param->min_value;
+			} else if (new_value < param->min_value) {
+				param->value = param->max_value;
+			} else {
+				param->value = (int16_t)new_value;
+			}
+		} else {
+			if (new_value > param->max_value) {
+				param->value = param->max_value;
+				current_feedback = FEEDBACK_TYPE_LIMIT;
+				feedback_start_time_ms = esp_timer_get_time() / 1000;
+				feedback_blink_count = 2;
+			} else if (new_value < param->min_value) {
+				param->value = param->min_value;
+				current_feedback = FEEDBACK_TYPE_LIMIT;
+				feedback_start_time_ms = esp_timer_get_time() / 1000;
+				feedback_blink_count = 2;
+			} else {
+				param->value = (int16_t)new_value;
+			}
+		}
+		needs_render = true;
+		if (render_task_handle) {
+			xTaskNotifyGive(render_task_handle);
+		}
+		return (current_param_index << 8) | (param->value & 0xFF);
+	}
+	// Should not happen if called correctly from FSM, but as a fallback:
+	uint8_t p_val = (current_effect->num_params > 0)
+						? effects[current_effect_index]
+							  ->params[current_param_index]
+							  .value
+						: 0;
+	return (current_param_index << 8) | (p_val & 0xFF);
 }

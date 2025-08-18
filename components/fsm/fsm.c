@@ -212,20 +212,32 @@ static bool process_encoder_event(const encoder_event_t *encoder_evt,
 	int16_t steps = (int16_t)encoder_evt->steps;
 
 	switch (fsm_state) {
-	case MODE_DISPLAY:
-		send_led_command(LED_CMD_INC_BRIGHTNESS, timestamp, steps);
-		ESP_LOGD(TAG, "Brightness adjustment: %d", steps);
+	case MODE_DISPLAY: {
+		uint8_t new_brightness = led_controller_inc_brightness(steps);
+		send_led_command(LED_CMD_SET_BRIGHTNESS, timestamp, new_brightness);
+		ESP_LOGD(TAG, "Brightness set to: %d", new_brightness);
 		break;
+	}
 
-	case MODE_EFFECT_SELECT:
-		send_led_command(LED_CMD_INC_EFFECT, timestamp, steps);
-		ESP_LOGD(TAG, "Effect selection: %d", steps);
+	case MODE_EFFECT_SELECT: {
+		uint8_t new_effect_idx = led_controller_inc_effect(steps);
+		// In selection mode, we don't want to broadcast, so we use an INC command
+		// that the slave will ignore. The final SET command on click will be broadcast.
+		// Let's re-evaluate this. The best way is to have the led_controller know
+		// not to broadcast.
+		// For now, let's just send the SET command. This is the new architecture.
+		send_led_command(LED_CMD_SET_EFFECT, timestamp, new_effect_idx);
+		ESP_LOGD(TAG, "Effect selection preview: %d", new_effect_idx);
 		break;
+	}
 
-	case MODE_EFFECT_SETUP:
-		send_led_command(LED_CMD_INC_EFFECT_PARAM, timestamp, steps);
-		ESP_LOGD(TAG, "Effect parameter adjustment: %d", steps);
+	case MODE_EFFECT_SETUP: {
+		uint16_t new_param_packed = led_controller_inc_effect_param(steps);
+		send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp,
+						 new_param_packed);
+		ESP_LOGD(TAG, "Effect param set to: %u", new_param_packed);
 		break;
+	}
 
 	case MODE_SYSTEM_SETUP:
 		send_led_command(LED_CMD_INC_SYSTEM_PARAM, timestamp, steps);
@@ -298,7 +310,6 @@ static bool process_switch_event(const switch_event_t *switch_evt,
 	espnow_controller_set_master_enabled(sending_enabled);
 
 	if (sending_enabled) {
-		send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
 		ESP_LOGI(TAG, "Switch: ESP-NOW Master sending ENABLED. Syncing slaves...");
 
 		// --- Synchronize Slaves ---
@@ -327,6 +338,9 @@ static bool process_switch_event(const switch_event_t *switch_evt,
 								 packed_value);
 			}
 		}
+
+		// 5. Send feedback last, so it doesn't block the sync commands
+		send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
 	} else {
 		send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
 		ESP_LOGI(TAG, "Switch: ESP-NOW Master sending DISABLED.");

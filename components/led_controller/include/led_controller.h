@@ -44,3 +44,27 @@ uint8_t led_controller_get_effect_index(void);
 
 /** @brief Gets a pointer to the parameters of the current effect. */
 effect_param_t* led_controller_get_effect_params(uint8_t *num_params);
+
+
+// --- State Modifier Functions ---
+
+/**
+ * @brief Increments or decrements the brightness.
+ * @param steps The number of steps to change the brightness by.
+ * @return The new absolute brightness value.
+ */
+uint8_t led_controller_inc_brightness(int16_t steps);
+
+/**
+ * @brief Increments or decrements the effect index.
+ * @param steps The number of steps to change the effect by.
+ * @return The new absolute effect index.
+ */
+uint8_t led_controller_inc_effect(int16_t steps);
+
+/**
+ * @brief Increments or decrements the current effect parameter.
+ * @param steps The number of steps to change the parameter by.
+ * @return The new absolute parameter value, packed as (index << 8 | value).
+ */
+uint16_t led_controller_inc_effect_param(int16_t steps);
