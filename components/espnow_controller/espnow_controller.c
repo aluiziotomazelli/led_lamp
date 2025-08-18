@@ -21,8 +21,13 @@ static void on_data_sent(const uint8_t *mac_addr, esp_now_send_status_t status) 
 }
 
 // Callback function for when data is received
-static void on_data_recv(const uint8_t *mac_addr, const uint8_t *incoming_data, int len) {
+static void on_data_recv(const esp_now_recv_info_t *recv_info, const uint8_t *incoming_data, int len) {
 #if IS_SLAVE
+    const uint8_t *mac_addr = recv_info->src_addr;
+    if (mac_addr == NULL || incoming_data == NULL || len <= 0) {
+        return;
+    }
+
     if (len != sizeof(espnow_message_t)) {
         ESP_LOGW(TAG, "Received message of incorrect size (%d) from " MACSTR, len, MAC2STR(mac_addr));
         return;
