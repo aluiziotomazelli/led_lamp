@@ -112,7 +112,8 @@ static bool process_button_event(const button_event_t *button_evt,
 		switch (button_evt->type) {
 		case BUTTON_CLICK:
 			fsm_state = MODE_DISPLAY;
-			send_led_command(LED_CMD_SET_EFFECT, timestamp, 0);
+			uint8_t selected_effect_index = led_controller_get_effect_index();
+			send_led_command(LED_CMD_SET_EFFECT, timestamp, selected_effect_index);
 			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
 			ESP_LOGI(TAG,
 					 "MODE_EFFECT_SELECT -> MODE_DISPLAY (effect selected)");
