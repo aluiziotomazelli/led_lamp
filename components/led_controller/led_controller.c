@@ -18,6 +18,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Set log level for this module, must come before esp_log.h
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 // ESP-IDF system services
 #include "esp_log.h"
 #include "esp_timer.h"

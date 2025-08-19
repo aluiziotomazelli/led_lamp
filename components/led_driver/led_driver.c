@@ -14,6 +14,8 @@
 // System includes
 #include <stdint.h>
 
+// Set log level for this module, must come before esp_log.h
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 // ESP-IDF system services
 #include "esp_log.h"
 #include "esp_err.h"

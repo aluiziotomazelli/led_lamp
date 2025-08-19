@@ -23,8 +23,9 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
+// Set log level for this module, must come before esp_log.h
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 // ESP-IDF system services
-#define LOG_LOCAL_LEVEL ESP_LOG_INFO  // ✅ Must come before esp_log.h
 #include "esp_log.h"
 #include "esp_timer.h"
 
