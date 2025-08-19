@@ -248,6 +248,14 @@ static void handle_command(const led_command_t *cmd) {
 		fade_start_brightness = master_brightness;
 		master_brightness = 0; // começa do mínimo
 		ESP_LOGI(TAG, "LEDs ON with fade");
+
+        // Per user suggestion, save the *target* state immediately.
+        volatile_data_t v_data;
+        v_data.is_on = true;
+        v_data.master_brightness = fade_start_brightness; // Save the target brightness
+        v_data.effect_index = current_effect_index;
+        nvs_manager_save_volatile_data(&v_data);
+
 #if ESP_NOW_ENABLED && IS_MASTER
 		send_espnow_command(cmd);
 #endif
@@ -575,7 +583,6 @@ static void led_render_task(void *pv) {
 				// Fade complete
 				is_fading = false;
 				master_brightness = fade_start_brightness;
-				trigger_volatile_save(); // Save the final brightness state
 			} else {
 				// Calculate current brightness during fade
 				float progress = (float)elapsed / FADE_DURATION_MS;
