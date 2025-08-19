@@ -19,9 +19,11 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
+// Set log level for this module, must come before esp_log.h
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 // ESP-IDF system services
-#define LOG_LOCAL_LEVEL ESP_LOG_INFO  // ✅ Must come before esp_log.h
 #include "esp_log.h"
+#include "esp_mac.h"
 
 // Input device drivers
 #include "button.h"
@@ -82,7 +84,7 @@ void integrator_task(void *pvParameters) {
                 event.timestamp = xTaskGetTickCount();
                 event.data.encoder = encoder_evt;
                 xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
-                ESP_LOGD(TAG, "Integrated encoder event: %d steps", encoder_evt.steps);
+                ESP_LOGD(TAG, "Integrated encoder event: %"PRIu32" steps", encoder_evt.steps);
             }
         } 
         // Process ESPNOW events
