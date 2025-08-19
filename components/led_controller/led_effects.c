@@ -444,46 +444,55 @@ static void run_christmas(const effect_param_t *params, uint8_t num_params,
 	uint8_t twinkle_speed = params[0].value;
 	uint8_t num_twinkles = params[1].value;
 
-	// --- 1. Draw Static Background ---
-	// Segments are proportional to the total number of LEDs.
-	uint16_t green_end = num_pixels / 2;
-	uint16_t red_end = green_end + (num_pixels * 3 / 10);
+	// --- 1. Generate and Draw Background ---
+	static hsv_t background_pattern[NUM_LEDS];
+	static bool background_initialized = false;
 
-	// Define base colors for the segments. V is slightly dimmed to allow twinkles to pop.
-	hsv_t green = { .h = 120, .s = 255, .v = 150 }; // Christmas Tree Green
-	hsv_t red   = { .h = 0,   .s = 255, .v = 150 }; // Ornament Red
-	hsv_t gold  = { .h = 40,  .s = 220, .v = 150 }; // Decoration Gold
+	// On first run, generate a fixed random pattern of colored segments
+	if (!background_initialized) {
+		hsv_t base_colors[] = {
+			{ .h = 120, .s = 255, .v = 150 }, // Green
+			{ .h = 0,   .s = 255, .v = 150 }, // Red
+			{ .h = 40,  .s = 220, .v = 150 }  // Gold
+		};
+		int color_count = sizeof(base_colors) / sizeof(hsv_t);
+		int color_index = rand() % color_count; // Start with a random color
+
+		uint16_t i = 0;
+		while (i < num_pixels) {
+			// Segments are 3 to 5 LEDs long
+			uint8_t segment_length = 3 + (rand() % 3);
+
+			// Get base color and apply slight random variations
+			hsv_t segment_color = base_colors[color_index % color_count];
+			segment_color.h = (segment_color.h + (rand() % 10) - 5) % 360;
+			segment_color.v = segment_color.v + (rand() % 20) - 10;
+
+			// Fill the segment with the generated color
+			for (uint8_t j = 0; j < segment_length && i < num_pixels; j++, i++) {
+				if (i < NUM_LEDS) { // Safety check against buffer size
+					background_pattern[i] = segment_color;
+				}
+			}
+			color_index++;
+		}
+		background_initialized = true;
+	}
+
+	// Copy the pre-generated background pattern to the active pixel buffer
+	for (uint16_t i = 0; i < num_pixels; i++) {
+		if (i < NUM_LEDS) { // Safety check
+			pixels[i].hsv = background_pattern[i];
+		}
+	}
+
+	// --- 2. Add Global Brightness Pulsation ---
+	// A very slow and subtle sine wave to make the whole strip gently "breathe".
+	float pulse_wave = (sinf(time_ms / 4000.0f) * 0.15f) + 0.85f; // Varies between 85% and 100%
 
 	for (uint16_t i = 0; i < num_pixels; i++) {
-		if (i < green_end) {
-			pixels[i].hsv = green;
-		} else if (i < red_end) {
-			pixels[i].hsv = red;
-		} else {
-			pixels[i].hsv = gold;
-		}
-	}
-
-	// --- 2. Add Subtle Wind Animation ---
-	int boundary1 = green_end;
-	int boundary2 = red_end;
-	// The width of the "wind" effect scales with the number of pixels
-	int wind_width = fmax(1, num_pixels / 12);
-
-	// A slow sine wave for gentle brightness modulation (V in HSV)
-	float wave = (sinf(time_ms / 2000.0f) * 0.2f) + 0.8f; // Varies between 80% and 100%
-
-	for (int i = boundary1 - wind_width; i < boundary1 + wind_width; i++) {
-		if (i >= 0 && i < num_pixels) {
-			uint8_t base_v = pixels[i].hsv.v;
-			pixels[i].hsv.v = (uint8_t)(base_v * wave);
-		}
-	}
-	for (int i = boundary2 - wind_width; i < boundary2 + wind_width; i++) {
-		if (i >= 0 && i < num_pixels) {
-			uint8_t base_v = pixels[i].hsv.v;
-			pixels[i].hsv.v = (uint8_t)(base_v * wave);
-		}
+		uint8_t base_v = pixels[i].hsv.v;
+		pixels[i].hsv.v = (uint8_t)(base_v * pulse_wave);
 	}
 
 	// --- 3. Twinkling Overlay ---
