@@ -31,7 +31,8 @@ typedef enum {
     LED_CMD_NEXT_EFFECT_PARAM, 	///< Go to next effect parameter (value = step)
     LED_CMD_INC_SYSTEM_PARAM,	///< Increment system parameter (value = step)
     LED_CMD_NEXT_SYSTEM_PARAM,	///< Go to next system parameter (value = step)
-    LED_CMD_SAVE_CONFIG,      	///< Save current configuration
+    LED_CMD_SAVE_CONFIG,      	///< Save current configuration locally
+    LED_CMD_SYNC_AND_SAVE_STATIC_CONFIG, ///< Save static config and sync to slaves
     LED_CMD_CANCEL_CONFIG,      	///< Cancel current configuration
     LED_CMD_ENTER_EFFECT_SETUP,
     LED_CMD_ENTER_EFFECT_SELECT,

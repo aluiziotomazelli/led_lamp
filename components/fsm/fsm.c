@@ -153,9 +153,10 @@ static bool process_button_event(const button_event_t *button_evt,
 			ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (saved)");
 			return true;
 		case BUTTON_VERY_LONG_CLICK:
-			led_controller_restore_current_effect_defaults();
-			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0); // Give positive feedback
-			ESP_LOGI(TAG, "MODE_EFFECT_SETUP: Restored current effect parameters to defaults.");
+			fsm_state = MODE_DISPLAY;
+			send_led_command(LED_CMD_SYNC_AND_SAVE_STATIC_CONFIG, timestamp, 0);
+			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
+			ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (sync and saved)");
 			return true;
 		case BUTTON_TIMEOUT:
 			fsm_state = MODE_DISPLAY;

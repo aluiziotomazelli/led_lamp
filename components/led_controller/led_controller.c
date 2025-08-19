@@ -347,6 +347,14 @@ static void handle_command(const led_command_t *cmd) {
 		trigger_static_save();
 		break;
 
+	case LED_CMD_SYNC_AND_SAVE_STATIC_CONFIG:
+		ESP_LOGI(TAG, "Syncing and saving static config to slaves.");
+		trigger_static_save(); // Save locally
+#if ESP_NOW_ENABLED && IS_MASTER
+		send_espnow_command(cmd); // Broadcast to slaves
+#endif
+		break;
+
 	case LED_CMD_CANCEL_CONFIG:
 		ESP_LOGI(TAG, "Configuration cancelled.");
 		restore_temp_params();
