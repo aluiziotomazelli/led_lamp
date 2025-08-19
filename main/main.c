@@ -19,6 +19,7 @@
 #include "espnow_controller.h"
 #include "nvs_flash.h"
 #include "nvs_manager.h"
+#include "power_manager.h"
 
 static const char *TAG = "main";
 
@@ -185,6 +186,9 @@ void app_main(void) {
     // Inicializa o LED Driver
     led_driver_init(led_strip_queue);
     ESP_LOGI(TAG, "LED Driver initialized.");
+
+    // Inicializa o Power Manager
+    power_manager_init();
 
 	// Criação das tasks
 	BaseType_t task_created;

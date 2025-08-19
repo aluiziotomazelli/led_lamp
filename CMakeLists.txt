@@ -32,8 +32,15 @@ set(COMPONENTS
 set(EXTRA_COMPONENT_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/shared
     ${CMAKE_CURRENT_SOURCE_DIR}/components/button
-    ${CMAKE_CURRENT_SOURCE_DIR}/components/input_integrator
     ${CMAKE_CURRENT_SOURCE_DIR}/components/encoder
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/espnow_controller
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/fsm
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/input_integrator
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/led_controller
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/led_driver
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/nvs_manager
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/power_manager
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/switch
     ${CMAKE_CURRENT_SOURCE_DIR}/components/touch
 )
 

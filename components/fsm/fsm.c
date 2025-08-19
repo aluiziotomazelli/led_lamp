@@ -38,6 +38,7 @@
 // Project specific headers
 #include "fsm.h"
 #include "project_config.h"
+#include "power_manager.h"
 
 static const char *TAG = "FSM";
 
@@ -482,6 +483,14 @@ static void fsm_task(void *pv) {
                 send_led_command(LED_CMD_FEEDBACK_GREEN, get_current_time_ms(), 0, 0);
                 ESP_LOGI(TAG, "Timeout in state %d -> MODE_DISPLAY (auto-save)", current_state);
                 last_event_timestamp_ms = get_current_time_ms();
+            } else {
+                // If there was no timeout and no event, and we are in the OFF state,
+                // we can enter light sleep to save power.
+                if (current_state == MODE_OFF) {
+                    power_manager_enter_sleep();
+                    // After waking up, the loop will continue, and any wakeup event (like a button press)
+                    // should now be in the queue.
+                }
             }
         }
     }
