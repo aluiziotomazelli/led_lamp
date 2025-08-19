@@ -280,16 +280,17 @@ static bool process_encoder_event(const encoder_event_t *encoder_evt,
  */
 static bool process_touch_event(const touch_event_t *touch_evt,
 								uint32_t timestamp) {
-	// Convert touch to equivalent button event for consistency
-	button_event_t equivalent_button = {.pin = touch_evt->pad,
-										.type = (touch_evt->type == TOUCH_PRESS)
-													? BUTTON_CLICK
-													: BUTTON_LONG_CLICK};
+	// In display mode, a simple press cycles to the next effect.
+	// Hold is ignored.
+	if (fsm_state == MODE_DISPLAY && touch_evt->type == TOUCH_PRESS) {
+		uint8_t new_effect_idx = led_controller_inc_effect(1);
+		send_led_command(LED_CMD_SET_EFFECT, timestamp, new_effect_idx);
+		ESP_LOGI(TAG, "Touch press cycled to next effect: %d", new_effect_idx);
+		return true;
+	}
 
-	ESP_LOGD(TAG, "Touch event converted to button equivalent: pin=%d, type=%d",
-			 equivalent_button.pin, equivalent_button.type);
-
-	return process_button_event(&equivalent_button, timestamp);
+	// In other modes, or for other touch events, do nothing.
+	return false;
 }
 
 /**
