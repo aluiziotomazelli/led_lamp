@@ -3,6 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "led_effects.h"
+#include "nvs_data.h"
 
 /**
  * @brief Structure for the abstract LED output data.

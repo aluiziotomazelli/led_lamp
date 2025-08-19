@@ -76,8 +76,8 @@ extern "C" {
 // ==================================================
 // Rotary Encoder Configuration
 // ==================================================
-#define ENC_ACCEL_GAP           50     // Time gap for acceleration (ms)
-#define MAX_ACCEL_MULTIPLIER     5     // Maximum acceleration multiplier
+#define ENC_ACCEL_GAP           100     // Time gap for acceleration (ms)
+#define MAX_ACCEL_MULTIPLIER     10     // Maximum acceleration multiplier
 
 // ==================================================
 // Finite State Machine Configuration
@@ -90,12 +90,12 @@ extern "C" {
 // ==================================================
 #define NUM_LEDS 10 // Number of LEDs in the strip
 #define LED_RENDER_INTERVAL_MS 10
-#define FADE_DURATION_MS 5000
+#define FADE_DURATION_MS 3000
 
 // Default values for configurable parameters
 #define DEFAULT_MIN_BRIGHTNESS 20
-#define DEFAULT_LED_OFFSET_BEGIN 2
-#define DEFAULT_LED_OFFSET_END   2
+#define DEFAULT_LED_OFFSET_BEGIN 0
+#define DEFAULT_LED_OFFSET_END   0
 
 // Global configurable parameters
 // (Defined in led_controller.c)
