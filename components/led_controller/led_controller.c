@@ -240,20 +240,12 @@ static void handle_command(const led_command_t *cmd) {
 	switch (cmd->cmd) {
 	case LED_CMD_TURN_ON:
 		is_on = true;
-		ESP_LOGI(TAG, "LEDs ON");
-        trigger_volatile_save();
-#if ESP_NOW_ENABLED && IS_MASTER
-		send_espnow_command(cmd);
-#endif
-		break;
-	case LED_CMD_TURN_ON_FADE:
-		is_on = true;
 		is_fading = true;
 		fade_start_time = esp_timer_get_time() / 1000;
 		fade_start_brightness = master_brightness;
 		master_brightness = 0; // começa do mínimo
 		ESP_LOGI(TAG, "LEDs ON with fade");
-        trigger_volatile_save();
+		trigger_volatile_save();
 #if ESP_NOW_ENABLED && IS_MASTER
 		send_espnow_command(cmd);
 #endif

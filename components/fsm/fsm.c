@@ -67,15 +67,11 @@ static bool process_button_event(const button_event_t *button_evt,
 	case MODE_OFF:
 		switch (button_evt->type) {
 		case BUTTON_CLICK:
-			fsm_state = MODE_DISPLAY;
-			send_led_command(LED_CMD_TURN_ON_FADE, timestamp, 0);
-			ESP_LOGI(TAG, "MODE_OFF -> MODE_DISPLAY_FADE (long click)");
-			return true;
 		case BUTTON_LONG_CLICK:
 		case BUTTON_DOUBLE_CLICK:
 			fsm_state = MODE_DISPLAY;
 			send_led_command(LED_CMD_TURN_ON, timestamp, 0);
-			ESP_LOGI(TAG, "MODE_OFF -> MODE_DISPLAY (button click)");
+			ESP_LOGI(TAG, "MODE_OFF -> MODE_DISPLAY (Button Press)");
 			return true;
 		default:
 			return false;
@@ -502,9 +498,14 @@ void fsm_init(QueueHandle_t inputQueue, QueueHandle_t outputQueue) {
 fsm_state_t fsm_get_state(void) { return fsm_state; }
 
 void fsm_set_initial_state(fsm_state_t state) {
-    // This function should only set the state. The FSM task will then
-    // act on this state when it starts processing events.
     fsm_state = state;
     last_event_timestamp_ms = get_current_time_ms(); // Reset timeout timer
     ESP_LOGI(TAG, "FSM initial state set to: %d", state);
+
+    // If the initial state is MODE_DISPLAY, it means the device was on before
+    // a restart. We should send a command to turn the LEDs on automatically.
+    if (state == MODE_DISPLAY) {
+        ESP_LOGI(TAG, "Initial state is DISPLAY, sending TURN_ON command.");
+        send_led_command(LED_CMD_TURN_ON, get_current_time_ms(), 0);
+    }
 }

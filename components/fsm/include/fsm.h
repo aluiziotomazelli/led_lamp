@@ -24,8 +24,7 @@ typedef enum {
  */
 typedef enum {
     LED_CMD_TURN_OFF,        	///< Turn LEDs off
-    LED_CMD_TURN_ON,         	///< Turn LEDs on
-    LED_CMD_TURN_ON_FADE,         	///< Turn LEDs on
+    LED_CMD_TURN_ON,         	///< Turn LEDs on with fade
     LED_CMD_SET_EFFECT,      	///< Set current effect directly (value = effect_index)
     LED_CMD_SET_BRIGHTNESS,     ///< Set brightness directly (value = brightness)
     LED_CMD_SET_EFFECT_PARAM,   ///< Set an effect parameter directly (value = (param_idx << 8) | param_val)
