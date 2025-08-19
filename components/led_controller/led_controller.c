@@ -427,11 +427,11 @@ void led_controller_apply_nvs_data(const volatile_data_t *v_data, const static_d
     }
 
     // Set instantaneous brightness to avoid fade on boot
-    if (is_on) {
-        current_brightness = master_brightness;
-    } else {
-        current_brightness = 0;
-    }
+//    if (is_on) {
+//        current_brightness = master_brightness;
+//    } else {
+//        current_brightness = 0;
+//    }
 
     // Apply static data
     g_min_brightness = s_data->min_brightness;

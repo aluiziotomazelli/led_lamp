@@ -120,8 +120,8 @@ extern uint16_t g_led_offset_end;
 
 
 #define ESP_NOW_ENABLED  1 // 1 to enable, 0 to disable
-#define IS_MASTER        1 // 1 for master, 0 for slave
-#define IS_SLAVE         0 // 1 for slave, 0 for master
+#define IS_MASTER        0 // 1 for master, 0 for slave
+#define IS_SLAVE         1 // 1 for slave, 0 for master
 
 // Set to 0 to disable all feedback animations (blinks) on the slave device.
 #define SLAVE_ENABLE_FEEDBACK 0
