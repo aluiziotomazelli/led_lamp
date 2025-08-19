@@ -271,6 +271,11 @@ static void handle_command(const led_command_t *cmd) {
 		if (cmd->value >= g_min_brightness && cmd->value <= 255) {
 			master_brightness = (uint8_t)cmd->value;
 			ESP_LOGI(TAG, "Brightness set to: %d", master_brightness);
+			// Use the timer to save after a delay, reducing NVS writes.
+			// This now applies to both Master and Slave for consistency.
+			if (brightness_save_timer != NULL) {
+				xTimerReset(brightness_save_timer, portMAX_DELAY);
+			}
 #if ESP_NOW_ENABLED && IS_MASTER
 			send_espnow_command(cmd);
 #endif
@@ -820,10 +825,6 @@ uint8_t led_controller_inc_brightness(int16_t steps, bool *limit_hit) {
 	} else {
 		master_brightness = (uint8_t)new_brightness;
 	}
-
-    if (brightness_save_timer != NULL) {
-        xTimerReset(brightness_save_timer, portMAX_DELAY);
-    }
 
 	needs_render = true;
 	if (render_task_handle) {
