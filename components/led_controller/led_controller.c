@@ -420,8 +420,8 @@ static void handle_command(const led_command_t *cmd) {
         break;
 
     case LED_CMD_SET_EFFECT_PARAM: {
-        uint8_t param_idx = (cmd->value >> 8) & 0xFF;
-        uint8_t param_val = cmd->value & 0xFF;
+        uint8_t param_idx = cmd->param_idx;
+        int16_t param_val = cmd->value;
 
         if (current_effect->num_params > 0 &&
             param_idx < current_effect->num_params) {
@@ -999,6 +999,15 @@ uint8_t led_controller_get_effect_index(void) {
 }
 
 /**
+ * @brief Get current effect parameter index
+ *
+ * @return Index of currently active effect parameter
+ */
+uint8_t led_controller_get_current_param_index(void) {
+	return current_param_index;
+}
+
+/**
  * @brief Get parameters for current effect
  * 
  * @param num_params Pointer to store number of parameters
@@ -1073,7 +1082,7 @@ uint8_t led_controller_inc_effect(int16_t steps) {
  * @param limit_hit Pointer to boolean indicating if min/max limit was reached
  * @return Packed value containing parameter index and new value
  */
-uint16_t led_controller_inc_effect_param(int16_t steps, bool *limit_hit) {
+int16_t led_controller_inc_effect_param(int16_t steps, bool *limit_hit) {
     if (limit_hit) *limit_hit = false;
     effect_t *current_effect = effects[current_effect_index];
 
@@ -1104,14 +1113,9 @@ uint16_t led_controller_inc_effect_param(int16_t steps, bool *limit_hit) {
         if (render_task_handle) {
             xTaskNotifyGive(render_task_handle);
         }
-        return (current_param_index << 8) | (param->value & 0xFF);
+        return param->value;
     }
 
     // Fallback
-    uint8_t p_val = (current_effect->num_params > 0)
-                    ? effects[current_effect_index]
-                          ->params[current_param_index]
-                          .value
-                    : 0;
-    return (current_param_index << 8) | (p_val & 0xFF);
+    return 0;
 }

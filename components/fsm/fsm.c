@@ -92,8 +92,8 @@ static bool check_timeout(uint64_t timeout_ms) {
  * 
  * @note This function blocks indefinitely until the command is queued
  */
-static void send_led_command(led_cmd_type_t cmd, uint32_t timestamp, int16_t value) {
-    led_command_t out = {.cmd = cmd, .timestamp = timestamp, .value = value};
+static void send_led_command(led_cmd_type_t cmd, uint32_t timestamp, int16_t value, uint8_t param_idx) {
+    led_command_t out = {.cmd = cmd, .timestamp = timestamp, .value = value, .param_idx = param_idx};
     xQueueSend(qOutput, &out, portMAX_DELAY);
 }
 
@@ -114,7 +114,7 @@ static bool process_button_event(const button_event_t *button_evt, uint32_t time
         case BUTTON_LONG_CLICK:
         case BUTTON_DOUBLE_CLICK:
             fsm_state = MODE_DISPLAY;
-            send_led_command(LED_CMD_TURN_ON, timestamp, 0);
+            send_led_command(LED_CMD_TURN_ON, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_OFF -> MODE_DISPLAY (Button Press)");
             return true;
         default:
@@ -125,25 +125,25 @@ static bool process_button_event(const button_event_t *button_evt, uint32_t time
         switch (button_evt->type) {
         case BUTTON_CLICK:
             fsm_state = MODE_OFF;
-            send_led_command(LED_CMD_TURN_OFF, timestamp, 0);
+            send_led_command(LED_CMD_TURN_OFF, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_OFF (button click)");
             return true;
         case BUTTON_DOUBLE_CLICK:
             fsm_state = MODE_EFFECT_SELECT;
-            send_led_command(LED_CMD_ENTER_EFFECT_SELECT, timestamp, 0);
-            send_led_command(LED_CMD_FEEDBACK_EFFECT_COLOR, timestamp, 0);
+            send_led_command(LED_CMD_ENTER_EFFECT_SELECT, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_EFFECT_COLOR, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SELECT");
             return true;
         case BUTTON_LONG_CLICK:
             fsm_state = MODE_EFFECT_SETUP;
-            send_led_command(LED_CMD_ENTER_EFFECT_SETUP, timestamp, 0);
-            send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0);
+            send_led_command(LED_CMD_ENTER_EFFECT_SETUP, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SETUP");
             return true;
         case BUTTON_VERY_LONG_CLICK:
             fsm_state = MODE_SYSTEM_SETUP;
             led_controller_enter_system_setup();
-            send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0);
+            send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_SYSTEM_SETUP");
             return true;
         default:
@@ -155,19 +155,19 @@ static bool process_button_event(const button_event_t *button_evt, uint32_t time
         case BUTTON_CLICK:
             fsm_state = MODE_DISPLAY;
             uint8_t selected_effect_index = led_controller_get_effect_index();
-            send_led_command(LED_CMD_SET_EFFECT, timestamp, selected_effect_index);
-            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
+            send_led_command(LED_CMD_SET_EFFECT, timestamp, selected_effect_index, 0);
+            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (effect selected)");
             return true;
         case BUTTON_DOUBLE_CLICK:
-            send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0);
-            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
+            send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0, 0);
             fsm_state = MODE_DISPLAY;
             ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (cancelled)");
             return true;
         case BUTTON_TIMEOUT:
             fsm_state = MODE_DISPLAY;
-            send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
+            send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (timeout)");
             return true;
         default:
@@ -177,31 +177,31 @@ static bool process_button_event(const button_event_t *button_evt, uint32_t time
     case MODE_EFFECT_SETUP:
         switch (button_evt->type) {
         case BUTTON_CLICK:
-            send_led_command(LED_CMD_NEXT_EFFECT_PARAM, timestamp, 0);
-            send_led_command(LED_CMD_FEEDBACK_EFFECT_COLOR, timestamp, 0);
+            send_led_command(LED_CMD_NEXT_EFFECT_PARAM, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_EFFECT_COLOR, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_EFFECT_SETUP Next Param");
             return true;
         case BUTTON_DOUBLE_CLICK:
-            send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0);
-            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
+            send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0, 0);
             fsm_state = MODE_DISPLAY;
             ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (cancelled)");
             return true;
         case BUTTON_LONG_CLICK:
             fsm_state = MODE_DISPLAY;
-            send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
-            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
+            send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (saved)");
             return true;
         case BUTTON_VERY_LONG_CLICK:
             fsm_state = MODE_DISPLAY;
-            send_led_command(LED_CMD_SYNC_AND_SAVE_STATIC_CONFIG, timestamp, 0);
-            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
+            send_led_command(LED_CMD_SYNC_AND_SAVE_STATIC_CONFIG, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (sync and saved)");
             return true;
         case BUTTON_TIMEOUT:
             fsm_state = MODE_DISPLAY;
-            send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0);
+            send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (timeout)");
             return true;
         default:
@@ -212,24 +212,24 @@ static bool process_button_event(const button_event_t *button_evt, uint32_t time
         switch (button_evt->type) {
         case BUTTON_CLICK:
             led_controller_next_system_param();
-            send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0);
+            send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_SYSTEM_SETUP Next Param");
             return true;
         case BUTTON_DOUBLE_CLICK:
             led_controller_cancel_system_config();
-            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
+            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0, 0);
             fsm_state = MODE_DISPLAY;
             ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (cancelled)");
             return true;
         case BUTTON_LONG_CLICK:
             fsm_state = MODE_DISPLAY;
             led_controller_save_system_config();
-            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
+            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (saved)");
             return true;
         case BUTTON_VERY_LONG_CLICK:
             led_controller_factory_reset();
-            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
+            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_SYSTEM_SETUP: Performed factory reset");
             return true;
         default:
@@ -240,7 +240,7 @@ static bool process_button_event(const button_event_t *button_evt, uint32_t time
         switch (button_evt->type) {
         case BUTTON_NONE_CLICK:
         case BUTTON_ERROR:
-            send_led_command(LED_CMD_BUTTON_ERROR, timestamp, 0);
+            send_led_command(LED_CMD_BUTTON_ERROR, timestamp, 0, 0);
             return true;
         default:
             return false;
@@ -266,9 +266,9 @@ static bool process_encoder_event(const encoder_event_t *encoder_evt, uint32_t t
     case MODE_DISPLAY: {
         bool limit_hit = false;
         uint8_t new_brightness = led_controller_inc_brightness(steps, &limit_hit);
-        send_led_command(LED_CMD_SET_BRIGHTNESS, timestamp, new_brightness);
+        send_led_command(LED_CMD_SET_BRIGHTNESS, timestamp, new_brightness, 0);
         if (limit_hit) {
-            send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0);
+            send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0, 0);
         }
         ESP_LOGD(TAG, "Brightness set to: %d", new_brightness);
         break;
@@ -276,19 +276,20 @@ static bool process_encoder_event(const encoder_event_t *encoder_evt, uint32_t t
 
     case MODE_EFFECT_SELECT: {
         uint8_t new_effect_idx = led_controller_inc_effect(steps);
-        send_led_command(LED_CMD_SET_EFFECT, timestamp, new_effect_idx);
+        send_led_command(LED_CMD_SET_EFFECT, timestamp, new_effect_idx, 0);
         ESP_LOGD(TAG, "Effect selection preview: %d", new_effect_idx);
         break;
     }
 
     case MODE_EFFECT_SETUP: {
         bool limit_hit = false;
-        uint16_t new_param_packed = led_controller_inc_effect_param(steps, &limit_hit);
-        send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp, new_param_packed);
+        int16_t new_param_val = led_controller_inc_effect_param(steps, &limit_hit);
+        uint8_t param_idx = led_controller_get_current_param_index();
+        send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp, new_param_val, param_idx);
         if (limit_hit) {
-            send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0);
+            send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0, 0);
         }
-        ESP_LOGD(TAG, "Effect param set to: %u", new_param_packed);
+        ESP_LOGD(TAG, "Effect param %d set to: %u", param_idx, new_param_val);
         break;
     }
 
@@ -296,7 +297,7 @@ static bool process_encoder_event(const encoder_event_t *encoder_evt, uint32_t t
         bool limit_hit = false;
         led_controller_inc_system_param(steps, &limit_hit);
         if (limit_hit) {
-            send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0);
+            send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0, 0);
         }
         ESP_LOGD(TAG, "System parameter adjustment: %d", steps);
         break;
@@ -321,7 +322,7 @@ static bool process_touch_event(const touch_event_t *touch_evt, uint32_t timesta
     // In display mode, a simple press cycles to the next effect
     if (fsm_state == MODE_DISPLAY && touch_evt->type == TOUCH_PRESS) {
         uint8_t new_effect_idx = led_controller_inc_effect(1);
-        send_led_command(LED_CMD_SET_EFFECT, timestamp, new_effect_idx);
+        send_led_command(LED_CMD_SET_EFFECT, timestamp, new_effect_idx, 0);
         ESP_LOGI(TAG, "Touch press cycled to next effect: %d", new_effect_idx);
         return true;
     }
@@ -351,7 +352,7 @@ static bool process_espnow_event(const espnow_event_t *espnow_evt, uint32_t time
         ESP_LOGW(TAG, "Slave was in setup state, snapping back to MODE_DISPLAY");
     }
 
-    send_led_command(cmd->cmd, cmd->timestamp, cmd->value);
+    send_led_command(cmd->cmd, cmd->timestamp, cmd->value, cmd->param_idx);
     return true;
 #else
     return false; // Not a slave, ignore ESP-NOW events
@@ -378,30 +379,29 @@ static bool process_switch_event(const switch_event_t *switch_evt, uint32_t time
 
         // Synchronize all slaves with current state
         if (led_controller_is_on()) {
-            send_led_command(LED_CMD_TURN_ON, timestamp, 0);
+            send_led_command(LED_CMD_TURN_ON, timestamp, 0, 0);
         } else {
-            send_led_command(LED_CMD_TURN_OFF, timestamp, 0);
+            send_led_command(LED_CMD_TURN_OFF, timestamp, 0, 0);
         }
 
         uint8_t effect_idx = led_controller_get_effect_index();
-        send_led_command(LED_CMD_SET_EFFECT, timestamp, effect_idx);
+        send_led_command(LED_CMD_SET_EFFECT, timestamp, effect_idx, 0);
 
         uint8_t brightness = led_controller_get_brightness();
-        send_led_command(LED_CMD_SET_BRIGHTNESS, timestamp, brightness);
+        send_led_command(LED_CMD_SET_BRIGHTNESS, timestamp, brightness, 0);
 
         uint8_t num_params = 0;
         effect_param_t *params = led_controller_get_effect_params(&num_params);
         if (params && num_params > 0) {
             for (uint8_t i = 0; i < num_params; i++) {
-                uint16_t packed_value = (i << 8) | params[i].value;
-                send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp, packed_value);
+                send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp, params[i].value, i);
             }
         }
     }
 #else
     // On slave, switch controls strip mode
     int16_t mode_value = switch_evt->is_closed ? 0 : 1;
-    send_led_command(LED_CMD_SET_STRIP_MODE, timestamp, mode_value);
+    send_led_command(LED_CMD_SET_STRIP_MODE, timestamp, mode_value, 0);
     ESP_LOGI(TAG, "Switch event processed, strip mode set to %d", mode_value);
 #endif
     return true;
@@ -476,10 +476,10 @@ static void fsm_task(void *pv) {
 
             if (timeout) {
                 if (current_state != MODE_SYSTEM_SETUP) {
-                    send_led_command(LED_CMD_SAVE_CONFIG, get_current_time_ms(), 0);
+                    send_led_command(LED_CMD_SAVE_CONFIG, get_current_time_ms(), 0, 0);
                 }
                 fsm_state = MODE_DISPLAY;
-                send_led_command(LED_CMD_FEEDBACK_GREEN, get_current_time_ms(), 0);
+                send_led_command(LED_CMD_FEEDBACK_GREEN, get_current_time_ms(), 0, 0);
                 ESP_LOGI(TAG, "Timeout in state %d -> MODE_DISPLAY (auto-save)", current_state);
                 last_event_timestamp_ms = get_current_time_ms();
             }

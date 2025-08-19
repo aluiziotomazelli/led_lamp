@@ -37,7 +37,7 @@ typedef enum {
     LED_CMD_TURN_ON,         	///< Turn LEDs on with fade
     LED_CMD_SET_EFFECT,      	///< Set current effect directly (value = effect_index)
     LED_CMD_SET_BRIGHTNESS,     ///< Set brightness directly (value = brightness)
-    LED_CMD_SET_EFFECT_PARAM,   ///< Set an effect parameter directly (value = (param_idx << 8) | param_val)
+    LED_CMD_SET_EFFECT_PARAM,   ///< Set an effect parameter directly (value = param_val, param_idx = index)
     LED_CMD_NEXT_EFFECT_PARAM, 	///< Go to next effect parameter (value = step)
     LED_CMD_INC_SYSTEM_PARAM,	///< Increment system parameter (value = step)
     LED_CMD_NEXT_SYSTEM_PARAM,	///< Go to next system parameter (value = step)
@@ -65,6 +65,7 @@ typedef struct {
     led_cmd_type_t cmd;     ///< Command type
     uint64_t timestamp;     ///< Timestamp when command was generated
     int16_t value;          ///< Step value or fixed value
+    uint8_t param_idx;      ///< Index of the parameter to modify
 } led_command_t;
 
 /**

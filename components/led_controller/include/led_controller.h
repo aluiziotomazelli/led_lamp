@@ -90,6 +90,13 @@ uint8_t led_controller_get_brightness(void);
 uint8_t led_controller_get_effect_index(void);
 
 /**
+ * @brief Gets the index of the currently active effect parameter
+ *
+ * @return Effect parameter index value
+ */
+uint8_t led_controller_get_current_param_index(void);
+
+/**
  * @brief Gets a pointer to the parameters of the current effect
  * 
  * @param[out] num_params Pointer to store number of parameters
@@ -123,9 +130,9 @@ uint8_t led_controller_inc_effect(int16_t steps);
  * 
  * @param[in] steps The number of steps to change the parameter by
  * @param[out] limit_hit Pointer to boolean set to true if a limit was hit
- * @return The new absolute parameter value, packed as (index << 8 | value)
+ * @return The new absolute parameter value
  */
-uint16_t led_controller_inc_effect_param(int16_t steps, bool *limit_hit);
+int16_t led_controller_inc_effect_param(int16_t steps, bool *limit_hit);
 
 //------------------------------------------------------------------------------
 // SYSTEM SETUP FUNCTIONS
