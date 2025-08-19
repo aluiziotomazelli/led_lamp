@@ -680,6 +680,32 @@ void led_controller_restore_current_effect_defaults(void) {
 	}
 }
 
+void led_controller_factory_reset(void) {
+	ESP_LOGI(TAG, "Performing factory reset.");
+
+	// Reset system parameters
+	g_min_brightness = DEFAULT_MIN_BRIGHTNESS;
+	g_led_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
+	g_led_offset_end = DEFAULT_LED_OFFSET_END;
+
+	// Also update live render variables
+	led_offset = g_led_offset_begin;
+	active_num_leds = NUM_LEDS - (g_led_offset_begin + g_led_offset_end);
+
+	// Reset all effect parameters
+	for (int i = 0; i < effects_count; i++) {
+		effect_t *effect = effects[i];
+		for (int j = 0; j < effect->num_params; j++) {
+			effect->params[j].value = effect->params[j].default_value;
+		}
+	}
+
+	needs_render = true;
+	if (render_task_handle) {
+		xTaskNotifyGive(render_task_handle);
+	}
+}
+
 // --- Getter Functions ---
 
 bool led_controller_is_on(void) {

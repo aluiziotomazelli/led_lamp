@@ -188,6 +188,12 @@ static bool process_button_event(const button_event_t *button_evt,
 			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
 			ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (saved)");
 			return true;
+		case BUTTON_VERY_LONG_CLICK:
+			led_controller_factory_reset();
+			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0); // Give positive feedback
+			ESP_LOGI(TAG, "MODE_SYSTEM_SETUP: Performed factory reset.");
+			// Stay in setup mode after reset
+			return true;
 		default:
 			return false;
 		}
