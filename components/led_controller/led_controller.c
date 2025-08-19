@@ -43,13 +43,10 @@ static color_t *pixel_buffer = NULL;
 static uint16_t led_offset = 0;
 static uint16_t active_num_leds = NUM_LEDS;
 
-// Fade in
-static bool is_fading = false;
-static uint32_t fade_start_time = 0;
-static uint8_t fade_start_brightness = 0;
-
+// State variables
 static bool is_on = false;
-static uint8_t master_brightness = 75;
+static uint8_t master_brightness = 75; // Target brightness
+static uint8_t current_brightness = 0; // Instantaneous brightness for rendering
 static uint8_t current_effect_index = 0;
 static uint8_t current_param_index = 0;
 static bool needs_render = true; // Flag to force render
@@ -239,23 +236,9 @@ static void handle_command(const led_command_t *cmd) {
 
 	switch (cmd->cmd) {
 	case LED_CMD_TURN_ON:
-		if (is_fading) {
-			break; // Ignore command if already fading in
-		}
 		is_on = true;
-		is_fading = true;
-		fade_start_time = esp_timer_get_time() / 1000;
-		fade_start_brightness = master_brightness;
-		master_brightness = 0; // começa do mínimo
-		ESP_LOGI(TAG, "LEDs ON with fade");
-
-        // Per user suggestion, save the *target* state immediately.
-        volatile_data_t v_data;
-        v_data.is_on = true;
-        v_data.master_brightness = fade_start_brightness; // Save the target brightness
-        v_data.effect_index = current_effect_index;
-        nvs_manager_save_volatile_data(&v_data);
-
+		ESP_LOGI(TAG, "LEDs ON");
+		trigger_volatile_save();
 #if ESP_NOW_ENABLED && IS_MASTER
 		send_espnow_command(cmd);
 #endif
@@ -264,7 +247,7 @@ static void handle_command(const led_command_t *cmd) {
 	case LED_CMD_TURN_OFF:
 		is_on = false;
 		ESP_LOGI(TAG, "LEDs OFF");
-        trigger_volatile_save();
+		trigger_volatile_save();
 #if ESP_NOW_ENABLED && IS_MASTER
 		send_espnow_command(cmd);
 #endif
@@ -430,6 +413,13 @@ void led_controller_apply_nvs_data(const volatile_data_t *v_data, const static_d
         current_effect_index = 0;
     }
 
+    // Set instantaneous brightness to avoid fade on boot
+    if (is_on) {
+        current_brightness = master_brightness;
+    } else {
+        current_brightness = 0;
+    }
+
     // Apply static data
     g_min_brightness = s_data->min_brightness;
     g_led_offset_begin = s_data->led_offset_begin;
@@ -575,20 +565,15 @@ static void led_render_task(void *pv) {
 			continue; // Skip the rest of the loop
 		}
 
-		if (is_fading && is_on) {
-			uint32_t now = esp_timer_get_time() / 1000;
-			uint32_t elapsed = now - fade_start_time;
-
-			if (elapsed >= FADE_DURATION_MS) {
-				// Fade complete
-				is_fading = false;
-				master_brightness = fade_start_brightness;
+		// Stateless fade logic: gradually move current_brightness to its target
+		uint8_t target_brightness = is_on ? master_brightness : 0;
+		if (current_brightness != target_brightness) {
+			if (current_brightness < target_brightness) {
+				current_brightness++;
 			} else {
-				// Calculate current brightness during fade
-				float progress = (float)elapsed / FADE_DURATION_MS;
-				master_brightness = (uint8_t)((fade_start_brightness)*progress);
+				current_brightness--;
 			}
-			needs_render = true; // Force render each frame during fade
+			needs_render = true;
 		}
 
 		effect_t *current_effect = effects[current_effect_index];
@@ -598,7 +583,7 @@ static void led_render_task(void *pv) {
 		bool should_run_effect = needs_render || current_effect->is_dynamic;
 
 		if (should_run_effect) {
-			if (is_on) {
+			if (current_brightness > 0) {
 				// Clear the entire buffer to black first.
 				// This ensures LEDs outside the active range are off.
 				memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
@@ -606,29 +591,31 @@ static void led_render_task(void *pv) {
 				if (current_effect->run) {
 					// Define the active region for the effect
 					color_t *effect_buffer = pixel_buffer + led_offset;
-					current_effect->run(
-						current_effect->params, current_effect->num_params,
-						master_brightness, esp_timer_get_time() / 1000,
-						effect_buffer, active_num_leds);
+					current_effect->run(current_effect->params,
+										current_effect->num_params,
+										current_brightness,
+										esp_timer_get_time() / 1000,
+										effect_buffer, active_num_leds);
 				}
 
-				// Apply master brightness. Since the inactive pixels are black,
+				// Apply brightness. Since the inactive pixels are black,
 				// applying brightness to them has no effect. We can safely
 				// iterate over the entire buffer.
 				if (strip_data.mode == COLOR_MODE_HSV) {
 					for (uint16_t i = 0; i < NUM_LEDS; i++) {
-						uint8_t v =
-							(pixel_buffer[i].hsv.v * master_brightness) / 255;
+						uint8_t v = (pixel_buffer[i].hsv.v *
+									 current_brightness) /
+									255;
 						pixel_buffer[i].hsv.v = v;
 					}
 				} else { // It's RGB
 					for (uint16_t i = 0; i < NUM_LEDS; i++) {
 						pixel_buffer[i].rgb = apply_brightness(
-							pixel_buffer[i].rgb, master_brightness);
+							pixel_buffer[i].rgb, current_brightness);
 					}
 				}
 			} else {
-				// If the strip is off, we just need to render black once
+				// If the strip is off or brightness is 0, render black once
 				memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
 				strip_data.mode = COLOR_MODE_RGB;
 			}
