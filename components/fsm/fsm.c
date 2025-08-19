@@ -482,7 +482,7 @@ void fsm_init(QueueHandle_t inputQueue, QueueHandle_t outputQueue) {
 
 	qInput = inputQueue;
 	qOutput = outputQueue;
-	fsm_state = MODE_OFF;
+	// fsm_state is now initialized statically and set via fsm_set_initial_state
 	last_event_timestamp_ms = get_current_time_ms();
 
 	BaseType_t result = xTaskCreate(fsm_task, "FSM", FSM_STACK_SIZE, NULL,
@@ -500,3 +500,11 @@ void fsm_init(QueueHandle_t inputQueue, QueueHandle_t outputQueue) {
  * @return Current FSM state
  */
 fsm_state_t fsm_get_state(void) { return fsm_state; }
+
+void fsm_set_initial_state(fsm_state_t state) {
+    // This function should only set the state. The FSM task will then
+    // act on this state when it starts processing events.
+    fsm_state = state;
+    last_event_timestamp_ms = get_current_time_ms(); // Reset timeout timer
+    ESP_LOGI(TAG, "FSM initial state set to: %d", state);
+}

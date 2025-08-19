@@ -71,3 +71,12 @@ void fsm_init(QueueHandle_t inputQueue, QueueHandle_t outputQueue);
  */
 fsm_state_t fsm_get_state(void);
 
+/**
+ * @brief Sets the initial state of the FSM.
+ *
+ * This should be called once at startup, after fsm_init() and after
+ * loading the desired state from a persistent source.
+ *
+ * @param state The state to set as the initial state.
+ */
+void fsm_set_initial_state(fsm_state_t state);

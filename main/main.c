@@ -161,6 +161,13 @@ void app_main(void) {
     nvs_manager_load_volatile_data(&v_data);
     nvs_manager_load_static_data(&s_data);
     led_controller_apply_nvs_data(&v_data, &s_data);
+
+    // Synchronize FSM state with loaded data
+    if (v_data.is_on) {
+        fsm_set_initial_state(MODE_DISPLAY);
+    } else {
+        fsm_set_initial_state(MODE_OFF);
+    }
     ESP_LOGI(TAG, "NVS configuration loaded and applied.");
 
     // Inicializa o LED Driver
