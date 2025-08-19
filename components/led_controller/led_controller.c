@@ -239,6 +239,9 @@ static void handle_command(const led_command_t *cmd) {
 
 	switch (cmd->cmd) {
 	case LED_CMD_TURN_ON:
+		if (is_fading) {
+			break; // Ignore command if already fading in
+		}
 		is_on = true;
 		is_fading = true;
 		fade_start_time = esp_timer_get_time() / 1000;
