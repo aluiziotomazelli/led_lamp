@@ -92,5 +92,5 @@ void led_controller_save_system_config(void);
 /** @brief Cancels any changes to system settings. */
 void led_controller_cancel_system_config(void);
 
-/** @brief Restores all effect parameters to their default values. */
-void led_controller_restore_effect_defaults(void);
+/** @brief Restores the current effect's parameters to their default values. */
+void led_controller_restore_current_effect_defaults(void);

@@ -666,14 +666,14 @@ void led_controller_inc_system_param(int16_t steps, bool *limit_hit) {
 	}
 }
 
-void led_controller_restore_effect_defaults(void) {
-	ESP_LOGI(TAG, "Restoring all effect parameters to default values.");
-	for (int i = 0; i < effects_count; i++) {
-		effect_t *effect = effects[i];
-		for (int j = 0; j < effect->num_params; j++) {
-			effect->params[j].value = effect->params[j].default_value;
-		}
+void led_controller_restore_current_effect_defaults(void) {
+	effect_t *effect = effects[current_effect_index];
+	ESP_LOGI(TAG, "Restoring parameters for effect '%s' to default.", effect->name);
+
+	for (int i = 0; i < effect->num_params; i++) {
+		effect->params[i].value = effect->params[i].default_value;
 	}
+
 	needs_render = true;
 	if (render_task_handle) {
 		xTaskNotifyGive(render_task_handle);
