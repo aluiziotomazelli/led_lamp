@@ -415,6 +415,150 @@ static void run_candle_math(const effect_param_t *params, uint8_t num_params,
 	}
 }
 
+/* --- Effect: Christmas --- */
+
+static effect_param_t params_christmas[] = {
+	{.name = "Twinkle Speed",
+	 .type = PARAM_TYPE_SPEED,
+	 .value = 5,
+	 .min_value = 1,
+	 .max_value = 50,
+	 .step = 1,
+	 .is_wrap = false,
+	 .default_value = 5},
+	{.name = "Twinkles",
+	 .type = PARAM_TYPE_VALUE,
+	 .value = 4,
+	 .min_value = 0,
+	 .max_value = 20, // Max 20 twinkles
+	 .step = 1,
+	 .is_wrap = false,
+	 .default_value = 4},
+};
+
+static void run_christmas(const effect_param_t *params, uint8_t num_params,
+						  uint8_t brightness, uint64_t time_ms,
+						  color_t *pixels, uint16_t num_pixels)
+{
+	// Get parameters from the UI
+	uint8_t twinkle_speed = params[0].value;
+	uint8_t num_twinkles = params[1].value;
+
+	// --- 1. Draw Static Background ---
+	// Segments are proportional to the total number of LEDs.
+	uint16_t green_end = num_pixels / 2;
+	uint16_t red_end = green_end + (num_pixels * 3 / 10);
+
+	// Define base colors for the segments. V is slightly dimmed to allow twinkles to pop.
+	hsv_t green = { .h = 120, .s = 255, .v = 150 }; // Christmas Tree Green
+	hsv_t red   = { .h = 0,   .s = 255, .v = 150 }; // Ornament Red
+	hsv_t gold  = { .h = 40,  .s = 220, .v = 150 }; // Decoration Gold
+
+	for (uint16_t i = 0; i < num_pixels; i++) {
+		if (i < green_end) {
+			pixels[i].hsv = green;
+		} else if (i < red_end) {
+			pixels[i].hsv = red;
+		} else {
+			pixels[i].hsv = gold;
+		}
+	}
+
+	// --- 2. Add Subtle Wind Animation ---
+	int boundary1 = green_end;
+	int boundary2 = red_end;
+	// The width of the "wind" effect scales with the number of pixels
+	int wind_width = fmax(1, num_pixels / 12);
+
+	// A slow sine wave for gentle brightness modulation (V in HSV)
+	float wave = (sinf(time_ms / 2000.0f) * 0.2f) + 0.8f; // Varies between 80% and 100%
+
+	for (int i = boundary1 - wind_width; i < boundary1 + wind_width; i++) {
+		if (i >= 0 && i < num_pixels) {
+			uint8_t base_v = pixels[i].hsv.v;
+			pixels[i].hsv.v = (uint8_t)(base_v * wave);
+		}
+	}
+	for (int i = boundary2 - wind_width; i < boundary2 + wind_width; i++) {
+		if (i >= 0 && i < num_pixels) {
+			uint8_t base_v = pixels[i].hsv.v;
+			pixels[i].hsv.v = (uint8_t)(base_v * wave);
+		}
+	}
+
+	// --- 3. Twinkling Overlay ---
+	#define MAX_TWINKLES 20
+	typedef struct {
+		bool is_active;
+		int16_t led_index;
+		hsv_t color;
+		uint64_t start_time;
+		uint16_t duration_ms;
+	} twinkle_t;
+
+	static twinkle_t twinkles[MAX_TWINKLES];
+	static bool initialized = false;
+
+	// Initialize the twinkle state array on the first run.
+	if (!initialized) {
+		for (int i = 0; i < MAX_TWINKLES; i++) {
+			twinkles[i].is_active = false;
+		}
+		initialized = true;
+	}
+
+	// Animate and draw existing twinkles
+	for (int i = 0; i < MAX_TWINKLES; i++) {
+		if (twinkles[i].is_active) {
+			uint64_t elapsed = time_ms - twinkles[i].start_time;
+
+			if (elapsed >= twinkles[i].duration_ms) {
+				twinkles[i].is_active = false; // Deactivate if its life is over
+				continue;
+			}
+
+			// Use a triangular wave for a smooth fade-in and fade-out brightness curve.
+			float progress = (float)elapsed / (float)twinkles[i].duration_ms;
+			float brightness_multiplier = (progress < 0.5f) ? (progress * 2.0f) : ((1.0f - progress) * 2.0f);
+
+			hsv_t twinkle_color = twinkles[i].color;
+			twinkle_color.v = (uint8_t)(255 * brightness_multiplier);
+
+			// Overlay the twinkle on the background, but only if it's brighter.
+			if (twinkle_color.v > pixels[twinkles[i].led_index].hsv.v) {
+				pixels[twinkles[i].led_index].hsv = twinkle_color;
+			}
+		}
+	}
+
+	// Count active twinkles to see if we need to spawn new ones.
+	int active_count = 0;
+	for (int i = 0; i < MAX_TWINKLES; i++) {
+		if (twinkles[i].is_active) active_count++;
+	}
+
+	// If we have fewer active twinkles than the user requested, spawn a new one.
+	if (active_count < num_twinkles) {
+		for (int i = 0; i < MAX_TWINKLES; i++) {
+			if (!twinkles[i].is_active) {
+				twinkles[i].is_active = true;
+				twinkles[i].led_index = rand() % num_pixels;
+				twinkles[i].start_time = time_ms;
+				// Duration is inversely related to the "speed" parameter. Faster speed = shorter duration.
+				twinkles[i].duration_ms = (51 - twinkle_speed) * 40 + (rand() % 500);
+
+				// Set twinkle color (mostly white or gold for a classic look)
+				if ((rand() % 10) < 6) { // 60% chance of White/Silver
+					twinkles[i].color = (hsv_t){ .h = 0, .s = 0, .v = 255 };
+				} else { // 40% chance of Gold
+					twinkles[i].color = (hsv_t){ .h = 40, .s = 180, .v = 255 };
+				}
+				break; // Spawn only one new twinkle per frame to avoid clumping.
+			}
+		}
+	}
+}
+
 /* --- List of all effects --- */
 effect_t effect_candle = {.name = "Candle",
 						  .run = run_candle,
@@ -464,8 +608,17 @@ effect_t effect_candle_math = {.name = "Candle Math",
 											 sizeof(effect_param_t),
 							   .is_dynamic = true};
 
+effect_t effect_christmas = {.name = "Christmas",
+						   .run = run_christmas,
+						   .color_mode = COLOR_MODE_HSV,
+						   .params = params_christmas,
+						   .num_params =
+							   sizeof(params_christmas) / sizeof(effect_param_t),
+						   .is_dynamic = true};
+
 effect_t *effects[] = {&effect_candle, &effect_white_temp,	
 					   &effect_static_color, &effect_candle_math, 
-					   &effect_breathing,	&effect_rainbow};
+					   &effect_breathing,	&effect_rainbow,
+					   &effect_christmas};
 
 const uint8_t effects_count = sizeof(effects) / sizeof(effects[0]);
