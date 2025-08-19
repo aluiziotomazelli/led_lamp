@@ -1,8 +1,63 @@
-#pragma once
+ /**
+ * @file table.h
+ * @brief Real Candle Brightness Data Table
+ * 
+ * @details This file contains brightness values captured from a real candle flame
+ *          using light sensor measurements. The data provides authentic flickering
+ *          patterns and brightness variations that can be used to create realistic
+ *          candle flame simulations in LED strips and displays.
+ * 
+ *          Data source and methodology:
+ *          - Blog post: https://cpldcpu.com/2016/01/05/reverse-engineering-a-real-candle/
+ *          - Data repository: https://github.com/cpldcpu/RealCandle
+ * 
+ * @author Your Name
+ * @date 2024-03-15
+ * @version 1.0
+ */
 
+#pragma once
 #include <stdint.h>
 
+//------------------------------------------------------------------------------
+// CANDLE DATA TABLE DEFINITIONS
+//------------------------------------------------------------------------------
+
+/**
+ * @brief Size of the real candle brightness data table
+ * 
+ * @details Total number of brightness samples captured from real candle
+ *          measurements. Each value represents a discrete brightness level
+ *          recorded over time from an actual candle flame.
+ *			Recorded time is about 60 seconds, then 
+ *
+ *          The data was collected by measuring the light output of a real candle
+ *          over approximately 60 seconds of recording time. Each frame in the
+ *          table represents ~5.72ms of real time, providing a sampling rate
+ *          of approximately 174.8 FPS (10486 samples / 60 seconds). This high
+ *          temporal resolution captures the natural variations, flickers,
+ *          and occasional dips that characterize genuine candle flames.
+ * 
+ *          Note: The original table uses raw capture data, while the table
+ *          below has been interpolated to 8-bit values (0-255 range).
+ */
 #define CANDLE_TABLE_SIZE 10486
+
+/**
+ * @brief Real candle brightness data table
+ * 
+ * @details Array containing brightness values (0-255) captured from a real
+ *          candle flame using light sensor measurements. Values can be played
+ *          back sequentially to recreate authentic candle flickering patterns.
+ * 
+ *          The data was collected by measuring the light output of a real candle
+ *          over an extended period, capturing the natural variations, flickers,
+ *          and occasional dips that characterize genuine candle flames.
+ * 
+ * @note Values range from 0 (minimum brightness) to 255 (maximum brightness)
+ * @see https://cpldcpu.com/2016/01/05/reverse-engineering-a-real-candle/
+ * @see https://github.com/cpldcpu/RealCandle
+ */
 
 const uint8_t CANDLE_TABLE[] = {
 	4	,

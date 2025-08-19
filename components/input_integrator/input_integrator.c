@@ -1,17 +1,48 @@
-#include "input_integrator.h"
-#include "button.h"
-#include "esp_log.h"
+/**
+ * @file input_integrator.c
+ * @brief Input event integration implementation
+ * 
+ * @details This file implements a queue-based input integrator that combines
+ * events from multiple input sources (buttons, encoders, touch, switches, ESP-NOW)
+ * into a single unified event stream using FreeRTOS queue sets.
+ * 
+ * @author Your Name
+ * @date 2024-03-15
+ * @version 1.0
+ */
+
+// System includes
+#include <stdlib.h>
+
+// FreeRTOS components
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include <stdlib.h>
+
+// ESP-IDF system services
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO  // ✅ Must come before esp_log.h
+#include "esp_log.h"
+
+// Input device drivers
+#include "button.h"
+#include "encoder.h"
+#include "touch.h"
+#include "switch.h"
+
+// Project specific headers
+#include "input_integrator.h"
 #include "project_config.h"
 
 static const char *TAG = "InputIntegrator";
 
 /**
  * @brief Main input integration task function
- * @param pvParameters Pointer to queue manager structure
+ * 
+ * @param[in] pvParameters Pointer to queue manager structure
+ * 
+ * @note This task uses FreeRTOS queue sets to monitor multiple queues
+ *       simultaneously and integrates events into a single output stream
+ * @warning Task should have sufficient stack size for queue operations
  */
 void integrator_task(void *pvParameters) {
     configASSERT(pvParameters != NULL);
@@ -26,8 +57,10 @@ void integrator_task(void *pvParameters) {
     
     configASSERT(qm->queue_set != NULL);
 
+    ESP_LOGI(TAG, "Input integrator task started");
+
     while (1) {
-        // Wait for activity on any queue
+        // Wait for activity on any queue in the set
         QueueHandle_t active_queue = xQueueSelectFromSet(qm->queue_set, portMAX_DELAY);
 
         // Process button events
@@ -38,6 +71,7 @@ void integrator_task(void *pvParameters) {
                 event.timestamp = xTaskGetTickCount();
                 event.data.button = button_evt;
                 xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
+                ESP_LOGD(TAG, "Integrated button event from pin %d", button_evt.pin);
             }
         } 
         // Process encoder events
@@ -48,6 +82,7 @@ void integrator_task(void *pvParameters) {
                 event.timestamp = xTaskGetTickCount();
                 event.data.encoder = encoder_evt;
                 xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
+                ESP_LOGD(TAG, "Integrated encoder event: %d steps", encoder_evt.steps);
             }
         } 
         // Process ESPNOW events
@@ -58,6 +93,8 @@ void integrator_task(void *pvParameters) {
                 event.timestamp = xTaskGetTickCount();
                 event.data.espnow = espnow_evt;
                 xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
+                ESP_LOGD(TAG, "Integrated ESP-NOW event from " MACSTR, 
+                        MAC2STR(espnow_evt.mac_addr));
             }
         } 
         // Process touch events
@@ -68,6 +105,7 @@ void integrator_task(void *pvParameters) {
                 event.timestamp = xTaskGetTickCount();
                 event.data.touch = touch_evt;
                 xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
+                ESP_LOGD(TAG, "Integrated touch event from pad %d", touch_evt.pad);
             }
         }
         // Process switch events
@@ -78,6 +116,7 @@ void integrator_task(void *pvParameters) {
                 event.timestamp = xTaskGetTickCount();
                 event.data.switch_evt = switch_evt;
                 xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
+                ESP_LOGD(TAG, "Integrated switch event from pin %d", switch_evt.pin);
             }
         }
     }
@@ -85,13 +124,17 @@ void integrator_task(void *pvParameters) {
 
 /**
  * @brief Initialize the queue manager structure
- * @param btn_q Button events queue
- * @param enc_q Encoder events queue
- * @param espnow_q ESPNOW events queue
- * @param touch_q Touch events queue
- * @param switch_q Switch events queue
- * @param int_q Integrated output queue
+ * 
+ * @param[in] btn_q Button events queue
+ * @param[in] enc_q Encoder events queue
+ * @param[in] espnow_q ESPNOW events queue
+ * @param[in] touch_q Touch events queue
+ * @param[in] switch_q Switch events queue
+ * @param[in] int_q Integrated output queue
  * @return Initialized queue manager structure
+ * 
+ * @note This function creates a queue set and adds all input queues to it
+ * @warning All input queues must be valid and created before calling this function
  */
 queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
                                  QueueHandle_t espnow_q, QueueHandle_t touch_q,
@@ -116,14 +159,14 @@ queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
     UBaseType_t queue_size = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + 
                             ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE + SWITCH_QUEUE_SIZE;
 
-    // Create queue set
+    // Create queue set with sufficient capacity
     qm.queue_set = xQueueCreateSet(queue_size);
     if (qm.queue_set == NULL) {
         ESP_LOGE(TAG, "Failed to create queue set");
         return qm;
     }
 
-    // Add all queues to the set
+    // Add all input queues to the queue set
     if (xQueueAddToSet(btn_q, qm.queue_set) != pdPASS ||
         xQueueAddToSet(enc_q, qm.queue_set) != pdPASS ||
         xQueueAddToSet(espnow_q, qm.queue_set) != pdPASS ||
@@ -132,8 +175,9 @@ queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
         ESP_LOGE(TAG, "Failed to add queues to set");
         vQueueDelete(qm.queue_set);
         qm.queue_set = NULL;
+        return qm;
     }
 
-    ESP_LOGI(TAG, "Queue manager initialized successfully");
+    ESP_LOGI(TAG, "Queue manager initialized successfully with %d queue slots", queue_size);
     return qm;
 }

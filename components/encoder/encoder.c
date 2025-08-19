@@ -1,15 +1,38 @@
-#include "encoder.h"
-#include "driver/gpio.h"
-#define LOG_LOCAL_LEVEL ESP_LOG_INFO
-#include "esp_log.h"
-#include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
-#include "freertos/task.h"
-#include "project_config.h"
+/**
+ * @file encoder.c
+ * @brief Rotary encoder driver implementation with quadrature decoding
+ * 
+ * @details This file implements a state machine-based rotary encoder decoder
+ * with support for both full-step and half-step modes, including acceleration.
+ * 
+ * @author Your Name
+ * @date 2024-03-15
+ * @version 1.0
+ */
+
+// System includes
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// ESP-IDF drivers
+#include "driver/gpio.h"
+
+// FreeRTOS components
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
+
+// Set log level for this module, must come before esp_log.h
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
+// ESP-IDF system services
+#include "esp_log.h"
+#include "esp_timer.h"
+
+// Project specific headers
+#include "encoder.h"
+#include "project_config.h"
+
 
 static const char *TAG = "Encoder";
 
@@ -38,6 +61,9 @@ static const char *TAG = "Encoder";
 
 /**
  * @brief Full-step state transition table
+ * 
+ * Table format: [current_state][pin_combination] = next_state
+ * Pin combination: 00, 01, 10, 11 (A and B bits)
  */
 static const unsigned char ttable_full_step[7][4] = {
     /* R_START */     {R_START,    FS_R_CW_BEGIN, FS_R_CCW_BEGIN, R_START},
@@ -51,6 +77,9 @@ static const unsigned char ttable_full_step[7][4] = {
 
 /**
  * @brief Half-step state transition table
+ * 
+ * Table format: [current_state][pin_combination] = next_state
+ * Pin combination: 00, 01, 10, 11 (A and B bits)
  */
 static const unsigned char ttable_half_step[6][4] = {
     /* R_START */      {H_START_M, H_CW_BEGIN,  H_CCW_BEGIN, R_START},
@@ -79,12 +108,15 @@ struct encoder_s {
 
 /**
  * @brief Map a value from one range to another
+ * 
  * @param x Input value
  * @param in_min Input range minimum
  * @param in_max Input range maximum
  * @param out_min Output range minimum
  * @param out_max Output range maximum
  * @return Mapped value
+ * 
+ * @note Handles division by zero by returning out_min if ranges are equal
  */
 static inline long map_value(long x, long in_min, long in_max, 
                            long out_min, long out_max) {
@@ -96,7 +128,11 @@ static inline long map_value(long x, long in_min, long in_max,
 
 /**
  * @brief ISR handler for encoder pin changes
+ * 
  * @param arg Encoder instance handle
+ * 
+ * @note This ISR runs in IRAM for fast execution
+ * @warning Keep ISR processing time minimal
  */
 static void IRAM_ATTR encoder_isr_handler(void *arg) {
     encoder_handle_t enc = (encoder_handle_t)arg;
@@ -109,59 +145,78 @@ static void IRAM_ATTR encoder_isr_handler(void *arg) {
 
 /**
  * @brief Main encoder processing task
+ * 
  * @param arg Encoder instance handle
+ * 
+ * @note This task handles the actual quadrature decoding and acceleration
+ * @warning This task should not be blocked for long periods
  */
 static void encoder_task(void *arg) {
     encoder_handle_t enc = (encoder_handle_t)arg;
     uint8_t current_pin_states = 0;
 
     while (1) {
+        // Wait for notification from ISR indicating pin change
         if (ulTaskNotifyTake(pdTRUE, portMAX_DELAY)) {
+            // Read current state of encoder pins (A and B)
             current_pin_states = (gpio_get_level(enc->pin_a) << 1) | 
                                gpio_get_level(enc->pin_b);
 
+            // Select appropriate state transition table based on mode
             const unsigned char(*current_ttable)[4] =
                 enc->half_step_mode ? ttable_half_step : ttable_full_step;
 
+            // Update state machine using current state and pin inputs
+            // Lower nibble (0x0F) holds the state index
             enc->rotary_state =
                 current_ttable[enc->rotary_state & 0x0F][current_pin_states];
 
+            // Upper nibble (0x30) holds direction flags (DIR_CW or DIR_CCW)
             uint8_t direction = enc->rotary_state & 0x30;
             int steps = 0;
 
             if (direction == DIR_CW) {
-                steps = 1;
+                steps = 1; // Clockwise step
             } else if (direction == DIR_CCW) {
-                steps = -1;
+                steps = -1; // Counter-clockwise step
             }
 
+            // Process step if detected
             if (steps != 0) {
                 int current_multiplier_val = 1;
+                
+                // Handle step acceleration if enabled
                 if (enc->acceleration_enabled) {
                     uint32_t current_time_ms = esp_timer_get_time() / 1000;
                     uint32_t turn_interval_ms = current_time_ms - enc->last_step_time_ms;
                     
+                    // Increase step multiplier for rapid turns
                     if (turn_interval_ms < enc->accel_gap_ms && enc->last_step_time_ms != 0) {
+                        // Map time gap to multiplier value (smaller gap = larger multiplier)
                         current_multiplier_val = map_value(
                             enc->accel_gap_ms - turn_interval_ms, 
                             1, enc->accel_gap_ms, 
                             1, enc->accel_max_multiplier + 1);
                         
+                        // Clamp multiplier to configured min/max values
                         current_multiplier_val = (current_multiplier_val < 1) ? 1 :
                             (current_multiplier_val > enc->accel_max_multiplier) ? 
                             enc->accel_max_multiplier : current_multiplier_val;
                         
-                        ESP_LOGD(TAG, "Accel: interval %" PRIu32 ", multiplier %d",
+                        ESP_LOGD(TAG, "Accel: interval %" PRIu32 "ms, multiplier %d",
                                 turn_interval_ms, current_multiplier_val);
                     }
                     enc->last_step_time_ms = current_time_ms;
                 } else {
+                    // Update timestamp only if acceleration disabled
                     enc->last_step_time_ms = esp_timer_get_time() / 1000;
                 }
 
+                // Apply acceleration multiplier to step count
                 steps *= current_multiplier_val;
-                ESP_LOGD(TAG, "Step detected: %d (after accel)", steps);
+                ESP_LOGD(TAG, "Step detected: %d (after acceleration)", steps);
 
+                // Send step event to output queue
                 if (enc->output_queue) {
                     encoder_event_t evt = {.steps = steps};
                     if (xQueueSend(enc->output_queue, &evt, pdMS_TO_TICKS(10)) != pdTRUE) {
@@ -175,23 +230,28 @@ static void encoder_task(void *arg) {
 
 /**
  * @brief Create a new encoder instance
- * @param config Encoder configuration
- * @param output_queue Event output queue
+ * 
+ * @param[in] config Encoder configuration
+ * @param[in] output_queue Event output queue
  * @return encoder_handle_t Encoder handle, NULL on failure
+ * 
+ * @note The output queue must be created before calling this function
+ * @warning GPIO pins must have external pull-up resistors if not using internal ones
  */
 encoder_handle_t encoder_create(const encoder_config_t *config,
                                QueueHandle_t output_queue) {
     if (!config || !output_queue) {
-        ESP_LOGE(TAG, "Invalid arguments");
+        ESP_LOGE(TAG, "Invalid arguments: config or output_queue is NULL");
         return NULL;
     }
 
     encoder_handle_t enc = calloc(1, sizeof(struct encoder_s));
     if (!enc) {
-        ESP_LOGE(TAG, "Memory allocation failed");
+        ESP_LOGE(TAG, "Memory allocation failed for encoder structure");
         return NULL;
     }
 
+    // Initialize encoder configuration
     enc->pin_a = config->pin_a;
     enc->pin_b = config->pin_b;
     enc->output_queue = output_queue;
@@ -202,7 +262,7 @@ encoder_handle_t encoder_create(const encoder_config_t *config,
     enc->rotary_state = R_START;
     enc->last_step_time_ms = 0;
 
-    // Configure GPIO pins
+    // Configure GPIO pins for input with interrupts
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << enc->pin_a) | (1ULL << enc->pin_b),
         .mode = GPIO_MODE_INPUT,
@@ -212,64 +272,75 @@ encoder_handle_t encoder_create(const encoder_config_t *config,
     };
 
     if (gpio_config(&io_conf) != ESP_OK) {
-        ESP_LOGE(TAG, "GPIO configuration failed");
+        ESP_LOGE(TAG, "GPIO configuration failed for pins A:%d, B:%d", 
+                enc->pin_a, enc->pin_b);
         free(enc);
         return NULL;
     }
 
-    // Install ISR service
+    // Install ISR service (ignore error if already installed)
     esp_err_t isr_err = gpio_install_isr_service(0);
     if (isr_err != ESP_OK && isr_err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGE(TAG, "ISR service installation failed");
+        ESP_LOGE(TAG, "ISR service installation failed: %s", esp_err_to_name(isr_err));
         free(enc);
         return NULL;
     }
 
-    // Add ISR handlers
+    // Add ISR handlers for both encoder pins
     if (gpio_isr_handler_add(enc->pin_a, encoder_isr_handler, enc) != ESP_OK ||
         gpio_isr_handler_add(enc->pin_b, encoder_isr_handler, enc) != ESP_OK) {
-        ESP_LOGE(TAG, "ISR handler addition failed");
+        ESP_LOGE(TAG, "ISR handler addition failed for pins A:%d, B:%d", 
+                enc->pin_a, enc->pin_b);
         gpio_isr_handler_remove(enc->pin_a);
         gpio_isr_handler_remove(enc->pin_b);
         free(enc);
         return NULL;
     }
 
-    // Create processing task
+    // Create processing task with medium priority
     if (xTaskCreate(encoder_task, "encoder_task", ENCODER_TASK_STACK_SIZE,
                    enc, 10, &enc->task_handle) != pdPASS) {
-        ESP_LOGE(TAG, "Task creation failed");
+        ESP_LOGE(TAG, "Task creation failed for encoder processing");
         gpio_isr_handler_remove(enc->pin_a);
         gpio_isr_handler_remove(enc->pin_b);
         free(enc);
         return NULL;
     }
 
-    ESP_LOGI(TAG, "Encoder created on pins A:%d, B:%d (%s-step mode)",
-            enc->pin_a, enc->pin_b, enc->half_step_mode ? "half" : "full");
+    ESP_LOGI(TAG, "Encoder created on pins A:%d, B:%d (%s-step mode, acceleration: %s)",
+            enc->pin_a, enc->pin_b, 
+            enc->half_step_mode ? "half" : "full",
+            enc->acceleration_enabled ? "enabled" : "disabled");
     return enc;
 }
 
 /**
- * @brief Delete encoder instance
- * @param enc Encoder handle to delete
- * @return esp_err_t Operation status
+ * @brief Delete encoder instance and free resources
+ * 
+ * @param[in] enc Encoder handle to delete
+ * @return esp_err_t ESP_OK on success, ESP_ERR_INVALID_ARG on invalid handle
+ * 
+ * @note This function does not delete the event queue
+ * @warning Ensure no tasks are using the encoder before deletion
  */
 esp_err_t encoder_delete(encoder_handle_t enc) {
     if (!enc) {
-        ESP_LOGE(TAG, "Invalid handle");
+        ESP_LOGE(TAG, "Invalid encoder handle");
         return ESP_ERR_INVALID_ARG;
     }
 
     ESP_LOGI(TAG, "Deleting encoder on pins A:%d, B:%d", enc->pin_a, enc->pin_b);
 
+    // Delete processing task if it exists
     if (enc->task_handle) {
         vTaskDelete(enc->task_handle);
     }
 
+    // Remove ISR handlers
     gpio_isr_handler_remove(enc->pin_a);
     gpio_isr_handler_remove(enc->pin_b);
 
+    // Free encoder structure memory
     free(enc);
     return ESP_OK;
 }

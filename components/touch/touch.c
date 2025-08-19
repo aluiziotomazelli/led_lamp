@@ -1,16 +1,35 @@
-#include "touch.h"
+/**
+ * @file touch.c
+ * @brief Touch sensor driver implementation with gesture detection
+ * 
+ * @details This file implements a capacitive touch sensor driver with
+ * automatic recalibration, debouncing, and support for press/hold gestures.
+ * 
+ * @author Your Name
+ * @date 2024-03-15
+ * @version 1.0
+ */
+
+// System includes
+#include <stdint.h>
+
+// ESP-IDF drivers
+#include "driver/touch_pad.h"
 #include "driver/touch_sensor.h"
 #include "driver/touch_sensor_common.h"
-#include "esp_err.h"
-#include "freertos/projdefs.h"
-#include "portmacro.h"
-#include <stdint.h>
-#define LOG_LOCAL_LEVEL ESP_LOG_INFO
-#include "driver/touch_pad.h"
-#include "esp_log.h"
-#include "esp_timer.h"
+
+// FreeRTOS components
+#include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+
+// ESP-IDF system services
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO  // ✅ Must come before esp_log.h
+#include "esp_log.h"
+#include "esp_timer.h"
+
+// Project specific headers
+#include "touch.h"
 #include "project_config.h"
 
 static const char *TAG = "Touch";
@@ -19,44 +38,44 @@ static const char *TAG = "Touch";
  * @brief Internal state machine states for touch button operation
  */
 typedef enum {
-    TOUCH_WAIT_FOR_PRESS,           // Waiting for initial press detection
-    TOUCH_DEBOUNCE_PRESS,           // Debouncing press event
-    TOUCH_WAIT_FOR_RELEASE_OR_HOLD, // Monitoring for release or hold
-    TOUCH_DEBOUNCE_RELEASE          // Debouncing release event
+    TOUCH_WAIT_FOR_PRESS,           ///< Waiting for initial press detection
+    TOUCH_DEBOUNCE_PRESS,           ///< Debouncing press event
+    TOUCH_WAIT_FOR_RELEASE_OR_HOLD, ///< Monitoring for release or hold
+    TOUCH_DEBOUNCE_RELEASE          ///< Debouncing release event
 } touch_state_t;
 
 /**
  * @brief Complete touch button instance structure
  */
 struct touch_s {
-    touch_pad_t pad;                // GPIO pad number
-    touch_state_t state;            // Current state machine state
-    uint32_t press_start_time_ms;   // Timestamp when press was first detected
-    uint32_t last_time_ms;          // Last event timestamp
+    touch_pad_t pad;                ///< GPIO pad number
+    touch_state_t state;            ///< Current state machine state
+    uint32_t press_start_time_ms;   ///< Timestamp when press was first detected
+    uint32_t last_time_ms;          ///< Last event timestamp
 
     // Configuration parameters
-    uint16_t threshold_percent;     // Activation threshold percentage
-    uint16_t debounce_press_ms;     // Press debounce time in ms
-    uint16_t debounce_release_ms;   // Release debounce time in ms
-    uint16_t hold_time_ms;          // Time to trigger hold event
+    uint16_t threshold_percent;     ///< Activation threshold percentage
+    uint16_t debounce_press_ms;     ///< Press debounce time in ms
+    uint16_t debounce_release_ms;   ///< Release debounce time in ms
+    uint16_t hold_time_ms;          ///< Time to trigger hold event
 
-    uint16_t baseline;              // Current baseline value
+    uint16_t baseline;              ///< Current baseline value
 
     // Hold event control
-    bool hold_generated;            // Flag indicating hold event was generated
-    bool enable_hold_repeat;        // Enable repeated hold events
-    uint16_t hold_repeat_interval_ms; // Interval between hold events
-    uint32_t last_hold_event_ms;    // Timestamp of last hold event
+    bool hold_generated;            ///< Flag indicating hold event was generated
+    bool enable_hold_repeat;        ///< Enable repeated hold events
+    uint16_t hold_repeat_interval_ms; ///< Interval between hold events
+    uint32_t last_hold_event_ms;    ///< Timestamp of last hold event
 
     // Recalibration control
-    uint64_t recalibration_interval_us; // Recalibration interval
-    bool is_recalibrating;          // Recalibration in progress flag
-    bool is_reading;                // Touch reading in progress flag
+    uint64_t recalibration_interval_us; ///< Recalibration interval
+    bool is_recalibrating;          ///< Recalibration in progress flag
+    bool is_reading;                ///< Touch reading in progress flag
     esp_timer_handle_t recalibration_timer;
-    bool timer_initialized;         // Timer initialization status
+    bool timer_initialized;         ///< Timer initialization status
 
-    QueueHandle_t output_queue;     // Event output queue
-    TaskHandle_t task_handle;       // Associated task handle
+    QueueHandle_t output_queue;     ///< Event output queue
+    TaskHandle_t task_handle;       ///< Associated task handle
 };
 
 /**
@@ -69,7 +88,11 @@ static uint32_t get_current_time_ms() {
 
 /**
  * @brief ISR handler for touch events
+ * 
  * @param arg Touch handle passed as argument
+ * 
+ * @note This ISR runs in IRAM for fast execution
+ * @warning Keep ISR processing time minimal
  */
 static void IRAM_ATTR touch_isr_handler(void *arg) {
     touch_t *touch_handle = (touch_t *)arg;
@@ -87,7 +110,11 @@ static void IRAM_ATTR touch_isr_handler(void *arg) {
 
 /**
  * @brief Recalibrate touch sensor baseline and threshold
+ * 
  * @param touch_handle Touch button instance
+ * 
+ * @note This function disables interrupts during calibration
+ * @warning Calibration should not be performed during active touch events
  */
 static void touch_recalibrate(touch_t *touch_handle) {
     ESP_LOGD(TAG, "Recalibration START for pad %d (Baseline: %d)",
@@ -122,7 +149,10 @@ static void touch_recalibrate(touch_t *touch_handle) {
 
 /**
  * @brief Timer callback for periodic recalibration
+ * 
  * @param arg Touch handle passed as argument
+ * 
+ * @note This callback runs in timer context, not ISR context
  */
 static void recalibration_timer_callback(void *arg) {
     touch_t *touch_handle = (touch_t *)arg;
@@ -135,8 +165,12 @@ static void recalibration_timer_callback(void *arg) {
 
 /**
  * @brief Main touch state machine logic
+ * 
  * @param touch_handle Touch button instance
  * @return Detected event type
+ * 
+ * @note This function implements a 4-state finite state machine
+ *       for reliable touch event detection with debouncing
  */
 static touch_event_type_t touch_get_event(touch_t *touch_handle) {
     uint32_t now = get_current_time_ms();
@@ -215,7 +249,11 @@ static touch_event_type_t touch_get_event(touch_t *touch_handle) {
 
 /**
  * @brief Main touch processing task
+ * 
  * @param param Touch handle passed as argument
+ * 
+ * @note This task handles touch event processing and debouncing
+ * @warning Task should not be blocked for long periods
  */
 static void touch_task(void *param) {
     touch_t *touch_handle = (touch_t *)param;
@@ -264,9 +302,13 @@ static void touch_task(void *param) {
 
 /**
  * @brief Create a new touch button instance
- * @param config Configuration parameters
- * @param output_queue Queue for event output
+ * 
+ * @param[in] config Configuration parameters
+ * @param[in] output_queue Queue for event output
  * @return touch_t* Handle to new touch instance, NULL on failure
+ * 
+ * @note The output queue must be created before calling this function
+ * @warning Touch sensors require proper PCB layout and calibration
  */
 touch_t *touch_create(const touch_config_t *config, QueueHandle_t output_queue) {
     if (!config || !output_queue) {
@@ -354,7 +396,11 @@ touch_t *touch_create(const touch_config_t *config, QueueHandle_t output_queue) 
 
 /**
  * @brief Delete a touch button instance
- * @param touch_handle Handle to touch instance
+ * 
+ * @param[in] touch_handle Handle to touch instance
+ * 
+ * @note This function does not delete the event queue
+ * @warning Ensure no tasks are using the touch instance before deletion
  */
 void touch_delete(touch_t *touch_handle) {
     if (touch_handle) {
