@@ -18,6 +18,7 @@
 #include "led_driver.h"
 #include "espnow_controller.h"
 #include "nvs_flash.h"
+#include "nvs_manager.h"
 
 static const char *TAG = "main";
 
@@ -152,6 +153,15 @@ void app_main(void) {
     led_strip_queue = led_controller_init(led_cmd_queue);
     configASSERT(led_strip_queue != NULL);
     ESP_LOGI(TAG, "Real LED Controller initialized.");
+
+    // Load data from NVS and apply it
+    ESP_LOGI(TAG, "Loading configuration from NVS...");
+    volatile_data_t v_data;
+    static_data_t s_data;
+    nvs_manager_load_volatile_data(&v_data);
+    nvs_manager_load_static_data(&s_data);
+    led_controller_apply_nvs_data(&v_data, &s_data);
+    ESP_LOGI(TAG, "NVS configuration loaded and applied.");
 
     // Inicializa o LED Driver
     led_driver_init(led_strip_queue);

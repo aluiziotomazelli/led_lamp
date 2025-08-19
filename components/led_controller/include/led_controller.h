@@ -30,6 +30,17 @@ typedef struct {
  */
 QueueHandle_t led_controller_init(QueueHandle_t cmd_queue);
 
+/**
+ * @brief Applies data loaded from NVS to the LED controller's state.
+ *
+ * This function should be called at startup after initializing the controller
+ * and loading data from NVS.
+ *
+ * @param v_data Pointer to the loaded volatile data.
+ * @param s_data Pointer to the loaded static data.
+ */
+void led_controller_apply_nvs_data(const volatile_data_t *v_data, const static_data_t *s_data);
+
 
 // --- State Getter Functions ---
 

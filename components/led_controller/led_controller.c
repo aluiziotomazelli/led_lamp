@@ -4,6 +4,8 @@
 #include "fsm.h"
 #include "hsv2rgb.h"
 #include "project_config.h"
+#include "nvs_manager.h"
+#include "freertos/timers.h"
 #if ESP_NOW_ENABLED && IS_MASTER
 #include "espnow_controller.h"
 #endif
@@ -74,6 +76,7 @@ static uint8_t temp_min_brightness = 0;
 static QueueHandle_t q_commands_in = NULL;
 static QueueHandle_t q_strip_out = NULL;
 static TaskHandle_t render_task_handle = NULL;
+static TimerHandle_t brightness_save_timer = NULL;
 
 // External variables from led_effects.c
 extern effect_t *effects[];
@@ -82,6 +85,9 @@ extern const uint8_t effects_count;
 // Forward declarations
 static void led_command_task(void *pv);
 static void led_render_task(void *pv);
+static void trigger_volatile_save(void);
+static void trigger_static_save(void);
+static void brightness_save_callback(TimerHandle_t xTimer);
 
 /**
  * @brief Applies the master brightness to a single RGB color.
@@ -235,6 +241,7 @@ static void handle_command(const led_command_t *cmd) {
 	case LED_CMD_TURN_ON:
 		is_on = true;
 		ESP_LOGI(TAG, "LEDs ON");
+        trigger_volatile_save();
 #if ESP_NOW_ENABLED && IS_MASTER
 		send_espnow_command(cmd);
 #endif
@@ -246,6 +253,7 @@ static void handle_command(const led_command_t *cmd) {
 		fade_start_brightness = master_brightness;
 		master_brightness = 0; // começa do mínimo
 		ESP_LOGI(TAG, "LEDs ON with fade");
+        trigger_volatile_save();
 #if ESP_NOW_ENABLED && IS_MASTER
 		send_espnow_command(cmd);
 #endif
@@ -254,6 +262,7 @@ static void handle_command(const led_command_t *cmd) {
 	case LED_CMD_TURN_OFF:
 		is_on = false;
 		ESP_LOGI(TAG, "LEDs OFF");
+        trigger_volatile_save();
 #if ESP_NOW_ENABLED && IS_MASTER
 		send_espnow_command(cmd);
 #endif
@@ -266,6 +275,7 @@ static void handle_command(const led_command_t *cmd) {
 			ESP_LOGI(TAG, "Effect set to index: %d (%s)",
 					 current_effect_index,
 					 effects[current_effect_index]->name);
+            trigger_volatile_save();
 #if ESP_NOW_ENABLED && IS_MASTER
 			send_espnow_command(cmd);
 #endif
@@ -343,7 +353,8 @@ static void handle_command(const led_command_t *cmd) {
 		if (temp_effect_index != 255) {
 			temp_effect_index = 255;
 		}
-		// Here you would save to NVS
+		// When effect setup is saved, it's a good time to save all static parameters
+		trigger_static_save();
 		break;
 
 	case LED_CMD_CANCEL_CONFIG:
@@ -403,12 +414,85 @@ static void handle_command(const led_command_t *cmd) {
 	needs_render = true; // Signal that a change occurred
 }
 
+// --- NVS Integration ---
+
+void led_controller_apply_nvs_data(const volatile_data_t *v_data, const static_data_t *s_data) {
+    ESP_LOGI(TAG, "Applying loaded NVS data to controller state.");
+
+    // Apply volatile data
+    is_on = v_data->is_on;
+    master_brightness = v_data->master_brightness;
+    current_effect_index = v_data->effect_index;
+    if (current_effect_index >= effects_count) {
+        ESP_LOGW(TAG, "Saved effect index %d is out of bounds, resetting to 0.", current_effect_index);
+        current_effect_index = 0;
+    }
+
+    // Apply static data
+    g_min_brightness = s_data->min_brightness;
+    g_led_offset_begin = s_data->led_offset_begin;
+    g_led_offset_end = s_data->led_offset_end;
+
+    // Apply effect parameters
+    for (uint8_t i = 0; i < effects_count && i < NVS_NUM_EFFECTS; i++) {
+        for (uint8_t j = 0; j < effects[i]->num_params && j < NVS_MAX_PARAMS_PER_EFFECT; j++) {
+            effects[i]->params[j].value = s_data->effect_params[i][j];
+        }
+    }
+
+    // Update live render variables from newly loaded offsets
+    led_offset = g_led_offset_begin;
+    active_num_leds = NUM_LEDS - (g_led_offset_begin + g_led_offset_end);
+
+    needs_render = true;
+}
+
+static void trigger_volatile_save(void) {
+    volatile_data_t v_data;
+    v_data.is_on = is_on;
+    v_data.master_brightness = master_brightness;
+    v_data.effect_index = current_effect_index;
+    if (nvs_manager_save_volatile_data(&v_data) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save volatile data");
+    }
+}
+
+static void brightness_save_callback(TimerHandle_t xTimer) {
+    ESP_LOGI(TAG, "Brightness stable for 10s, saving volatile data.");
+    trigger_volatile_save();
+}
+
+static void trigger_static_save(void) {
+    static_data_t s_data;
+    s_data.min_brightness = g_min_brightness;
+    s_data.led_offset_begin = g_led_offset_begin;
+    s_data.led_offset_end = g_led_offset_end;
+
+    for (uint8_t i = 0; i < effects_count && i < NVS_NUM_EFFECTS; i++) {
+        for (uint8_t j = 0; j < effects[i]->num_params && j < NVS_MAX_PARAMS_PER_EFFECT; j++) {
+            s_data.effect_params[i][j] = effects[i]->params[j].value;
+        }
+    }
+
+    if (nvs_manager_save_static_data(&s_data) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save static data");
+    }
+}
+
+
 QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
 	if (!cmd_queue) {
 		ESP_LOGE(TAG, "Command queue is NULL");
 		return NULL;
 	}
 	q_commands_in = cmd_queue;
+
+    // Create the timer for saving brightness after a delay
+    brightness_save_timer = xTimerCreate("BrightnessTimer", pdMS_TO_TICKS(10000), pdFALSE, (void *)0, brightness_save_callback);
+    if (brightness_save_timer == NULL) {
+        ESP_LOGE(TAG, "Failed to create brightness save timer");
+        // Continue without this functionality
+    }
 
 	pixel_buffer = malloc(sizeof(color_t) * NUM_LEDS);
 	if (!pixel_buffer) {
@@ -579,7 +663,8 @@ void led_controller_save_system_config(void) {
 	g_min_brightness = temp_min_brightness;
 	ESP_LOGI(TAG, "System config saved. Offsets: %d/%d, Min Brightness: %d",
 			 g_led_offset_begin, g_led_offset_end, g_min_brightness);
-	// Future: Save to NVS here.
+
+    trigger_static_save();
 }
 
 void led_controller_cancel_system_config(void) {
@@ -700,6 +785,10 @@ void led_controller_factory_reset(void) {
 		}
 	}
 
+    // Persist the factory state to NVS
+    trigger_static_save();
+    trigger_volatile_save(); // Also save volatile state like brightness/effect index
+
 	needs_render = true;
 	if (render_task_handle) {
 		xTaskNotifyGive(render_task_handle);
@@ -742,6 +831,10 @@ uint8_t led_controller_inc_brightness(int16_t steps, bool *limit_hit) {
 	} else {
 		master_brightness = (uint8_t)new_brightness;
 	}
+
+    if (brightness_save_timer != NULL) {
+        xTimerReset(brightness_save_timer, portMAX_DELAY);
+    }
 
 	needs_render = true;
 	if (render_task_handle) {
