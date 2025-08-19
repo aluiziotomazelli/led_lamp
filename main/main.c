@@ -158,8 +158,20 @@ void app_main(void) {
     ESP_LOGI(TAG, "Loading configuration from NVS...");
     volatile_data_t v_data;
     static_data_t s_data;
-    nvs_manager_load_volatile_data(&v_data);
-    nvs_manager_load_static_data(&s_data);
+    esp_err_t volatile_err = nvs_manager_load_volatile_data(&v_data);
+    esp_err_t static_err = nvs_manager_load_static_data(&s_data);
+
+    // If data was not found, it means defaults were loaded. We should save
+    // them now to "heal" the NVS.
+    if (volatile_err == ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGI(TAG, "Volatile data was not found, saving defaults to NVS.");
+        nvs_manager_save_volatile_data(&v_data);
+    }
+    if (static_err == ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGI(TAG, "Static data was not found, saving defaults to NVS.");
+        nvs_manager_save_static_data(&s_data);
+    }
+
     led_controller_apply_nvs_data(&v_data, &s_data);
 
     // Synchronize FSM state with loaded data

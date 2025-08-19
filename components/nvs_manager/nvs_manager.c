@@ -78,8 +78,13 @@ esp_err_t nvs_manager_save_volatile_data(const volatile_data_t *data) {
 esp_err_t nvs_manager_load_volatile_data(volatile_data_t *data) {
     nvs_handle_t nvs_handle;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs_handle);
-    if (err != ESP_OK) {
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGW(TAG, "NVS namespace '%s' not found. Loading defaults.", NVS_NAMESPACE);
+        load_volatile_defaults(data);
+        return ESP_ERR_NVS_NOT_FOUND; // Return specific error to signal that defaults were loaded
+    } else if (err != ESP_OK) {
         ESP_LOGE(TAG, "Error opening NVS handle: %s", esp_err_to_name(err));
+        load_volatile_defaults(data); // Load defaults on any other error too for safety
         return err;
     }
 
@@ -128,8 +133,13 @@ esp_err_t nvs_manager_save_static_data(const static_data_t *data) {
 esp_err_t nvs_manager_load_static_data(static_data_t *data) {
     nvs_handle_t nvs_handle;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs_handle);
-    if (err != ESP_OK) {
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGW(TAG, "NVS namespace '%s' not found. Loading defaults.", NVS_NAMESPACE);
+        load_static_defaults(data);
+        return ESP_ERR_NVS_NOT_FOUND; // Return specific error to signal that defaults were loaded
+    } else if (err != ESP_OK) {
         ESP_LOGE(TAG, "Error opening NVS handle: %s", esp_err_to_name(err));
+        load_static_defaults(data); // Load defaults on any other error too for safety
         return err;
     }
 
