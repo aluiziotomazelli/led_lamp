@@ -332,7 +332,7 @@ static bool process_switch_event(const switch_event_t *switch_evt,
 	bool sending_enabled = switch_evt->is_closed;
 	espnow_controller_set_master_enabled(sending_enabled);
 
-	if (sending_enabled) {
+	if (sending_enabled && !pending_initial_turn_on) {
 		ESP_LOGI(TAG,
 				 "Switch: ESP-NOW Master sending ENABLED. Syncing slaves...");
 
