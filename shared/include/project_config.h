@@ -42,16 +42,16 @@ extern "C" {
 #define SWITCH_TASK_STACK_SIZE   2048
 
 // Task priorities
-#define BUTTON_TASK_PRIORITY     10
-#define ENCODER_TASK_PRIORITY    10
-#define TOUCH_TASK_PRIORITY      10
-#define SWITCH_TASK_PRIORITY     10
-#define ESPNOW_TASK_PRIORITY     10
-#define FSM_TASK_PRIORITY         5
-#define INTEGRATOR_TASK_PRIORITY  5
-#define LED_CTRL_TASK_PRIORITY    5
-#define LED_RENDER_TASK_PRIORITY    5
-#define LED_DRIVER_TASK_PRIORITY    5        // Priority for the LED driver task
+#define LED_DRIVER_TASK_PRIORITY    15  // Hard real-time, must not be delayed.
+#define LED_RENDER_TASK_PRIORITY    14  // Soft real-time, for smooth animations.
+#define BUTTON_TASK_PRIORITY        10  // Responsive input handling.
+#define ENCODER_TASK_PRIORITY       10  // Responsive input handling.
+#define TOUCH_TASK_PRIORITY         10  // Responsive input handling.
+#define SWITCH_TASK_PRIORITY        10  // Responsive input handling.
+#define INTEGRATOR_TASK_PRIORITY    8   // Bridges inputs to the FSM.
+#define FSM_TASK_PRIORITY           7   // Main application logic.
+#define LED_CTRL_TASK_PRIORITY      7   // Handles commands from the FSM.
+#define ESPNOW_TASK_PRIORITY        6   // Non-critical network communication.
 
 // ==================================================
 // Touch Button Configuration

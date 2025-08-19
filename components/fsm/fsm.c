@@ -364,13 +364,13 @@ static bool process_switch_event(const switch_event_t *switch_evt,
 		}
 
 		// 5. Send feedback last, so it doesn't block the sync commands
-		if (fsm_state != MODE_OFF)
-			send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
+		// if (fsm_state != MODE_OFF)
+		// 	send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0);
 	} else {
-		if (fsm_state != MODE_OFF) {
-			send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
-			ESP_LOGI(TAG, "Switch: ESP-NOW Master sending DISABLED.");
-		}
+		// if (fsm_state != MODE_OFF) {
+		// 	send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0);
+		// 	ESP_LOGI(TAG, "Switch: ESP-NOW Master sending DISABLED.");
+		// }
 	}
 
     // After processing the switch state, check if there's a pending startup action
