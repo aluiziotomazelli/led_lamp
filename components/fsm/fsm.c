@@ -27,6 +27,7 @@ static QueueHandle_t qOutput;
 
 static fsm_state_t fsm_state = MODE_OFF;
 static uint64_t last_event_timestamp_ms = 0;
+static bool pending_initial_turn_on = false;
 
 // Obter timestamp em milissegundos
 uint64_t get_current_time_ms() { return esp_timer_get_time() / 1000; }
@@ -371,6 +372,13 @@ static bool process_switch_event(const switch_event_t *switch_evt,
 			ESP_LOGI(TAG, "Switch: ESP-NOW Master sending DISABLED.");
 		}
 	}
+
+    // After processing the switch state, check if there's a pending startup action
+    if (pending_initial_turn_on) {
+        ESP_LOGI(TAG, "Switch state processed, sending pending TURN_ON command.");
+        send_led_command(LED_CMD_TURN_ON, get_current_time_ms(), 0);
+        pending_initial_turn_on = false; // Clear the flag
+    }
 #else
 	// On the slave, the switch controls the strip mode as before.
 	int16_t mode_value = switch_evt->is_closed ? 0 : 1;
@@ -503,9 +511,10 @@ void fsm_set_initial_state(fsm_state_t state) {
     ESP_LOGI(TAG, "FSM initial state set to: %d", state);
 
     // If the initial state is MODE_DISPLAY, it means the device was on before
-    // a restart. We should send a command to turn the LEDs on automatically.
+    // a restart. We should trigger a turn-on command, but defer it until
+    // after the initial switch state is read to avoid a race condition.
     if (state == MODE_DISPLAY) {
-        ESP_LOGI(TAG, "Initial state is DISPLAY, sending TURN_ON command.");
-        send_led_command(LED_CMD_TURN_ON, get_current_time_ms(), 0);
+        ESP_LOGI(TAG, "Initial state is DISPLAY, flagging for pending turn-on.");
+        pending_initial_turn_on = true;
     }
 }
