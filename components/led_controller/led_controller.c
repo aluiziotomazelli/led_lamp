@@ -819,20 +819,19 @@ void led_controller_save_system_config(void) {
         ESP_LOGI(TAG, "OTA update triggered from menu.");
         ota_data_t ota_data;
         ota_data.ota_mode_enabled = true;
-        // For this study, hardcode credentials. In a real app, these would be configured.
-        strcpy(ota_data.wifi_ssid, "YOUR_WIFI_SSID");
-        strcpy(ota_data.wifi_password, "YOUR_WIFI_PASSWORD");
+        // The SSID and password are not needed for SoftAP mode, but we clear them.
+        memset(ota_data.wifi_ssid, 0, sizeof(ota_data.wifi_ssid));
+        memset(ota_data.wifi_password, 0, sizeof(ota_data.wifi_password));
 
         esp_err_t err = nvs_manager_save_ota_data(&ota_data);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to save OTA data to NVS: %s", esp_err_to_name(err));
-            // Optional: Add some visual feedback for failure (e.g., red blink)
             return;
         }
 
-        ESP_LOGI(TAG, "OTA data saved, rebooting into OTA mode...");
+        ESP_LOGI(TAG, "OTA flag set, rebooting into OTA mode...");
         esp_restart();
-        return; // esp_restart() does not return, but this is for clarity.
+        return;
     }
 
     // Copy temporary values to global variables

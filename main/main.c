@@ -53,13 +53,7 @@ void app_main(void) {
 
     if (ota_data.ota_mode_enabled) {
         ESP_LOGI(TAG, "OTA mode enabled. Starting OTA updater...");
-        // For this study, if Wi-Fi credentials are not set, we set them here.
-        // In a real application, this would be handled by the config menu.
-        if (strlen(ota_data.wifi_ssid) == 0) {
-            strcpy(ota_data.wifi_ssid, "YOUR_WIFI_SSID");
-            strcpy(ota_data.wifi_password, "YOUR_WIFI_PASSWORD");
-        }
-        ota_updater_start(&ota_data);
+        ota_updater_start();
         ESP_LOGI(TAG, "OTA process started. Halting main execution.");
         // Halt main execution while OTA task runs
         while(1) {
