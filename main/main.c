@@ -20,8 +20,12 @@
 #include "nvs_flash.h"
 #include "nvs_manager.h"
 #include "sleep_manager.h"
+#include "main.h"
 
 static const char *TAG = "main";
+
+// Component handles
+static button_t *button_handle = NULL;
 
 // Filas globais
 QueueHandle_t button_event_queue;
@@ -103,7 +107,7 @@ void app_main(void) {
 							   .double_click_ms = DOUBLE_CLICK_MS,
 							   .long_click_ms = LONG_CLICK_MS,
 							   .very_long_click_ms = VERY_LONG_CLICK_MS};
-	button_t *button_handle = button_create(&btn_cfg, button_event_queue);
+	button_handle = button_create(&btn_cfg, button_event_queue);
 	configASSERT(button_handle != NULL);
 	ESP_LOGI(TAG, "Button initialized on pin %d", BUTTON1_PIN);
 
@@ -203,4 +207,8 @@ void app_main(void) {
 	configASSERT(task_created == pdPASS);
 
 	ESP_LOGI(TAG, "System initialized. Monitoring events...");
+}
+
+button_t* main_get_button_handle(void) {
+    return button_handle;
 }

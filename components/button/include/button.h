@@ -75,3 +75,14 @@ button_t *button_create(const button_config_t* config, QueueHandle_t output_queu
  * @note This function does not delete the event queue
  */
 void button_delete(button_t *btn);
+
+/**
+ * @brief Resets the internal state machine of the button.
+ *
+ * @details This function should be called when the button's context might
+ * become invalid, such as before entering a sleep mode where timers do not run.
+ * It resets the state to BUTTON_WAIT_FOR_PRESS and clears any pending click logic.
+ *
+ * @param btn Button handle to reset.
+ */
+void button_reset_state(button_t *btn);

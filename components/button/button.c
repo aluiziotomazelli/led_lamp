@@ -387,3 +387,23 @@ void button_delete(button_t *btn) {
         free(btn);
     }
 }
+
+/**
+ * @brief Resets the internal state machine of the button.
+ */
+void button_reset_state(button_t *btn) {
+    if (btn) {
+        // Reset state machine to its initial state
+        btn->state = BUTTON_WAIT_FOR_PRESS;
+        btn->first_click = false;
+        btn->last_time_ms = 0;
+        btn->press_start_time_ms = 0;
+
+        // The task might be in the middle of processing. By re-enabling the ISR,
+        // we ensure it's ready for the next press event after waking up.
+        // This is safe to call even if interrupts are already enabled.
+        gpio_intr_enable(btn->pin);
+
+        ESP_LOGD(TAG, "Button state has been reset for pin %d.", btn->pin);
+    }
+}
