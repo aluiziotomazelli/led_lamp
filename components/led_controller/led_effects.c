@@ -1,288 +1,10 @@
 #include "led_effects.h"
-#include "candle_math.h"
-#include "table.h"
 #include <math.h>
 #include <stdlib.h>
 
 #include "hsv2rgb.h"
+#include "include/ef_candle_math.h"
 
-/* --- Effect: White Temp --- */
-
-static effect_param_t params_white_temp[] = {
-	{.name = "Temperature",
-	 .type = PARAM_TYPE_VALUE,
-	 .value = 0,
-	 .min_value = 0,
-	 .max_value = 5,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 0},
-};
-
-static void run_white_temp(const effect_param_t *params, uint8_t num_params,
-						   uint8_t brightness, uint64_t time_ms,
-						   color_t *pixels, uint16_t num_pixels) {
-
-	int16_t temp_index = params[0].value;
-	rgb_t rgb;
-
-	switch (temp_index) {
-	case 0: // Bem quente
-		rgb = (rgb_t){255, 130, 30};
-		break;
-	case 1: // quente
-		rgb = (rgb_t){255, 140, 50};
-		break;
-	case 2: // neutro
-		rgb = (rgb_t){255, 197, 143};
-		break;
-	case 3: // frio
-		rgb = (rgb_t){255, 214, 170};
-		break;
-	case 4: // mais frio
-		rgb = (rgb_t){255, 255, 255};
-		break;
-	case 5: // gelado
-		rgb = (rgb_t){201, 226, 255};
-		break;
-	default: // fallback to neutral
-		rgb = (rgb_t){255, 197, 143};
-		break;
-	}
-
-	for (uint16_t i = 0; i < num_pixels; i++) {
-		pixels[i].rgb = rgb;
-	}
-}
-
-/* --- Effect: Static Color --- */
-
-static effect_param_t params_static_color[] = {
-	{.name = "Hue",
-	 .type = PARAM_TYPE_HUE,
-	 .value = 250,
-	 .min_value = 0,
-	 .max_value = 359,
-	 .step = 1,
-	 .is_wrap = true,
-	 .default_value = 250},
-	{.name = "Saturation",
-	 .type = PARAM_TYPE_SATURATION,
-	 .value = 230,
-	 .min_value = 0,
-	 .max_value = 255,
-	 .step = 5,
-	 .is_wrap = false,
-	 .default_value = 230},
-};
-
-static void run_static_color(const effect_param_t *params, uint8_t num_params,
-							 uint8_t brightness, uint64_t time_ms,
-							 color_t *pixels, uint16_t num_pixels) {
-	hsv_t color = {
-		.h = params[0].value,
-		.s = params[1].value,
-		.v = 255 // Full brightness, master brightness is applied in controller
-	};
-	//        ESP_LOGI("Cor estatica", "HSV, H = %d, S = %d, V = %d", color.h,
-	//        color.s, color.v);
-
-	rgb_t rgb;
-	hsv_to_rgb_spectrum_deg(color.h, color.s, color.v, &rgb.r, &rgb.g, &rgb.b);
-
-	for (uint16_t i = 0; i < num_pixels; i++) {
-		pixels[i].rgb = rgb;
-	}
-}
-
-/* --- Effect: Rainbow --- */
-
-static effect_param_t params_rainbow[] = {
-	{.name = "Speed",
-	 .type = PARAM_TYPE_SPEED,
-	 .value = 10,
-	 .min_value = 1,
-	 .max_value = 100,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 10},
-	{.name = "Saturation",
-	 .type = PARAM_TYPE_SATURATION,
-	 .value = 255,
-	 .min_value = 0,
-	 .max_value = 255,
-	 .step = 5,
-	 .is_wrap = false,
-	 .default_value = 255},
-};
-
-static void run_rainbow(const effect_param_t *params, uint8_t num_params,
-						uint8_t brightness, uint64_t time_ms, color_t *pixels,
-						uint16_t num_pixels) {
-	uint8_t speed = params[0].value;
-	uint8_t saturation = params[1].value;
-
-	for (uint16_t i = 0; i < num_pixels; i++) {
-		uint32_t hue = ((time_ms * speed / 10) + (i * 360 / num_pixels)) % 360;
-		pixels[i].hsv.h = (uint16_t)hue;
-		pixels[i].hsv.s = saturation;
-		pixels[i].hsv.v =
-			255; // Full brightness, master brightness is applied in controller
-	}
-}
-
-/* --- Effect: Breathing --- */
-
-static effect_param_t params_breathing[] = {
-	{.name = "Speed",
-	 .type = PARAM_TYPE_SPEED,
-	 .value = 5,
-	 .min_value = 1,
-	 .max_value = 100,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 5},
-	{.name = "Hue",
-	 .type = PARAM_TYPE_HUE,
-	 .value = 200,
-	 .min_value = 0,
-	 .max_value = 359,
-	 .step = 1,
-	 .is_wrap = true,
-	 .default_value = 200},
-	{.name = "Saturation",
-	 .type = PARAM_TYPE_SATURATION,
-	 .value = 255,
-	 .min_value = 0,
-	 .max_value = 255,
-	 .step = 5,
-	 .is_wrap = false,
-	 .default_value = 255},
-};
-
-static void run_breathing(const effect_param_t *params, uint8_t num_params,
-						  uint8_t brightness, uint64_t time_ms, color_t *pixels,
-						  uint16_t num_pixels) {
-	float speed = (float)params[0].value / 20.0f;
-	uint16_t hue = params[1].value;
-	uint8_t saturation = params[2].value;
-
-	// Calculate brightness using a sine wave for a smooth breathing effect
-	// The wave oscillates between 0 and 1.
-	float wave = (sinf(time_ms * speed / 1000.0f) + 1.0f) / 2.0f;
-
-	// Scale brightness from 0 to 255 for the HSV value
-	uint8_t hsv_v = (uint8_t)(wave * 255.0f);
-
-	hsv_t hsv = {.h = hue, .s = saturation, .v = hsv_v};
-
-	for (uint16_t i = 0; i < num_pixels; i++) {
-		pixels[i].hsv = hsv;
-	}
-}
-
-/* --- Effect: Candle --- */
-
-static effect_param_t params_candle[] = {
-	{.name = "Speed",
-	 .type = PARAM_TYPE_SPEED,
-	 .value = 1,
-	 .min_value = 1,
-	 .max_value = 50,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 1},
-	{.name = "Hue",
-	 .type = PARAM_TYPE_HUE,
-	 .value = 35,
-	 .min_value = 5,
-	 .max_value = 80,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 35},
-	{.name = "Saturation",
-	 .type = PARAM_TYPE_SATURATION,
-	 .value = 255,
-	 .min_value = 0,
-	 .max_value = 255,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 255},
-	{.name = "Segments",
-	 .type = PARAM_TYPE_VALUE,
-	 .value = 4,
-	 .min_value = 1,
-	 .max_value = 10,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 4},
-};
-
-static void run_candle(const effect_param_t *params, uint8_t num_params,
-					   uint8_t brightness, uint64_t time_ms, color_t *pixels,
-					   uint16_t num_pixels) {
-	uint8_t speed = params[0].value;
-	uint16_t hue = params[1].value;
-	uint8_t saturation = params[2].value;
-	uint8_t num_segments = params[3].value;
-
-	// Parâmetros de variação (você pode ajustar esses valores conforme
-	// necessário)
-	uint8_t max_hue_variation = 15; // Variação máxima de matiz (0-255)
-	uint8_t max_sat_variation = 15; // Variação máxima de saturação (0-255)
-	uint8_t variation_speed = 1;	// Velocidade da variação (1-10)
-
-	if (num_segments == 0)
-		num_segments = 1;
-
-	uint16_t leds_per_segment = num_pixels / num_segments;
-	if (leds_per_segment == 0)
-		leds_per_segment = 1;
-
-	for (uint16_t seg = 0; seg < num_segments; seg++) {
-		// Use segment index as a random-like offset. A prime number helps
-		// decorrelate.
-		uint32_t time_offset = seg * 877;
-		uint32_t table_index =
-			((time_ms * speed / 10) + time_offset) % CANDLE_TABLE_SIZE;
-		uint32_t variation_index =
-			((time_ms * variation_speed) + time_offset) % CANDLE_TABLE_SIZE;
-
-		uint8_t v_from_table = CANDLE_TABLE[table_index];
-
-		// Calcula variações baseadas na tabela para manter consistência
-		int16_t hue_variation =
-			((int16_t)CANDLE_TABLE[variation_index % CANDLE_TABLE_SIZE] - 128) *
-			max_hue_variation / 128;
-		int16_t sat_variation =
-			((int16_t)CANDLE_TABLE[(variation_index + 67) % CANDLE_TABLE_SIZE] -
-			 128) *
-			max_sat_variation / 128;
-
-		// Aplica as variações, garantindo que permaneçam dentro dos limites
-		uint16_t varied_hue = (hue + hue_variation) % 360;
-		// Aplica variação de saturação (com clamping manual 0-255)
-		int16_t new_sat = saturation + sat_variation;
-		if (new_sat < 0)
-			new_sat = 0;
-		if (new_sat > 255)
-			new_sat = 255;
-		uint8_t varied_sat = (uint8_t)new_sat;
-
-		//		hsv_t hsv = {.h = hue, .s = saturation, .v = v_from_table};
-		hsv_t hsv = {.h = varied_hue, .s = varied_sat, .v = v_from_table};
-
-		uint16_t start_led = seg * leds_per_segment;
-		uint16_t end_led = (seg + 1) * leds_per_segment;
-		if (seg == num_segments - 1) {
-			end_led = num_pixels; // Ensure last segment goes to the end
-		}
-
-		for (uint16_t i = start_led; i < end_led; i++) {
-			pixels[i].hsv = hsv;
-		}
-	}
-}
 
 /* --- Effect: Candle Math --- */
 
@@ -336,6 +58,7 @@ static effect_param_t params_candle_math[] = {
 	 .is_wrap = false,
 	 .default_value = 3},
 };
+
 
 static void run_candle_math(const effect_param_t *params, uint8_t num_params,
 							uint8_t brightness, uint64_t time_ms,
@@ -415,160 +138,13 @@ static void run_candle_math(const effect_param_t *params, uint8_t num_params,
 	}
 }
 
-/* --- Effect: Christmas --- */
 
-static effect_param_t params_christmas[] = {
-	{.name = "Twinkle Speed",
-	 .type = PARAM_TYPE_SPEED,
-	 .value = 5,
-	 .min_value = 1,
-	 .max_value = 50,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 5},
-	{.name = "Twinkles",
-	 .type = PARAM_TYPE_VALUE,
-	 .value = 4,
-	 .min_value = 0,
-	 .max_value = 20, // Max 20 twinkles
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 4},
-};
 
-static void run_christmas(const effect_param_t *params, uint8_t num_params,
-						  uint8_t brightness, uint64_t time_ms,
-						  color_t *pixels, uint16_t num_pixels)
-{
-	// Get parameters from the UI
-	uint8_t twinkle_speed = params[0].value;
-	uint8_t num_twinkles = params[1].value;
-
-	// --- 1. Generate and Draw Background ---
-	static hsv_t background_pattern[NUM_LEDS];
-	static bool background_initialized = false;
-
-	// On first run, generate a fixed random pattern of colored segments
-	if (!background_initialized) {
-		hsv_t base_colors[] = {
-			{ .h = 120, .s = 255, .v = 150 }, // Green
-			{ .h = 0,   .s = 255, .v = 150 }, // Red
-			{ .h = 40,  .s = 220, .v = 150 }  // Gold
-		};
-		int color_count = sizeof(base_colors) / sizeof(hsv_t);
-		int color_index = rand() % color_count; // Start with a random color
-
-		uint16_t i = 0;
-		while (i < num_pixels) {
-			// Segments are 3 to 5 LEDs long
-			uint8_t segment_length = 3 + (rand() % 3);
-
-			// Get base color and apply slight random variations
-			hsv_t segment_color = base_colors[color_index % color_count];
-			segment_color.h = (segment_color.h + (rand() % 10) - 5) % 360;
-			segment_color.v = segment_color.v + (rand() % 20) - 10;
-
-			// Fill the segment with the generated color
-			for (uint8_t j = 0; j < segment_length && i < num_pixels; j++, i++) {
-				if (i < NUM_LEDS) { // Safety check against buffer size
-					background_pattern[i] = segment_color;
-				}
-			}
-			color_index++;
-		}
-		background_initialized = true;
-	}
-
-	// Copy the pre-generated background pattern to the active pixel buffer
-	for (uint16_t i = 0; i < num_pixels; i++) {
-		if (i < NUM_LEDS) { // Safety check
-			pixels[i].hsv = background_pattern[i];
-		}
-	}
-
-	// --- 2. Add Global Brightness Pulsation ---
-	// A very slow and subtle sine wave to make the whole strip gently "breathe".
-	float pulse_wave = (sinf(time_ms / 4000.0f) * 0.15f) + 0.85f; // Varies between 85% and 100%
-
-	for (uint16_t i = 0; i < num_pixels; i++) {
-		uint8_t base_v = pixels[i].hsv.v;
-		pixels[i].hsv.v = (uint8_t)(base_v * pulse_wave);
-	}
-
-	// --- 3. Twinkling Overlay ---
-	#define MAX_TWINKLES 20
-	typedef struct {
-		bool is_active;
-		int16_t led_index;
-		hsv_t color;
-		uint64_t start_time;
-		uint16_t duration_ms;
-	} twinkle_t;
-
-	static twinkle_t twinkles[MAX_TWINKLES];
-	static bool initialized = false;
-
-	// Initialize the twinkle state array on the first run.
-	if (!initialized) {
-		for (int i = 0; i < MAX_TWINKLES; i++) {
-			twinkles[i].is_active = false;
-		}
-		initialized = true;
-	}
-
-	// Animate and draw existing twinkles
-	for (int i = 0; i < MAX_TWINKLES; i++) {
-		if (twinkles[i].is_active) {
-			uint64_t elapsed = time_ms - twinkles[i].start_time;
-
-			if (elapsed >= twinkles[i].duration_ms) {
-				twinkles[i].is_active = false; // Deactivate if its life is over
-				continue;
-			}
-
-			// Use a triangular wave for a smooth fade-in and fade-out brightness curve.
-			float progress = (float)elapsed / (float)twinkles[i].duration_ms;
-			float brightness_multiplier = (progress < 0.5f) ? (progress * 2.0f) : ((1.0f - progress) * 2.0f);
-
-			hsv_t twinkle_color = twinkles[i].color;
-			twinkle_color.v = (uint8_t)(255 * brightness_multiplier);
-
-			// Overlay the twinkle on the background, but only if it's brighter.
-			if (twinkle_color.v > pixels[twinkles[i].led_index].hsv.v) {
-				pixels[twinkles[i].led_index].hsv = twinkle_color;
-			}
-		}
-	}
-
-	// Count active twinkles to see if we need to spawn new ones.
-	int active_count = 0;
-	for (int i = 0; i < MAX_TWINKLES; i++) {
-		if (twinkles[i].is_active) active_count++;
-	}
-
-	// If we have fewer active twinkles than the user requested, spawn a new one.
-	if (active_count < num_twinkles) {
-		for (int i = 0; i < MAX_TWINKLES; i++) {
-			if (!twinkles[i].is_active) {
-				twinkles[i].is_active = true;
-				twinkles[i].led_index = rand() % num_pixels;
-				twinkles[i].start_time = time_ms;
-				// Duration is inversely related to the "speed" parameter. Faster speed = shorter duration.
-				twinkles[i].duration_ms = (51 - twinkle_speed) * 40 + (rand() % 500);
-
-				// Set twinkle color (mostly white or gold for a classic look)
-				if ((rand() % 10) < 6) { // 60% chance of White/Silver
-					twinkles[i].color = (hsv_t){ .h = 0, .s = 0, .v = 255 };
-				} else { // 40% chance of Gold
-					twinkles[i].color = (hsv_t){ .h = 40, .s = 180, .v = 255 };
-				}
-				break; // Spawn only one new twinkle per frame to avoid clumping.
-			}
-		}
-	}
-}
-
+/* =========================== */
 /* --- List of all effects --- */
+/* =========================== */
+
+#include "ef_candle.h"
 effect_t effect_candle = {.name = "Candle",
 						  .run = run_candle,
 						  .color_mode = COLOR_MODE_HSV,
@@ -577,6 +153,8 @@ effect_t effect_candle = {.name = "Candle",
 							  sizeof(params_candle) / sizeof(effect_param_t),
 						  .is_dynamic = true};
 
+
+#include "ef_white_temp.h"
 effect_t effect_white_temp = {.name = "White Temp",
 							  .run = run_white_temp,
 							  .color_mode = COLOR_MODE_RGB,
@@ -584,7 +162,38 @@ effect_t effect_white_temp = {.name = "White Temp",
 							  .num_params = sizeof(params_white_temp) /
 											sizeof(effect_param_t),
 							  .is_dynamic = false};
+					
+							  
+#include "ef_random_twinkle.h"
+effect_t effect_random_twinkle = {.name = "Random Twinkle",
+								  .run = run_random_twinkle,
+								  .color_mode = COLOR_MODE_HSV,
+								  .params = params_random_twinkle,
+								  .num_params = sizeof(params_random_twinkle) /
+												sizeof(effect_param_t),
+								  .is_dynamic = true};
 
+
+#include "ef_christmas_twinkle.h"
+effect_t effect_christmas_twinkle = {
+	.name = "Christmas Twinkle",
+	.run = run_christmas_twinkle,
+	.color_mode = COLOR_MODE_RGB,
+	.params = params_christmas_twinkle,
+	.num_params = sizeof(params_christmas_twinkle) / sizeof(effect_param_t),
+	.is_dynamic = true};
+
+
+#include "ef_static_color.h"
+effect_t effect_static_color = {.name = "Static Color",
+								.run = run_static_color,
+								.color_mode = COLOR_MODE_HSV,
+								.params = params_static_color,
+								.num_params = sizeof(params_static_color) /
+											  sizeof(effect_param_t),
+								.is_dynamic = false};
+
+#include "ef_breathing.h"
 effect_t effect_breathing = {.name = "Breathing",
 							 .run = run_breathing,
 							 .color_mode = COLOR_MODE_HSV,
@@ -593,21 +202,6 @@ effect_t effect_breathing = {.name = "Breathing",
 										   sizeof(effect_param_t),
 							 .is_dynamic = true};
 
-effect_t effect_static_color = {.name = "Static Color",
-								.run = run_static_color,
-								.color_mode = COLOR_MODE_RGB,
-								.params = params_static_color,
-								.num_params = sizeof(params_static_color) /
-											  sizeof(effect_param_t),
-								.is_dynamic = false};
-
-effect_t effect_rainbow = {.name = "Rainbow",
-						   .run = run_rainbow,
-						   .color_mode = COLOR_MODE_HSV,
-						   .params = params_rainbow,
-						   .num_params =
-							   sizeof(params_rainbow) / sizeof(effect_param_t),
-						   .is_dynamic = true};
 
 effect_t effect_candle_math = {.name = "Candle Math",
 							   .run = run_candle_math,
@@ -617,17 +211,22 @@ effect_t effect_candle_math = {.name = "Candle Math",
 											 sizeof(effect_param_t),
 							   .is_dynamic = true};
 
-effect_t effect_christmas = {.name = "Christmas",
-						   .run = run_christmas,
-						   .color_mode = COLOR_MODE_HSV,
-						   .params = params_christmas,
-						   .num_params =
-							   sizeof(params_christmas) / sizeof(effect_param_t),
-						   .is_dynamic = true};
 
-effect_t *effects[] = {&effect_candle, &effect_white_temp,	
-					   &effect_static_color, &effect_candle_math, 
-					   &effect_breathing,	&effect_rainbow,
-					   &effect_christmas};
+#include "ef_christmas_tree.h"
+effect_t effect_christmas_tree = {.name = "Christmas",
+							 .run = run_christmas_tree,
+							 .color_mode = COLOR_MODE_HSV,
+							 .params = params_christmas_tree,
+							 .num_params = sizeof(params_christmas_tree) /
+										   sizeof(effect_param_t),
+							 .is_dynamic = true};
+
+effect_t *effects[] = {&effect_candle,
+					   &effect_white_temp,
+					   &effect_static_color,
+					   &effect_christmas_tree,
+					   &effect_candle_math,
+					   &effect_christmas_twinkle,
+					   &effect_random_twinkle};
 
 const uint8_t effects_count = sizeof(effects) / sizeof(effects[0]);

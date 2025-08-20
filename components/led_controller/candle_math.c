@@ -12,9 +12,10 @@
  * @version 1.0
  */
 
-#include "candle_math.h"
 #include <stdlib.h>
 #include <math.h>
+
+#include "include/ef_candle_math.h"
 
 //------------------------------------------------------------------------------
 // PRIVATE FUNCTION DECLARATIONS

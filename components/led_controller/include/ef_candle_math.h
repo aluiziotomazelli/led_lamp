@@ -63,6 +63,7 @@ typedef struct {
     float global_brightness;      ///< Global brightness level for overall effect
 } candle_effect_t;
 
+
 //------------------------------------------------------------------------------
 // CANDLE EFFECT MANAGEMENT FUNCTIONS
 //------------------------------------------------------------------------------
