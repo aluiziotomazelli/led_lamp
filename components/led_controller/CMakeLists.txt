@@ -16,10 +16,23 @@
 # Register this component with the ESP-IDF build system
 idf_component_register(
     # Source files for this component
-    SRCS "led_controller.c" "led_effects.c" "candle_math.c"
+    SRCS
+        "led_controller.c"
+        "led_effects.c"
+        "effects/breathing.c"
+        "effects/candle.c"
+        "effects/candle_math.c"
+        "effects/candle_math_logic.c"
+        "effects/christmas_tree.c"
+        "effects/christmas_twinkle.c"
+        "effects/random_twinkle.c"
+        "effects/static_color.c"
+        "effects/white_temp.c"
     
     # Public include directories (visible to other components)
-    INCLUDE_DIRS "include"
+    INCLUDE_DIRS
+        "include"
+        "effects/include"
     
     # Required components (dependencies)
     REQUIRES 

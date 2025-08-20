@@ -1,15 +1,9 @@
-#pragma once
-
-// System includes
+#include "led_effects.h" // For color_t, effect_param_t, etc.
 #include <stdint.h>
-
-// Project specific headers
-#include "led_effects.h" // For color_t
+#include <stdlib.h> // For calloc, free, rand
+#include <math.h>   // For abs
 
 /* --- Effect: Christmas Twinkle --- */
-
-
-
 
 typedef struct {
 	uint8_t inc;  // velocidade
@@ -41,7 +35,7 @@ static void choose_new_color(christmas_twinkle_t *s) {
 	}
 }
 
-static effect_param_t params_christmas_twinkle[] = {
+effect_param_t params_christmas_twinkle[] = {
 	{.name = "Speed",
 	 .type = PARAM_TYPE_SPEED,
 	 .value = 10,
@@ -60,7 +54,7 @@ static effect_param_t params_christmas_twinkle[] = {
 	 .default_value = 10},
 };
 
-static void run_christmas_twinkle(const effect_param_t *params,
+void run_christmas_twinkle(const effect_param_t *params,
 								  uint8_t num_params, uint8_t brightness,
 								  uint64_t time_ms, color_t *pixels,
 								  uint16_t num_pixels) {

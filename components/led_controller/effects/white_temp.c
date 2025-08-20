@@ -1,15 +1,9 @@
-#pragma once
-
-// System includes
+#include "led_effects.h" // For color_t, effect_param_t, etc.
 #include <stdint.h>
-
-// Project specific headers
-#include "led_effects.h" // For color_t
-
 
 /* --- Effect: White Temp --- */
 
-static effect_param_t params_white_temp[] = {
+effect_param_t params_white_temp[] = {
 	{.name = "Temperature",
 	 .type = PARAM_TYPE_VALUE,
 	 .value = 0,
@@ -20,7 +14,7 @@ static effect_param_t params_white_temp[] = {
 	 .default_value = 0},
 };
 
-static void run_white_temp(const effect_param_t *params, uint8_t num_params,
+void run_white_temp(const effect_param_t *params, uint8_t num_params,
 						   uint8_t brightness, uint64_t time_ms,
 						   color_t *pixels, uint16_t num_pixels) {
 
@@ -55,4 +49,3 @@ static void run_white_temp(const effect_param_t *params, uint8_t num_params,
 		pixels[i].rgb = rgb;
 	}
 }
-

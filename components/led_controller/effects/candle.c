@@ -1,14 +1,8 @@
-#pragma once
-
-// System includes
+#include "led_effects.h" // For color_t, effect_param_t, etc.
+#include "table.h"       // For CANDLE_TABLE
 #include <stdint.h>
 
-// Project specific headers
-#include "led_effects.h" // For color_t
-#include "table.h"
-
-
-static effect_param_t params_candle[] = {
+effect_param_t params_candle[] = {
 	{.name = "Speed",
 	 .type = PARAM_TYPE_SPEED,
 	 .value = 1,
@@ -43,7 +37,7 @@ static effect_param_t params_candle[] = {
 	 .default_value = 4},
 };
 
-static void run_candle(const effect_param_t *params, uint8_t num_params,
+void run_candle(const effect_param_t *params, uint8_t num_params,
 					   uint8_t brightness, uint64_t time_ms, color_t *pixels,
 					   uint16_t num_pixels) {
 	uint8_t speed = params[0].value;

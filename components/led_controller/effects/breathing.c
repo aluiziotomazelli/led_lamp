@@ -1,15 +1,9 @@
-#pragma once
-
-// System includes
+#include "led_effects.h" // For color_t, effect_param_t, etc.
 #include <math.h>
-#include <stdint.h>
-
-// Project specific headers
-#include "led_effects.h" // For color_t
 
 /* --- Effect: Breathing --- */
 
-static effect_param_t params_breathing[] = {
+effect_param_t params_breathing[] = {
 	{.name = "Speed",
 	 .type = PARAM_TYPE_SPEED,
 	 .value = 5,
@@ -36,7 +30,7 @@ static effect_param_t params_breathing[] = {
 	 .default_value = 255},
 };
 
-static void run_breathing(const effect_param_t *params, uint8_t num_params,
+void run_breathing(const effect_param_t *params, uint8_t num_params,
 						  uint8_t brightness, uint64_t time_ms, color_t *pixels,
 						  uint16_t num_pixels) {
 	float speed = (float)params[0].value / 20.0f;

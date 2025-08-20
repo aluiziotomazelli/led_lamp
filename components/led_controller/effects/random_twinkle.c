@@ -1,15 +1,12 @@
-#pragma once
-
-// System includes
+#include "led_effects.h" // For color_t, effect_param_t, etc.
 #include <stdint.h>
-
-// Project specific headers
-#include "led_effects.h" // For color_t
-
+#include <stdlib.h> // For calloc, free, rand
+#include <stdbool.h>
+#include <math.h> // For abs
 
 /* --- Effect: Random Twinkle --- */
 
-static effect_param_t params_random_twinkle[] = {
+effect_param_t params_random_twinkle[] = {
 	{.name = "Probability",
 	 .type = PARAM_TYPE_VALUE,
 	 .value = 20,
@@ -91,7 +88,7 @@ static void pick_twinkle_color(uint8_t palette, color_t *c) {
 }
 
 
-static void run_random_twinkle(const effect_param_t *params, uint8_t num_params,
+void run_random_twinkle(const effect_param_t *params, uint8_t num_params,
 							   uint8_t brightness, uint64_t time_ms,
 							   color_t *pixels, uint16_t num_pixels) {
 	typedef struct {

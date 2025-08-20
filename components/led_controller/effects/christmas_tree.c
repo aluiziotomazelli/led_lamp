@@ -1,15 +1,12 @@
-#pragma once
-
-// System includes
+#include "led_effects.h" // For color_t, effect_param_t, etc.
 #include <math.h>
 #include <stdint.h>
-
-// Project specific headers
-#include "led_effects.h" // For color_t
+#include <stdbool.h>
+#include <stdlib.h> // For rand
 
 /* --- Effect: Christmas --- */
 
-static effect_param_t params_christmas_tree[] = {
+effect_param_t params_christmas_tree[] = {
 	{.name = "Twinkle Speed",
 	 .type = PARAM_TYPE_SPEED,
 	 .value = 5,
@@ -28,7 +25,23 @@ static effect_param_t params_christmas_tree[] = {
 	 .default_value = 4},
 };
 
-static void run_christmas_tree(const effect_param_t *params, uint8_t num_params,
+// --- Static state for the effect ---
+#define MAX_TWINKLES 20
+typedef struct {
+    bool is_active;
+    int16_t led_index;
+    hsv_t color;
+    uint64_t start_time;
+    uint16_t duration_ms;
+} twinkle_t;
+
+static hsv_t background_pattern[NUM_LEDS];
+static bool background_initialized = false;
+static twinkle_t twinkles[MAX_TWINKLES];
+static bool twinkles_initialized = false;
+
+
+void run_christmas_tree(const effect_param_t *params, uint8_t num_params,
 						  uint8_t brightness, uint64_t time_ms, color_t *pixels,
 						  uint16_t num_pixels) {
 	// Get parameters from the UI
@@ -36,9 +49,6 @@ static void run_christmas_tree(const effect_param_t *params, uint8_t num_params,
 	uint8_t num_twinkles = params[1].value;
 
 	// --- 1. Generate and Draw Background ---
-	static hsv_t background_pattern[NUM_LEDS];
-	static bool background_initialized = false;
-
 	// On first run, generate a fixed random pattern of colored segments
 	if (!background_initialized) {
 		hsv_t base_colors[] = {
@@ -89,25 +99,13 @@ static void run_christmas_tree(const effect_param_t *params, uint8_t num_params,
 		pixels[i].hsv.v = (uint8_t)(base_v * pulse_wave);
 	}
 
-// --- 3. Twinkling Overlay ---
-#define MAX_TWINKLES 20
-	typedef struct {
-		bool is_active;
-		int16_t led_index;
-		hsv_t color;
-		uint64_t start_time;
-		uint16_t duration_ms;
-	} twinkle_t;
-
-	static twinkle_t twinkles[MAX_TWINKLES];
-	static bool initialized = false;
-
+    // --- 3. Twinkling Overlay ---
 	// Initialize the twinkle state array on the first run.
-	if (!initialized) {
+	if (!twinkles_initialized) {
 		for (int i = 0; i < MAX_TWINKLES; i++) {
 			twinkles[i].is_active = false;
 		}
-		initialized = true;
+		twinkles_initialized = true;
 	}
 
 	// Animate and draw existing twinkles
@@ -131,7 +129,7 @@ static void run_christmas_tree(const effect_param_t *params, uint8_t num_params,
 			twinkle_color.v = (uint8_t)(255 * brightness_multiplier);
 
 			// Overlay the twinkle on the background, but only if it's brighter.
-			if (twinkle_color.v > pixels[twinkles[i].led_index].hsv.v) {
+			if (twinkles[i].led_index < num_pixels && twinkle_color.v > pixels[twinkles[i].led_index].hsv.v) {
 				pixels[twinkles[i].led_index].hsv = twinkle_color;
 			}
 		}
