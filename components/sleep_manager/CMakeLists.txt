@@ -26,6 +26,8 @@ idf_component_register(
 #        esp_timer            # Timer services for timing measurements
 #        freertos             # FreeRTOS for tasks, queues, and notifications
         driver               # ESP32 driver framework
+        button
+        led_driver
         shared               # Shared project utilities and definitions
 )
 

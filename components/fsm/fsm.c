@@ -509,7 +509,11 @@ static void fsm_task(void *pv) {
                 // If there was no timeout and no event, and we are in the OFF state,
                 // we can enter light sleep to save power.
                 if (current_state == MODE_OFF) {
+#if IS_MASTER
+                    // Only the master device should enter light sleep. The slave must
+                    // remain active to listen for ESP-NOW commands from the master.
                     power_manager_enter_sleep();
+#endif
                     // After waking up, the loop will continue, and any wakeup event (like a button press)
                     // should now be in the queue.
                 }

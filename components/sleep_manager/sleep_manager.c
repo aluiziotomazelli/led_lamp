@@ -37,8 +37,6 @@ void power_manager_enter_sleep(void) {
         button_reset_state(button_handle);
     }
 
-    // 2. Safely clear the LED strip to prevent random colors during sleep.
-    led_driver_prepare_for_sleep();
 
     ESP_LOGI(TAG, "Arming wakeup sources and entering light sleep...");
 
@@ -46,25 +44,32 @@ void power_manager_enter_sleep(void) {
     ESP_ERROR_CHECK(gpio_wakeup_enable(BUTTON1_PIN, GPIO_INTR_LOW_LEVEL));
 
 #if IS_SLAVE
-    ESP_ERROR_CHECK(esp_sleep_enable_wifi_wakeup());
+    // esp_sleep_enable_wifi_wakeup() is not needed for ESP-NOW and will fail
+    // if the device is not connected to an AP. The ESP-NOW packets will wake
+    // the device from light sleep automatically.
 #endif
 
+    // Safely clear the LED strip to prevent random colors during sleep.
+    led_driver_prepare_for_sleep();
     // Enter light sleep
     esp_err_t err = esp_light_sleep_start();
 
-    // Add a small delay RIGHT AFTER waking up. This allows other tasks,
+    // The first thing to do on waking is to release the hold on the LED pin
+    // so the driver can control it again.
+    gpio_hold_dis(LED_STRIP_GPIO);
+
+    // Add a delay RIGHT AFTER waking up. This allows other tasks,
     // like the button ISR and task, to run before we change any GPIO state.
     // This is critical to prevent the wake-up from clearing the button event.
-    vTaskDelay(pdMS_TO_TICKS(50));
+    // User testing found 200ms to be a stable value.
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     // Disable wakeup sources immediately after waking to prevent loops from
     // persistent conditions like a held-down button.
     ESP_ERROR_CHECK(gpio_wakeup_disable(BUTTON1_PIN));
 
 #if IS_SLAVE
-    // WIFI wakeup source is automatically disabled after waking up,
-    // but we disable it here again to be explicit and safe.
-    ESP_ERROR_CHECK(esp_sleep_disable_wifi_wakeup());
+    // No need to disable a wakeup source that was never enabled.
 #endif
 
     if (err == ESP_OK) {

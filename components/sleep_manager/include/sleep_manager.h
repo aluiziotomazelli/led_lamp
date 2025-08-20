@@ -1,4 +1,5 @@
 #pragma once
+#include "button.h"
 
 /**
  * @brief Initializes the power manager and configures light sleep wakeup sources.

@@ -13,6 +13,7 @@
 
 // System includes
 #include <stdint.h>
+#include "driver/gpio.h"
 
 // Set log level for this module, must come before esp_log.h
 #define LOG_LOCAL_LEVEL ESP_LOG_INFO
@@ -24,6 +25,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 
 // Project specific headers
 #include "led_driver.h"
@@ -45,6 +47,9 @@ static led_strip_handle_t led_strip_handle;
 
 /// @brief Queue for receiving pixel data from the controller
 static QueueHandle_t q_pixels_in = NULL;
+
+/// @brief Mutex to protect access to the led_strip_handle
+static SemaphoreHandle_t led_strip_mutex = NULL;
 
 /// @brief Global color correction values for white balance
 static uint16_t g_correction_r = 255;  ///< Red channel correction
@@ -144,36 +149,39 @@ static void led_driver_task(void *pv) {
                 continue;
             }
 
-            // Loop through all pixels, apply color correction, and set them
-            for (uint16_t i = 0; i < strip_data.num_pixels; i++) {
-                rgb_t final_rgb;
+            if (xSemaphoreTake(led_strip_mutex, portMAX_DELAY) == pdTRUE) {
+                // Loop through all pixels, apply color correction, and set them
+                for (uint16_t i = 0; i < strip_data.num_pixels; i++) {
+                    rgb_t final_rgb;
 
-                // Convert HSV to RGB if needed
-                if (strip_data.mode == COLOR_MODE_HSV) {
-                    hsv_t hsv = strip_data.pixels[i].hsv;
-                    hsv_to_rgb_spectrum_deg(hsv.h, hsv.s, hsv.v, &final_rgb.r,
-                                            &final_rgb.g, &final_rgb.b);
-                } else {
-                    final_rgb = strip_data.pixels[i].rgb;
+                    // Convert HSV to RGB if needed
+                    if (strip_data.mode == COLOR_MODE_HSV) {
+                        hsv_t hsv = strip_data.pixels[i].hsv;
+                        hsv_to_rgb_spectrum_deg(hsv.h, hsv.s, hsv.v, &final_rgb.r,
+                                                &final_rgb.g, &final_rgb.b);
+                    } else {
+                        final_rgb = strip_data.pixels[i].rgb;
+                    }
+
+                    // Apply color correction to each channel
+                    final_rgb.r = (uint8_t)(((uint16_t)final_rgb.r * g_correction_r) >> 8);
+                    final_rgb.g = (uint8_t)(((uint16_t)final_rgb.g * g_correction_g) >> 8);
+                    final_rgb.b = (uint8_t)(((uint16_t)final_rgb.b * g_correction_b) >> 8);
+
+                    // Set the pixel color on the strip
+                    err = led_strip_set_pixel(led_strip_handle, i, final_rgb.r,
+                                            final_rgb.g, final_rgb.b);
+                    if (err != ESP_OK) {
+                        ESP_LOGE(TAG, "Failed to set pixel %d: %s", i, esp_err_to_name(err));
+                    }
                 }
 
-                // Apply color correction to each channel
-                final_rgb.r = (uint8_t)(((uint16_t)final_rgb.r * g_correction_r) >> 8);
-                final_rgb.g = (uint8_t)(((uint16_t)final_rgb.g * g_correction_g) >> 8);
-                final_rgb.b = (uint8_t)(((uint16_t)final_rgb.b * g_correction_b) >> 8);
-
-                // Set the pixel color on the strip
-                err = led_strip_set_pixel(led_strip_handle, i, final_rgb.r,
-                                          final_rgb.g, final_rgb.b);
+                // Refresh the strip to show the new colors
+                err = led_strip_refresh(led_strip_handle);
                 if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "Failed to set pixel %d: %s", i, esp_err_to_name(err));
+                    ESP_LOGE(TAG, "Failed to refresh LED strip: %s", esp_err_to_name(err));
                 }
-            }
-
-            // Refresh the strip to show the new colors
-            err = led_strip_refresh(led_strip_handle);
-            if (err != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to refresh LED strip: %s", esp_err_to_name(err));
+                xSemaphoreGive(led_strip_mutex);
             }
         }
     }
@@ -203,6 +211,13 @@ void led_driver_init(QueueHandle_t input_queue) {
     }
     q_pixels_in = input_queue;
 
+    // Create the mutex for thread-safe access to the LED strip
+    led_strip_mutex = xSemaphoreCreateMutex();
+    if (led_strip_mutex == NULL) {
+        ESP_LOGE(TAG, "Failed to create LED strip mutex. Aborting init.");
+        return;
+    }
+
     // Configure the hardware for the LED strip
     esp_err_t config_status = configure_led_strip();
     if (config_status != ESP_OK) {
@@ -227,7 +242,7 @@ void led_driver_init(QueueHandle_t input_queue) {
  * @brief Prepares the LED driver for system sleep.
  */
 void led_driver_prepare_for_sleep(void) {
-    if (led_strip_handle) {
+    if (led_strip_handle && xSemaphoreTake(led_strip_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         // Clear all pixels to black
         esp_err_t err = led_strip_clear(led_strip_handle);
         if (err != ESP_OK) {
@@ -238,6 +253,18 @@ void led_driver_prepare_for_sleep(void) {
         err = led_strip_refresh(led_strip_handle);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to refresh strip for sleep: %s", esp_err_to_name(err));
+            xSemaphoreGive(led_strip_mutex); // Release mutex on error
+            return; // Don't try to hold the pin if refresh failed
         }
+
+        // Latch the GPIO pin's current state (low) so it is held during sleep
+        err = gpio_hold_en(LED_STRIP_GPIO);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to hold GPIO %d: %s", LED_STRIP_GPIO, esp_err_to_name(err));
+        }
+
+        xSemaphoreGive(led_strip_mutex);
+    } else {
+        ESP_LOGE(TAG, "Could not obtain LED strip mutex to prepare for sleep.");
     }
 }
