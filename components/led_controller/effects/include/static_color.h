@@ -2,8 +2,24 @@
 
 #include "led_effects.h" // For effect_param_t, color_t
 
-// Declare the parameter array for the static_color effect
-extern effect_param_t params_static_color[];
+static effect_param_t params_static_color[] = {
+	{.name = "Hue",
+	 .type = PARAM_TYPE_HUE,
+	 .value = 250,
+	 .min_value = 0,
+	 .max_value = 359,
+	 .step = 1,
+	 .is_wrap = true,
+	 .default_value = 250},
+	{.name = "Saturation",
+	 .type = PARAM_TYPE_SATURATION,
+	 .value = 230,
+	 .min_value = 0,
+	 .max_value = 255,
+	 .step = 5,
+	 .is_wrap = false,
+	 .default_value = 230},
+};
 
 /**
  * @brief Runs the static_color effect.

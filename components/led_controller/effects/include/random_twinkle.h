@@ -2,8 +2,40 @@
 
 #include "led_effects.h" // For effect_param_t, color_t
 
-// Declare the parameter array for the random_twinkle effect
-extern effect_param_t params_random_twinkle[];
+static effect_param_t params_random_twinkle[] = {
+	{.name = "Probability",
+	 .type = PARAM_TYPE_VALUE,
+	 .value = 20,
+	 .min_value = 1,
+	 .max_value = 100,
+	 .step = 1,
+	 .is_wrap = false,
+	 .default_value = 20},
+	{.name = "Speed",
+	 .type = PARAM_TYPE_SPEED,
+	 .value = 10,
+	 .min_value = 1,
+	 .max_value = 50,
+	 .step = 1,
+	 .is_wrap = false,
+	 .default_value = 10},
+	{.name = "Max Twinkles",
+	 .type = PARAM_TYPE_VALUE,
+	 .value = 8,
+	 .min_value = 1,
+	 .max_value = 30,
+	 .step = 1,
+	 .is_wrap = false,
+	 .default_value = 8},
+	{.name = "Palette",
+	 .type = PARAM_TYPE_VALUE,
+	 .value = 0,
+	 .min_value = 0,
+	 .max_value = 3,
+	 .step = 1,
+	 .is_wrap = false,
+	 .default_value = 0},
+};
 
 /**
  * @brief Runs the random_twinkle effect.

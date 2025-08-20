@@ -2,8 +2,24 @@
 
 #include "led_effects.h" // For effect_param_t, color_t
 
-// Declare the parameter array for the christmas_tree effect
-extern effect_param_t params_christmas_tree[];
+static effect_param_t params_christmas_tree[] = {
+	{.name = "Twinkle Speed",
+	 .type = PARAM_TYPE_SPEED,
+	 .value = 5,
+	 .min_value = 1,
+	 .max_value = 50,
+	 .step = 1,
+	 .is_wrap = false,
+	 .default_value = 5},
+	{.name = "Twinkles",
+	 .type = PARAM_TYPE_VALUE,
+	 .value = 4,
+	 .min_value = 0,
+	 .max_value = 20, // Max 20 twinkles
+	 .step = 1,
+	 .is_wrap = false,
+	 .default_value = 4},
+};
 
 /**
  * @brief Runs the christmas_tree effect.

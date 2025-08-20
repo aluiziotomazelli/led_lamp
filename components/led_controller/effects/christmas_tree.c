@@ -4,27 +4,6 @@
 #include <stdbool.h>
 #include <stdlib.h> // For rand
 
-/* --- Effect: Christmas --- */
-
-effect_param_t params_christmas_tree[] = {
-	{.name = "Twinkle Speed",
-	 .type = PARAM_TYPE_SPEED,
-	 .value = 5,
-	 .min_value = 1,
-	 .max_value = 50,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 5},
-	{.name = "Twinkles",
-	 .type = PARAM_TYPE_VALUE,
-	 .value = 4,
-	 .min_value = 0,
-	 .max_value = 20, // Max 20 twinkles
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 4},
-};
-
 // --- Static state for the effect ---
 #define MAX_TWINKLES 20
 typedef struct {

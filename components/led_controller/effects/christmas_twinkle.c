@@ -35,25 +35,6 @@ static void choose_new_color(christmas_twinkle_t *s) {
 	}
 }
 
-effect_param_t params_christmas_twinkle[] = {
-	{.name = "Speed",
-	 .type = PARAM_TYPE_SPEED,
-	 .value = 10,
-	 .min_value = 1,
-	 .max_value = 50,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 10},
-	{.name = "Density",
-	 .type = PARAM_TYPE_VALUE,
-	 .value = 10,
-	 .min_value = 1,
-	 .max_value = 20,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 10},
-};
-
 void run_christmas_twinkle(const effect_param_t *params,
 								  uint8_t num_params, uint8_t brightness,
 								  uint64_t time_ms, color_t *pixels,

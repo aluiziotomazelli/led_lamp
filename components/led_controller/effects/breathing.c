@@ -1,34 +1,7 @@
-#include "led_effects.h" // For color_t, effect_param_t, etc.
+#include "led_effects.h"
 #include <math.h>
 
 /* --- Effect: Breathing --- */
-
-effect_param_t params_breathing[] = {
-	{.name = "Speed",
-	 .type = PARAM_TYPE_SPEED,
-	 .value = 5,
-	 .min_value = 1,
-	 .max_value = 100,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 5},
-	{.name = "Hue",
-	 .type = PARAM_TYPE_HUE,
-	 .value = 200,
-	 .min_value = 0,
-	 .max_value = 359,
-	 .step = 1,
-	 .is_wrap = true,
-	 .default_value = 200},
-	{.name = "Saturation",
-	 .type = PARAM_TYPE_SATURATION,
-	 .value = 255,
-	 .min_value = 0,
-	 .max_value = 255,
-	 .step = 5,
-	 .is_wrap = false,
-	 .default_value = 255},
-};
 
 void run_breathing(const effect_param_t *params, uint8_t num_params,
 						  uint8_t brightness, uint64_t time_ms, color_t *pixels,

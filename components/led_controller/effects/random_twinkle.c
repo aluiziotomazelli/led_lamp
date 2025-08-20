@@ -4,43 +4,6 @@
 #include <stdbool.h>
 #include <math.h> // For abs
 
-/* --- Effect: Random Twinkle --- */
-
-effect_param_t params_random_twinkle[] = {
-	{.name = "Probability",
-	 .type = PARAM_TYPE_VALUE,
-	 .value = 20,
-	 .min_value = 1,
-	 .max_value = 100,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 20},
-	{.name = "Speed",
-	 .type = PARAM_TYPE_SPEED,
-	 .value = 10,
-	 .min_value = 1,
-	 .max_value = 50,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 10},
-	{.name = "Max Twinkles",
-	 .type = PARAM_TYPE_VALUE,
-	 .value = 8,
-	 .min_value = 1,
-	 .max_value = 30,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 8},
-	{.name = "Palette",
-	 .type = PARAM_TYPE_VALUE,
-	 .value = 0,
-	 .min_value = 0,
-	 .max_value = 3,
-	 .step = 1,
-	 .is_wrap = false,
-	 .default_value = 0},
-};
-
 static void pick_twinkle_color(uint8_t palette, color_t *c) {
 	// Definições HSV para cada cor
 	// Hue em graus (0..360), saturação/valor 0..255
@@ -86,7 +49,6 @@ static void pick_twinkle_color(uint8_t palette, color_t *c) {
 		}
 	}
 }
-
 
 void run_random_twinkle(const effect_param_t *params, uint8_t num_params,
 							   uint8_t brightness, uint64_t time_ms,

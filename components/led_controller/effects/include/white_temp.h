@@ -2,8 +2,16 @@
 
 #include "led_effects.h" // For effect_param_t, color_t
 
-// Declare the parameter array for the white_temp effect
-extern effect_param_t params_white_temp[];
+static effect_param_t params_white_temp[] = {
+	{.name = "Temperature",
+	 .type = PARAM_TYPE_VALUE,
+	 .value = 0,
+	 .min_value = 0,
+	 .max_value = 5,
+	 .step = 1,
+	 .is_wrap = false,
+	 .default_value = 0},
+};
 
 /**
  * @brief Runs the white_temp effect.
