@@ -24,6 +24,7 @@
 #define NVS_NAMESPACE "led_config"          ///< NVS namespace for LED configuration
 #define KEY_VOLATILE_DATA "volatile"        ///< Key for volatile data storage
 #define KEY_STATIC_DATA   "static"          ///< Key for static data storage
+#define KEY_OTA_DATA      "ota_data"        ///< Key for OTA data storage
 
 /**
  * @brief Initializes the NVS manager
@@ -74,3 +75,22 @@ esp_err_t nvs_manager_save_static_data(const static_data_t *data);
  * @return ESP_OK on successful load, or esp_err_t error code on failure
  */
 esp_err_t nvs_manager_load_static_data(static_data_t *data);
+
+/**
+ * @brief Saves the OTA data structure to NVS
+ *
+ * @param[in] data Pointer to the ota_data_t struct containing data to save
+ * @return ESP_OK on successful save, or esp_err_t error code on failure
+ */
+esp_err_t nvs_manager_save_ota_data(const ota_data_t *data);
+
+/**
+ * @brief Loads the OTA data structure from NVS
+ *
+ * @details If the data is not found in NVS, this function will populate the
+ *          data struct with ota_mode_enabled = false.
+ *
+ * @param[out] data Pointer to the ota_data_t struct to be filled
+ * @return ESP_OK on successful load, or esp_err_t error code on failure
+ */
+esp_err_t nvs_manager_load_ota_data(ota_data_t *data);

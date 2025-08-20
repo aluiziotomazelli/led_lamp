@@ -51,3 +51,14 @@ typedef struct {
     // Per-effect settings
     int16_t effect_params[NVS_NUM_EFFECTS][NVS_MAX_PARAMS_PER_EFFECT]; ///< Storage for each parameter's value
 } static_data_t;
+
+/**
+ * @brief Structure for OTA configuration data
+ *
+ * @details This data is saved when the user enters OTA mode
+ */
+typedef struct {
+    bool ota_mode_enabled;                  ///< Flag to indicate if OTA mode should be entered on boot
+    char wifi_ssid[33];                     ///< Wi-Fi SSID (max 32 chars + null)
+    char wifi_password[65];                 ///< Wi-Fi Password (max 64 chars + null)
+} ota_data_t;

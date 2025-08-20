@@ -19,6 +19,7 @@
 #include "espnow_controller.h"
 #include "nvs_flash.h"
 #include "nvs_manager.h"
+#include "ota_updater.h"
 
 static const char *TAG = "main";
 
@@ -45,6 +46,28 @@ void app_main(void) {
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+
+    // Check for OTA mode
+    ota_data_t ota_data;
+    nvs_manager_load_ota_data(&ota_data);
+
+    if (ota_data.ota_mode_enabled) {
+        ESP_LOGI(TAG, "OTA mode enabled. Starting OTA updater...");
+        // For this study, if Wi-Fi credentials are not set, we set them here.
+        // In a real application, this would be handled by the config menu.
+        if (strlen(ota_data.wifi_ssid) == 0) {
+            strcpy(ota_data.wifi_ssid, "YOUR_WIFI_SSID");
+            strcpy(ota_data.wifi_password, "YOUR_WIFI_PASSWORD");
+        }
+        ota_updater_start(&ota_data);
+        ESP_LOGI(TAG, "OTA process started. Halting main execution.");
+        // Halt main execution while OTA task runs
+        while(1) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+
+    ESP_LOGI(TAG, "Normal boot sequence.");
 
 	esp_log_level_set("Touch", ESP_LOG_DEBUG);
 
