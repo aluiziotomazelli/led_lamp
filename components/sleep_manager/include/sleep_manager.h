@@ -3,11 +3,12 @@
 /**
  * @brief Initializes the power manager and configures light sleep wakeup sources.
  *
- * This function must be called once during application startup. It sets up
- * the necessary wakeup triggers (e.g., GPIO, Wi-Fi) based on the device's
- * role (Master or Slave).
+ * This function must be called once during application startup.
+ *
+ * @param btn_handle A handle to the button component instance, used to reset
+ *                   the button's state before sleeping.
  */
-void power_manager_init(void);
+void power_manager_init(button_t *btn_handle);
 
 /**
  * @brief Enters light sleep mode.

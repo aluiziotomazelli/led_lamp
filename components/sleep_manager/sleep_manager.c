@@ -11,12 +11,15 @@
 
 #include "sleep_manager.h"
 #include "project_config.h"
-#include "main.h"
+#include "button.h"
 
 static const char *TAG = "PowerManager";
+static button_t *button_handle = NULL;
 
-void power_manager_init(void) {
+void power_manager_init(button_t *btn_handle) {
     ESP_LOGI(TAG, "Initializing power manager...");
+
+    button_handle = btn_handle;
 
     // Enable wakeup from GPIOs. The specific pin and trigger level will be
     // configured dynamically before entering sleep.
@@ -29,9 +32,8 @@ void power_manager_enter_sleep(void) {
     ESP_LOGI(TAG, "Preparing for light sleep...");
 
     // 1. Reset the button state machine to prevent state corruption across sleep cycles.
-    button_t *btn = main_get_button_handle();
-    if (btn) {
-        button_reset_state(btn);
+    if (button_handle) {
+        button_reset_state(button_handle);
     }
 
     // 2. Force the LED data pin low to prevent random colors during sleep.

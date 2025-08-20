@@ -20,12 +20,8 @@
 #include "nvs_flash.h"
 #include "nvs_manager.h"
 #include "sleep_manager.h"
-#include "main.h"
 
 static const char *TAG = "main";
-
-// Component handles
-static button_t *button_handle = NULL;
 
 // Filas globais
 QueueHandle_t button_event_queue;
@@ -107,7 +103,7 @@ void app_main(void) {
 							   .double_click_ms = DOUBLE_CLICK_MS,
 							   .long_click_ms = LONG_CLICK_MS,
 							   .very_long_click_ms = VERY_LONG_CLICK_MS};
-	button_handle = button_create(&btn_cfg, button_event_queue);
+	button_t *button_handle = button_create(&btn_cfg, button_event_queue);
 	configASSERT(button_handle != NULL);
 	ESP_LOGI(TAG, "Button initialized on pin %d", BUTTON1_PIN);
 
@@ -196,8 +192,8 @@ void app_main(void) {
     led_driver_init(led_strip_queue);
     ESP_LOGI(TAG, "LED Driver initialized.");
 
-    // Inicializa o Power Manager
-    power_manager_init();
+    // Inicializa o Power Manager, injetando a dependência do botão
+    power_manager_init(button_handle);
 
 	// Criação das tasks
 	BaseType_t task_created;
@@ -207,8 +203,4 @@ void app_main(void) {
 	configASSERT(task_created == pdPASS);
 
 	ESP_LOGI(TAG, "System initialized. Monitoring events...");
-}
-
-button_t* main_get_button_handle(void) {
-    return button_handle;
 }
