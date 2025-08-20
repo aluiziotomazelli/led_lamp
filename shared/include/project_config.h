@@ -59,6 +59,10 @@
 /** @brief LED command queue size (number of commands) */
 #define LED_CMD_QUEUE_SIZE   10
 
+/** @brief LED command queue size (number of commands) */
+#define INTERNAL_QUEUE_SIZE   5
+
+
 // ==================================================
 // Task Configuration
 // ==================================================

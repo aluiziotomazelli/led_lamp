@@ -19,7 +19,7 @@
 #include "espnow_controller.h"
 #include "nvs_flash.h"
 #include "nvs_manager.h"
-#include "power_manager.h"
+#include "sleep_manager.h"
 
 static const char *TAG = "main";
 
@@ -29,6 +29,7 @@ QueueHandle_t encoder_event_queue;
 QueueHandle_t espnow_event_queue;
 QueueHandle_t touch_event_queue;
 QueueHandle_t switch_event_queue;
+QueueHandle_t internal_event_queue;
 QueueHandle_t integrated_event_queue;
 QueueHandle_t led_cmd_queue; // Saída da FSM para o LED Controller
 QueueHandle_t led_strip_queue; // Saída do LED Controller para o driver de LED
@@ -73,13 +74,17 @@ void app_main(void) {
 	configASSERT(espnow_event_queue != NULL);
 	ESP_LOGI(TAG, "ESP-NOW event queue created (size: %d)", ESPNOW_QUEUE_SIZE);
 
+    internal_event_queue = xQueueCreate(INTERNAL_QUEUE_SIZE, sizeof(internal_event_t));
+    configASSERT(internal_event_queue != NULL);
+    ESP_LOGI(TAG, "Internal event queue created (size: %d)", INTERNAL_QUEUE_SIZE);
+
     // Initialize ESP-NOW controller
 #if ESP_NOW_ENABLED
     espnow_controller_init(espnow_event_queue);
 #endif
 
 	UBaseType_t integrated_queue_len = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE +
-									   ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE + SWITCH_QUEUE_SIZE;
+									   ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE + SWITCH_QUEUE_SIZE + INTERNAL_QUEUE_SIZE;
 	integrated_event_queue =
 		xQueueCreate(integrated_queue_len, sizeof(integrated_event_t));
 	configASSERT(integrated_event_queue != NULL);
@@ -142,7 +147,7 @@ void app_main(void) {
 	// Inicializa integrador de inputs
 	queue_manager = init_queue_manager(button_event_queue, encoder_event_queue,
 									   espnow_event_queue, touch_event_queue,
-                                       switch_event_queue,
+                                       switch_event_queue, internal_event_queue,
 									   integrated_event_queue);
 	configASSERT(queue_manager.queue_set != NULL);
 	ESP_LOGI(TAG, "Input integrator initialized.");
@@ -151,7 +156,7 @@ void app_main(void) {
 	fsm_init(integrated_event_queue, led_cmd_queue);
 
     // Inicializa o LED Controller real
-    led_strip_queue = led_controller_init(led_cmd_queue);
+    led_strip_queue = led_controller_init(led_cmd_queue, internal_event_queue);
     configASSERT(led_strip_queue != NULL);
     ESP_LOGI(TAG, "Real LED Controller initialized.");
 

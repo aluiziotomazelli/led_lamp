@@ -22,7 +22,8 @@
  * @brief FSM state enumeration
  */
 typedef enum {
-    MODE_OFF,           ///< System is turned off
+    MODE_OFF,           ///< System is turned off and ready for sleep
+    MODE_TURNING_OFF,   ///< System is in the process of turning off (e.g., fade out animation)
     MODE_DISPLAY,       ///< Normal display mode
     MODE_EFFECT_SELECT, ///< Effect selection mode
     MODE_EFFECT_SETUP,  ///< Effect parameter setup mode

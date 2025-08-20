@@ -46,12 +46,13 @@ typedef struct {
  *          on the `cmd_queue`.
  *
  * @param[in] cmd_queue The queue for receiving `led_command_t` from the FSM
+ * @param[in] feedback_queue The queue for sending `internal_event_t` feedback to the FSM
  * @return QueueHandle_t Handle to the output queue containing `led_strip_t` data
  * 
  * @note Returns NULL on failure
  * @warning The command queue must be created before calling this function
  */
-QueueHandle_t led_controller_init(QueueHandle_t cmd_queue);
+QueueHandle_t led_controller_init(QueueHandle_t cmd_queue, QueueHandle_t feedback_queue);
 
 /**
  * @brief Applies data loaded from NVS to the LED controller's state

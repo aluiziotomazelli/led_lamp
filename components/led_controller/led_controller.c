@@ -37,6 +37,7 @@
 #include "hsv2rgb.h"
 #include "project_config.h"
 #include "nvs_manager.h"
+#include "input_integrator.h"
 
 // Conditional includes
 #if ESP_NOW_ENABLED && IS_MASTER
@@ -136,6 +137,9 @@ static uint8_t temp_min_brightness = 0;
 
 /// @brief Input command queue handle
 static QueueHandle_t q_commands_in = NULL;
+
+/// @brief Feedback queue handle (to FSM)
+static QueueHandle_t q_feedback_out = NULL;
 
 /// @brief Output strip data queue handle
 static QueueHandle_t q_strip_out = NULL;
@@ -634,12 +638,13 @@ static void trigger_static_save(void) {
 /**
  * @brief Initialize LED controller
  */
-QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
-    if (!cmd_queue) {
-        ESP_LOGE(TAG, "Command queue is NULL");
+QueueHandle_t led_controller_init(QueueHandle_t cmd_queue, QueueHandle_t feedback_queue) {
+    if (!cmd_queue || !feedback_queue) {
+        ESP_LOGE(TAG, "Command or feedback queue is NULL");
         return NULL;
     }
     q_commands_in = cmd_queue;
+    q_feedback_out = feedback_queue;
 
     // Create the timer for saving brightness after a delay
     brightness_save_timer = xTimerCreate("BrightnessTimer", pdMS_TO_TICKS(10000), pdFALSE, (void *)0, brightness_save_callback);
@@ -732,10 +737,16 @@ static void led_render_task(void *pv) {
         // Stateless fade logic: gradually move current_brightness to its target
         uint8_t target_brightness = is_on ? master_brightness : 0;
         if (current_brightness != target_brightness) {
-            if (current_brightness < target_brightness) {
-                current_brightness++;
-            } else {
+            if (current_brightness > target_brightness) { // Fading out
                 current_brightness--;
+                if (current_brightness == 0) {
+                    // We just finished the fade-out animation, notify the FSM
+                    ESP_LOGI(TAG, "Fade out complete, sending signal to FSM.");
+                    internal_event_t feedback_evt = {.type = INTERNAL_EVENT_ANIMATION_DONE};
+                    xQueueSend(q_feedback_out, &feedback_evt, 0); // Non-blocking send
+                }
+            } else { // Fading in
+                current_brightness++;
             }
             needs_render = true;
         }

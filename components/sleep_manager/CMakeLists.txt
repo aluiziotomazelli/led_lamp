@@ -1,8 +1,7 @@
 #==============================================================================
-# Finite State Machine Component
+# Power manager Driver Component
 #
-# Description: Main state machine for LED control system with support for
-#              multiple modes, timeout handling, and input event processing
+# Description: Power management to configure and use light sleep when is on MODE_OFF
 #
 # Author: Your Name
 # Date: 2024-03-15
@@ -16,26 +15,28 @@
 # Register this component with the ESP-IDF build system
 idf_component_register(
     # Source files for this component
-    SRCS "fsm.c"
+    SRCS "sleep_manager.c"
     
     # Public include directories (visible to other components)
     INCLUDE_DIRS "include"
     
     # Required components (dependencies)
     REQUIRES 
-        input_integrator   # Input event integration system
-        led_controller     # LED strip control and effects
-        sleep_manager      # Power manager for sleep 
-        shared             # Shared project utilities and configuration
+        esp_driver_gpio      # GPIO driver for button pin control
+#        esp_timer            # Timer services for timing measurements
+#        freertos             # FreeRTOS for tasks, queues, and notifications
+        driver               # ESP32 driver framework
+        shared               # Shared project utilities and definitions
 )
 
 #------------------------------------------------------------------------------
-# COMPONENT CONFIGURATION (Optional)
+# COMPONENT CONFIGURATION (Optional - can be added if needed)
 #------------------------------------------------------------------------------
 
-# Uncomment to set component-specific compile options
+# Example of additional configuration options:
 # set(COMPONENT_ADD_INCLUDEDIRS "private_include")
 # set(COMPONENT_PRIV_REQUIRES some_private_dependency)
+# set(COMPONENT_EMBED_TXTFILES "config/button_defaults.txt")
 
 #==============================================================================
 # END OF FILE

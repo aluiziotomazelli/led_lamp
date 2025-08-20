@@ -121,6 +121,17 @@ void integrator_task(void *pvParameters) {
                 ESP_LOGD(TAG, "Integrated switch event from pin %d", switch_evt.pin);
             }
         }
+        // Process internal events
+        else if (active_queue == qm->internal_queue) {
+            internal_event_t internal_evt;
+            if (xQueueReceive(qm->internal_queue, &internal_evt, 0) == pdTRUE) {
+                event.source = EVENT_SOURCE_INTERNAL;
+                event.timestamp = xTaskGetTickCount();
+                event.data.internal = internal_evt;
+                xQueueSend(qm->integrated_queue, &event, portMAX_DELAY);
+                ESP_LOGD(TAG, "Integrated internal event of type %d", internal_evt.type);
+            }
+        }
     }
 }
 
@@ -140,26 +151,28 @@ void integrator_task(void *pvParameters) {
  */
 queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
                                  QueueHandle_t espnow_q, QueueHandle_t touch_q,
-                                 QueueHandle_t switch_q, QueueHandle_t int_q) {
+                                 QueueHandle_t switch_q, QueueHandle_t internal_q, 
+                                 QueueHandle_t int_q) {
     queue_manager_t qm = {
         .button_queue = btn_q,
         .encoder_queue = enc_q,
         .espnow_queue = espnow_q,
         .touch_queue = touch_q,
         .switch_queue = switch_q,
+        .internal_queue = internal_q,
         .integrated_queue = int_q,
         .queue_set = NULL
     };
 
     // Validate input queues
-    if (!btn_q || !enc_q || !espnow_q || !touch_q || !switch_q || !int_q) {
+    if (!btn_q || !enc_q || !espnow_q || !touch_q || !switch_q || !internal_q || !int_q) {
         ESP_LOGE(TAG, "One or more invalid queues received");
         return qm;
     }
 
     // Calculate total queue size for the queue set
     UBaseType_t queue_size = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE + 
-                            ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE + SWITCH_QUEUE_SIZE;
+                            ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE + SWITCH_QUEUE_SIZE + INTERNAL_QUEUE_SIZE;
 
     // Create queue set with sufficient capacity
     qm.queue_set = xQueueCreateSet(queue_size);
@@ -173,7 +186,8 @@ queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
         xQueueAddToSet(enc_q, qm.queue_set) != pdPASS ||
         xQueueAddToSet(espnow_q, qm.queue_set) != pdPASS ||
         xQueueAddToSet(touch_q, qm.queue_set) != pdPASS ||
-        xQueueAddToSet(switch_q, qm.queue_set) != pdPASS) {
+        xQueueAddToSet(switch_q, qm.queue_set) != pdPASS ||
+        xQueueAddToSet(internal_q, qm.queue_set) != pdPASS) {
         ESP_LOGE(TAG, "Failed to add queues to set");
         vQueueDelete(qm.queue_set);
         qm.queue_set = NULL;

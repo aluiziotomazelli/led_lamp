@@ -38,7 +38,7 @@
 // Project specific headers
 #include "fsm.h"
 #include "project_config.h"
-#include "power_manager.h"
+#include "sleep_manager.h"
 
 static const char *TAG = "FSM";
 
@@ -125,9 +125,9 @@ static bool process_button_event(const button_event_t *button_evt, uint32_t time
     case MODE_DISPLAY:
         switch (button_evt->type) {
         case BUTTON_CLICK:
-            fsm_state = MODE_OFF;
+            fsm_state = MODE_TURNING_OFF;
             send_led_command(LED_CMD_TURN_OFF, timestamp, 0, 0);
-            ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_OFF (button click)");
+            ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_TURNING_OFF (button click)");
             return true;
         case BUTTON_DOUBLE_CLICK:
             fsm_state = MODE_EFFECT_SELECT;
@@ -409,6 +409,22 @@ static bool process_switch_event(const switch_event_t *switch_evt, uint32_t time
 }
 
 /**
+ * @brief Process internal system events
+ * 
+ * @param[in] internal_evt Internal event from integrated queue
+ * @param[in] timestamp Event timestamp
+ * @return true if event was processed, false otherwise
+ */
+static bool process_internal_event(const internal_event_t *internal_evt, uint32_t timestamp) {
+    if (fsm_state == MODE_TURNING_OFF && internal_evt->type == INTERNAL_EVENT_ANIMATION_DONE) {
+        fsm_state = MODE_OFF;
+        ESP_LOGI(TAG, "MODE_TURNING_OFF -> MODE_OFF (Animation complete)");
+        return true;
+    }
+    return false;
+}
+
+/**
  * @brief Main FSM task function
  * 
  * @param[in] pv Unused parameter
@@ -453,6 +469,10 @@ static void fsm_task(void *pv) {
                 event_processed = process_switch_event(&integrated_evt.data.switch_evt, integrated_evt.timestamp);
                 break;
 
+            case EVENT_SOURCE_INTERNAL:
+                event_processed = process_internal_event(&integrated_evt.data.internal, integrated_evt.timestamp);
+                break;
+
             default:
                 ESP_LOGW(TAG, "Unknown event source: %d", integrated_evt.source);
                 break;
@@ -491,6 +511,7 @@ static void fsm_task(void *pv) {
                     // After waking up, the loop will continue, and any wakeup event (like a button press)
                     // should now be in the queue.
                 }
+                // DO NOT sleep in any other state, especially MODE_TURNING_OFF
             }
         }
     }
