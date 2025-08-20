@@ -37,7 +37,6 @@
 #include "hsv2rgb.h"
 #include "project_config.h"
 #include "nvs_manager.h"
-#include "input_integrator.h"
 
 // Conditional includes
 #if ESP_NOW_ENABLED && IS_MASTER

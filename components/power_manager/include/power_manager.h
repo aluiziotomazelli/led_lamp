@@ -1,4 +1,5 @@
-#pragma once
+#ifndef POWER_MANAGER_H
+#define POWER_MANAGER_H
 
 /**
  * @brief Initializes the power manager and configures light sleep wakeup sources.
@@ -17,3 +18,5 @@ void power_manager_init(void);
  * Execution will resume from the point where this function was called.
  */
 void power_manager_enter_sleep(void);
+
+#endif // POWER_MANAGER_H

@@ -25,7 +25,6 @@ idf_component_register(
     REQUIRES 
         input_integrator   # Input event integration system
         led_controller     # LED strip control and effects
-        sleep_manager      # Power manager for sleep 
         shared             # Shared project utilities and configuration
 )
 

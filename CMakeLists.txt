@@ -39,7 +39,7 @@ set(EXTRA_COMPONENT_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/components/led_controller
     ${CMAKE_CURRENT_SOURCE_DIR}/components/led_driver
     ${CMAKE_CURRENT_SOURCE_DIR}/components/nvs_manager
-    ${CMAKE_CURRENT_SOURCE_DIR}/components/sleep_manager
+    ${CMAKE_CURRENT_SOURCE_DIR}/components/power_manager
     ${CMAKE_CURRENT_SOURCE_DIR}/components/switch
     ${CMAKE_CURRENT_SOURCE_DIR}/components/touch
 )

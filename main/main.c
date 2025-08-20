@@ -19,7 +19,7 @@
 #include "espnow_controller.h"
 #include "nvs_flash.h"
 #include "nvs_manager.h"
-#include "sleep_manager.h"
+#include "power_manager.h"
 
 static const char *TAG = "main";
 

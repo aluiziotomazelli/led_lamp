@@ -56,12 +56,11 @@
 /** @brief ESPNOW message queue size (number of messages) */
 #define ESPNOW_QUEUE_SIZE    10
 
+/** @brief Internal system event queue size (number of events) */
+#define INTERNAL_QUEUE_SIZE  5
+
 /** @brief LED command queue size (number of commands) */
 #define LED_CMD_QUEUE_SIZE   10
-
-/** @brief LED command queue size (number of commands) */
-#define INTERNAL_QUEUE_SIZE   5
-
 
 // ==================================================
 // Task Configuration

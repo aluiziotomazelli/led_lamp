@@ -38,7 +38,7 @@
 // Project specific headers
 #include "fsm.h"
 #include "project_config.h"
-#include "sleep_manager.h"
+#include "power_manager.h"
 
 static const char *TAG = "FSM";
 
@@ -410,7 +410,7 @@ static bool process_switch_event(const switch_event_t *switch_evt, uint32_t time
 
 /**
  * @brief Process internal system events
- * 
+ *
  * @param[in] internal_evt Internal event from integrated queue
  * @param[in] timestamp Event timestamp
  * @return true if event was processed, false otherwise

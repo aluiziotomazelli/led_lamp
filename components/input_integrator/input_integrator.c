@@ -151,7 +151,7 @@ void integrator_task(void *pvParameters) {
  */
 queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
                                  QueueHandle_t espnow_q, QueueHandle_t touch_q,
-                                 QueueHandle_t switch_q, QueueHandle_t internal_q, 
+                                 QueueHandle_t switch_q, QueueHandle_t internal_q,
                                  QueueHandle_t int_q) {
     queue_manager_t qm = {
         .button_queue = btn_q,
