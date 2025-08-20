@@ -10,10 +10,14 @@
 #include "esp_http_server.h"
 #include "esp_ota_ops.h"
 
+#include "lwip/ip4_addr.h"
+
 #include "ota_updater.h"
 #include "nvs_manager.h"
 
 static const char *TAG = "OTA_UPDATER_AP";
+
+#define MIN(a,b) (((a)<(b))?(a):(b))
 
 // Forward declarations for URI handlers
 static esp_err_t root_get_handler(httpd_req_t *req);
@@ -58,6 +62,19 @@ static void wifi_init_softap(void) {
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_t *p_netif = esp_netif_create_default_wifi_ap();
     assert(p_netif);
+    
+    // Stop DHCP server to set a static IP
+    ESP_ERROR_CHECK(esp_netif_dhcps_stop(p_netif));
+
+    // Assign a static IP address to the AP interface
+    esp_netif_ip_info_t ip_info;
+    IP4_ADDR(&ip_info.ip, 192, 168, 4, 1);
+    IP4_ADDR(&ip_info.gw, 192, 168, 4, 1); // Gateway is the ESP itself
+    IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
+    ESP_ERROR_CHECK(esp_netif_set_ip_info(p_netif, &ip_info));
+
+    // Start DHCP server
+    ESP_ERROR_CHECK(esp_netif_dhcps_start(p_netif));
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -134,7 +151,7 @@ static esp_err_t update_post_handler(httpd_req_t *req) {
         httpd_resp_send_500(req);
         return ESP_FAIL;
     }
-    ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%x",
+    ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%"PRIu32"",
              update_partition->subtype, update_partition->address);
 
     esp_err_t err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle);

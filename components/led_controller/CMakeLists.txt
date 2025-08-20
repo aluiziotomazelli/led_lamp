@@ -40,8 +40,9 @@ idf_component_register(
         esp_timer           # Timer services for timing measurements
         freertos            # FreeRTOS for tasks, queues, and notifications
         driver              # ESP32 driver framework
-        shared              # Shared project utilities and definitions
         nvs_manager         # Non-volatile storage management
+        ota_updater
+        shared              # Shared project utilities and definitions
 )
 
 #------------------------------------------------------------------------------
