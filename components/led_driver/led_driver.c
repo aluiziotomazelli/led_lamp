@@ -222,3 +222,22 @@ void led_driver_init(QueueHandle_t input_queue) {
         ESP_LOGI(TAG, "LED driver task created successfully");
     }
 }
+
+/**
+ * @brief Prepares the LED driver for system sleep.
+ */
+void led_driver_prepare_for_sleep(void) {
+    if (led_strip_handle) {
+        // Clear all pixels to black
+        esp_err_t err = led_strip_clear(led_strip_handle);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to clear strip for sleep: %s", esp_err_to_name(err));
+        }
+        // The clear command only stages the changes. A refresh is needed
+        // to write the cleared state to the physical strip.
+        err = led_strip_refresh(led_strip_handle);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to refresh strip for sleep: %s", esp_err_to_name(err));
+        }
+    }
+}

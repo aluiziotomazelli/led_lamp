@@ -12,6 +12,7 @@
 #include "sleep_manager.h"
 #include "project_config.h"
 #include "button.h"
+#include "led_driver.h"
 
 static const char *TAG = "PowerManager";
 static button_t *button_handle = NULL;
@@ -36,8 +37,8 @@ void power_manager_enter_sleep(void) {
         button_reset_state(button_handle);
     }
 
-    // 2. Force the LED data pin low to prevent random colors during sleep.
-    gpio_set_level(LED_STRIP_GPIO, 0);
+    // 2. Safely clear the LED strip to prevent random colors during sleep.
+    led_driver_prepare_for_sleep();
 
     ESP_LOGI(TAG, "Arming wakeup sources and entering light sleep...");
 
@@ -51,6 +52,11 @@ void power_manager_enter_sleep(void) {
     // Enter light sleep
     esp_err_t err = esp_light_sleep_start();
 
+    // Add a small delay RIGHT AFTER waking up. This allows other tasks,
+    // like the button ISR and task, to run before we change any GPIO state.
+    // This is critical to prevent the wake-up from clearing the button event.
+    vTaskDelay(pdMS_TO_TICKS(50));
+
     // Disable wakeup sources immediately after waking to prevent loops from
     // persistent conditions like a held-down button.
     ESP_ERROR_CHECK(gpio_wakeup_disable(BUTTON1_PIN));
@@ -60,9 +66,6 @@ void power_manager_enter_sleep(void) {
     // but we disable it here again to be explicit and safe.
     ESP_ERROR_CHECK(esp_sleep_disable_wifi_wakeup());
 #endif
-
-    // Add a small delay to allow tasks and hardware to stabilize after wakeup.
-    vTaskDelay(pdMS_TO_TICKS(50));
 
     if (err == ESP_OK) {
         // Determine wakeup reason

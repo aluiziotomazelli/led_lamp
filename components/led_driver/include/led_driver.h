@@ -45,3 +45,12 @@ void led_driver_init(QueueHandle_t input_queue);
  * @note Correction values are applied as multipliers to each color channel
  */
 void led_driver_set_correction(uint8_t r, uint8_t g, uint8_t b);
+
+/**
+ * @brief Prepares the LED driver for system sleep.
+ *
+ * @details This function should be called before the system enters a low-power
+ * state. It ensures the LED strip is cleared (all LEDs off), preventing random
+ * colors from appearing due to a floating data line during sleep.
+ */
+void led_driver_prepare_for_sleep(void);
