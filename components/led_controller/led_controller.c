@@ -121,7 +121,6 @@ typedef enum {
     SYS_PARAM_OFFSET_BEGIN,      ///< LED offset at beginning parameter
     SYS_PARAM_OFFSET_END,        ///< LED offset at end parameter
     SYS_PARAM_MIN_BRIGHTNESS,    ///< Minimum brightness parameter
-    SYS_PARAM_OTA,               ///< OTA trigger parameter
     SYS_PARAM_COUNT              ///< Total number of system parameters
 } system_param_t;
 
@@ -815,25 +814,6 @@ void led_controller_enter_system_setup(void) {
  * @brief Save system configuration
  */
 void led_controller_save_system_config(void) {
-    if (current_sys_param == SYS_PARAM_OTA) {
-        ESP_LOGI(TAG, "OTA update triggered from menu.");
-        ota_data_t ota_data;
-        ota_data.ota_mode_enabled = true;
-        // The SSID and password are not needed for SoftAP mode, but we clear them.
-        memset(ota_data.wifi_ssid, 0, sizeof(ota_data.wifi_ssid));
-        memset(ota_data.wifi_password, 0, sizeof(ota_data.wifi_password));
-
-        esp_err_t err = nvs_manager_save_ota_data(&ota_data);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to save OTA data to NVS: %s", esp_err_to_name(err));
-            return;
-        }
-
-        ESP_LOGI(TAG, "OTA flag set, rebooting into OTA mode...");
-        esp_restart();
-        return;
-    }
-
     // Copy temporary values to global variables
     g_led_offset_begin = temp_offset_begin;
     g_led_offset_end = temp_offset_end;
@@ -864,9 +844,6 @@ void led_controller_cancel_system_config(void) {
 void led_controller_next_system_param(void) {
     current_sys_param = (system_param_t)((current_sys_param + 1) % SYS_PARAM_COUNT);
     ESP_LOGI(TAG, "Next system param: %d", current_sys_param);
-    if (current_sys_param == SYS_PARAM_OTA) {
-        ESP_LOGI(TAG, "OTA Update option selected. Long press to activate.");
-    }
 }
 
 /**
@@ -928,9 +905,6 @@ void led_controller_inc_system_param(int16_t steps, bool *limit_hit) {
         ESP_LOGI(TAG, "Temp min brightness: %d", temp_min_brightness);
         break;
     }
-    case SYS_PARAM_OTA:
-        // No value to change for OTA, do nothing.
-        break;
     default:
         break;
     }

@@ -37,7 +37,7 @@ void run_candle_math(const effect_param_t *params, uint8_t num_params,
 			.leds_per_zone =
 				(p_segments > 0) ? (num_pixels / p_segments) : num_pixels,
 			.flicker_speed = 0.05f,
-			.dip_probability = 0.01f,
+			.dip_probability = 0.02f,
 			.recovery_rate = 0.1f,
 			.min_brightness = 10.0f,
 			.max_brightness = 100.0f,

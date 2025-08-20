@@ -1,6 +1,7 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
@@ -14,6 +15,9 @@
 
 #include "ota_updater.h"
 #include "nvs_manager.h"
+#include "fsm.h"
+
+extern QueueHandle_t led_cmd_queue;
 
 static const char *TAG = "OTA_UPDATER_AP";
 
@@ -218,6 +222,17 @@ static esp_err_t update_post_handler(httpd_req_t *req) {
 
 esp_err_t ota_updater_start(void) {
     ESP_LOGI(TAG, "Starting SoftAP OTA Updater...");
+
+    // Send red feedback to the user
+    if (led_cmd_queue != NULL) {
+        led_command_t ota_feedback_cmd = {
+            .cmd = LED_CMD_FEEDBACK_RED,
+            .timestamp = 0, // Timestamp is not critical for feedback
+            .value = 0,
+            .param_idx = 0
+        };
+        xQueueSend(led_cmd_queue, &ota_feedback_cmd, 0); // Use 0 wait time, it's not critical if it fails
+    }
 
     // 1. Clear the OTA flag first, as per user's robust error-handling suggestion
     ota_data_t ota_data;

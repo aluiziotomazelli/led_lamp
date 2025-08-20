@@ -1,3 +1,9 @@
+/**
+ * OTA update via esp32 own server from:
+ * https://github.com/Jeija/esp32-softap-ota/tree/master
+*/
+
+
 #pragma once
 
 #include "esp_err.h"

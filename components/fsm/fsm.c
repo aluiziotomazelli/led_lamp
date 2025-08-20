@@ -34,6 +34,8 @@
 #include "espnow_controller.h"
 #include "input_integrator.h"
 #include "led_controller.h"
+#include "nvs_manager.h"
+#include "esp_system.h"
 
 // Project specific headers
 #include "fsm.h"
@@ -84,6 +86,23 @@ static bool check_timeout(uint64_t timeout_ms) {
 }
 
 /**
+ * @brief Set OTA flag and reboot device
+ */
+static void trigger_ota_mode(void) {
+    ESP_LOGI(TAG, "Triggering OTA mode...");
+    ota_data_t ota_data = {.ota_mode_enabled = true};
+    esp_err_t err = nvs_manager_save_ota_data(&ota_data);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save OTA flag to NVS. Error: %s", esp_err_to_name(err));
+        // Even if saving fails, we might want to send a visual error feedback.
+        // For now, we'll just log the error.
+    } else {
+        ESP_LOGI(TAG, "OTA flag set, rebooting device into OTA mode.");
+        esp_restart();
+    }
+}
+
+/**
  * @brief Send LED command to output queue
  * 
  * @param[in] cmd LED command type
@@ -116,6 +135,12 @@ static bool process_button_event(const button_event_t *button_evt, uint32_t time
             fsm_state = MODE_DISPLAY;
             send_led_command(LED_CMD_TURN_ON, timestamp, 0, 0);
             ESP_LOGI(TAG, "MODE_OFF -> MODE_DISPLAY (Button Press)");
+            return true;
+        case BUTTON_VERY_LONG_CLICK:
+            fsm_state = MODE_OTA;
+            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_OFF -> MODE_OTA (Very Long Press)");
+            trigger_ota_mode();
             return true;
         default:
             return false;

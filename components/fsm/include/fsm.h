@@ -27,6 +27,7 @@ typedef enum {
     MODE_EFFECT_SELECT, ///< Effect selection mode
     MODE_EFFECT_SETUP,  ///< Effect parameter setup mode
     MODE_SYSTEM_SETUP,  ///< System configuration mode
+    MODE_OTA,           ///< OTA update mode
 } fsm_state_t;
 
 /**
