@@ -404,6 +404,6 @@ void button_reset_state(button_t *btn) {
         // This is safe to call even if interrupts are already enabled.
         gpio_intr_enable(btn->pin);
 
-        ESP_LOGD(TAG, "Button state has been reset for pin %d.", btn->pin);
+        ESP_LOGI(TAG, "Reseting button");
     }
 }

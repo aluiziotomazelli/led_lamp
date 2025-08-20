@@ -435,7 +435,9 @@ static bool process_internal_event(const internal_event_t *internal_evt, uint32_
 static void fsm_task(void *pv) {
     integrated_event_t integrated_evt;
     bool event_processed = false;
-    const TickType_t waitTicks = pdMS_TO_TICKS(100);
+    // Increased from 100 to 250 to allow other tasks (like button processing)
+    // enough time to queue an event after waking from sleep.
+    const TickType_t waitTicks = pdMS_TO_TICKS(250);
     
     if (last_event_timestamp_ms == 0) {
         last_event_timestamp_ms = get_current_time_ms();
