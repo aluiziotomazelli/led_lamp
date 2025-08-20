@@ -1,4 +1,4 @@
-#include "include/candle_math_logic.h"
+#include "candle_math_logic.h"
 #include "led_effects.h"
 #include <math.h>
 #include <stdlib.h>
