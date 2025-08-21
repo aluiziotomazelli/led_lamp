@@ -59,6 +59,9 @@
 /** @brief LED command queue size (number of commands) */
 #define LED_CMD_QUEUE_SIZE   10
 
+/** @brief LED strip data queue size (number of frames) */
+#define LED_STRIP_QUEUE_SIZE  3
+
 // ==================================================
 // Task Configuration
 // ==================================================

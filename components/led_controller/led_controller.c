@@ -656,7 +656,7 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
         return NULL;
     }
 
-    q_strip_out = xQueueCreate(1, sizeof(led_strip_t));
+    q_strip_out = xQueueCreate(LED_STRIP_QUEUE_SIZE, sizeof(led_strip_t));
     if (!q_strip_out) {
         ESP_LOGE(TAG, "Failed to create output queue");
         free(pixel_buffer);
