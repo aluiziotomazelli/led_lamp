@@ -68,7 +68,22 @@ This project is based on the Espressif IoT Development Framework (ESP-IDF).
     idf.py set-target esp32
     idf.py menuconfig
     ```
-    Inside `menuconfig`, you can configure project-specific settings, such as Wi-Fi credentials (if needed), pin assignments, and component options.
+    Inside `menuconfig`, you can configure project-specific settings, such as Wi-Fi credentials (if needed) and certain component options.
+
+    For more fundamental hardware and behavior changes, see the section below.
+
+### Key Configurations (`project_config.h`)
+
+Many of the core hardware and software parameters can be easily changed by editing the `shared/include/project_config.h` file before building. This file centralizes the most important definitions for quick customization.
+
+Key values you can change here include:
+- **GPIO Pin Assignments:** `BUTTON1_PIN`, `ENCODER_PIN_A`, `ENCODER_PIN_B`, `TOUCH_PAD1_PIN`, `SWITCH_PIN_1`, `LED_STRIP_GPIO`.
+- **Hardware Behavior:** Timings for button debouncing, double-clicks (`DOUBLE_CLICK_MS`), and long-presses (`LONG_CLICK_MS`).
+- **LED Strip:** The total number of LEDs (`NUM_LEDS`).
+- **Task Management:** Stack sizes and priorities for all FreeRTOS tasks.
+- **ESP-NOW Network:**
+    - `IS_MASTER` / `IS_SLAVE`: Set the role of the device (only one should be 1).
+    - `slave_mac_addresses`: The list of MAC addresses for all slave devices that the master should send commands to.
 
 3.  **Build the Project:**
     ```bash
