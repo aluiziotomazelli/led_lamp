@@ -44,4 +44,36 @@ A pequena chave na base da luminária tem funções diferentes dependendo se a s
 
 ---
 
-**Funções Avançadas:** Sua luminária permite editar os parâmetros de cada efeito (como cor, velocidade), salvar novas configurações e muito more. Essas funções são acessadas através de cliques longos no botão e serão detalhadas em um manual avançado.
+## Funções Avançadas
+
+Para usuários que desejam personalizar a experiência, a luminária oferece modos de configuração avançada. O acesso é feito através de pressionamentos longos do botão.
+
+### Modo de Edição de Efeito
+
+Este modo permite ajustar os parâmetros do efeito de iluminação que está ativo no momento (por exemplo, alterar a cor de uma luz estática ou a velocidade de um efeito dinâmâmico).
+
+1.  **Entrar no modo de edição:** Com a luminária ligada, **pressione e segure o botão por 2 segundos (clique longo)**. A luz piscará para indicar que você entrou no modo de edição.
+2.  **Selecionar o parâmetro:** Cada efeito pode ter um ou mais parâmetros (ex: Cor, Velocidade, Intensidade). Dê **cliques simples** no botão para alternar entre os parâmetros disponíveis para aquele efeito. A luz mudará para indicar o parâmetro selecionado.
+3.  **Ajustar o valor:** **Gire o botão** para alterar o valor do parâmetro selecionado.
+4.  **Salvar as alterações:**
+    *   **Salvar neste efeito:** **Pressione e segure o botão por 2 segundos (clique longo)**. A luz piscará em verde para confirmar que as alterações foram salvas permanentemente para este efeito.
+    *   **Salvar e Sincronizar (Apenas na Master):** **Pressione e segure o botão por 5 segundos (clique muito longo)**. Além de salvar, a unidade Master enviará a nova configuração para todas as unidades Slaves.
+5.  **Cancelar as alterações:** Dê um **clique duplo** no botão. A luz piscará em vermelho e a luminária voltará ao estado anterior, descartando suas modificações.
+
+*Dica: Se você não fizer nada por 15 segundos, a luminária salvará automaticamente as alterações e sairá do modo de edição.*
+
+### Modo de Configuração do Sistema
+
+Este modo permite ajustar configurações globais da luminária, como o brilho mínimo e os recortes de LEDs.
+
+1.  **Entrar no modo de sistema:** Com a luminária ligada, **pressione e segure o botão por 5 segundos (clique muito longo)**. A luz piscará em azul para indicar que você entrou no modo de sistema.
+2.  **Selecionar a configuração:** Dê **cliques simples** no botão para alternar entre as configurações do sistema:
+    *   Ajuste de LEDs a serem ignorados no início da fita.
+    *   Ajuste de LEDs a serem ignorados no final da fita.
+    *   Definição do brilho mínimo.
+3.  **Ajustar o valor:** **Gire o botão** para alterar o valor da configuração selecionada.
+4.  **Salvar as configurações:** **Pressione e segure o botão por 2 segundos (clique longo)**. A luz piscará em verde para confirmar que as configurações do sistema foram salvas permanentemente.
+5.  **Cancelar as alterações:** Dê um **clique duplo** no botão para sair sem salvar.
+6.  **Reset de Fábrica:** Dentro do modo de sistema, **pressione e segure o botão por 5 segundos (clique muito longo)**. A luminária piscará e todas as configurações (efeitos, sistema, brilho) serão restauradas para os padrões de fábrica. **Atenção: Esta ação não pode ser desfeita.**
+
+*Dica: Se você não fizer nada por 30 segundos, a luminária salvará automaticamente as alterações e sairá do modo de sistema.*
