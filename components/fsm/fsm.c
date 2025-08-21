@@ -1,502 +1,563 @@
-#include "fsm.h"
+/**
+ * @file fsm.c
+ * @brief Finite State Machine implementation for LED control system
+ * 
+ * @details This file implements the main state machine that processes input events
+ * from various sources and generates LED commands based on the current system state.
+ * 
+ * @author Your Name
+ * @date 2024-03-15
+ * @version 1.0
+ */
+
+// System includes
+#include <stdint.h>
+
+// Set log level for this module, must come before esp_log.h
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
+// ESP-IDF system services
+#include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_timer.h"
-#include "led_controller.h"  // Para controle dos LEDs
+
+// FreeRTOS components
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+
+// Input device drivers
+#include "button.h"
+#include "encoder.h"
+#include "switch.h"
+#include "touch.h"
+
+// Project components
+#include "espnow_controller.h"
+#include "input_integrator.h"
+#include "led_controller.h"
+#include "nvs_manager.h"
+#include "esp_system.h"
+
+// Project specific headers
+#include "fsm.h"
 #include "project_config.h"
-#include <string.h>
-#include <inttypes.h>  // Necessário para as macros PRIu32, PRId32, etc.
 
 static const char *TAG = "FSM";
 
-// Estrutura de contexto da FSM
-typedef struct {
-    // Configuração
-    QueueHandle_t event_queue;          ///< Handle da queue de eventos
-    TaskHandle_t fsm_task_handle;       ///< Handle da task da FSM
-    fsm_mode_t config;                ///< Configurações
-    
-    // Estado atual
-    fsm_state_t current_state;          ///< Estado atual da FSM
-    fsm_state_t previous_state;         ///< Estado anterior (para rollback)
-    uint32_t state_entry_time;          ///< Timestamp de entrada no estado atual
-    
-    // Dados do sistema
-    uint8_t current_effect;             ///< Efeito atualmente selecionado
-    uint8_t global_brightness;          ///< Brilho global (0-254)
-    bool led_strip_on;                  ///< Estado da fita LED
-    
-    // Setup state
-    uint8_t setup_param_index;          ///< Parâmetro sendo editado no setup
-    uint8_t setup_effect_index;         ///< Efeito sendo editado no setup
-    bool setup_has_changes;             ///< Flag de mudanças não salvas
-    
-    // Controle
-    bool initialized;                   ///< Flag de inicialização
-    bool running;                       ///< Flag de execução
-    
-    // Estatísticas
-    fsm_stats_t stats;                  ///< Estatísticas da FSM
-} fsm_context_t;
+// Timeout configurations for different states
+#define TIMEOUT_EFFECT_SELECT_MS 10000   ///< Timeout for effect selection mode
+#define TIMEOUT_EFFECT_SETUP_MS 15000    ///< Timeout for effect setup mode
+#define TIMEOUT_SYSTEM_SETUP_MS 30000    ///< Timeout for system setup mode
 
-static fsm_context_t fsm_ctx = {0};
+// Static variables
+static QueueHandle_t qInput = NULL;      ///< Input event queue
+static QueueHandle_t qOutput = NULL;     ///< Output command queue
+static fsm_state_t fsm_state = MODE_OFF; ///< Current FSM state
+static uint64_t last_event_timestamp_ms = 0; ///< Last event timestamp
 
-// Declarações das funções internas
-static void fsm_task(void *pvParameters);
-static esp_err_t fsm_process_integrated_event(const integrated_event_t *event);
-static esp_err_t fsm_process_button_event(const button_event_t *button_event, uint32_t timestamp);
-static esp_err_t fsm_process_encoder_event(const encoder_event_t *encoder_event, uint32_t timestamp);
-static esp_err_t fsm_process_espnow_event(const espnow_event_t *espnow_event, uint32_t timestamp);
-static esp_err_t fsm_transition_to_state(fsm_state_t new_state);
-static void fsm_check_mode_timeout(uint32_t current_time);
-static void fsm_update_led_display(void);
-static uint32_t fsm_get_current_time_ms(void);
+/**
+ * @brief Get current time in milliseconds
+ * 
+ * @return Current time in ms
+ */
+static uint64_t get_current_time_ms() { 
+    return esp_timer_get_time() / 1000; 
+}
 
-esp_err_t fsm_init(QueueHandle_t queue_handle, const fsm_mode_t *config) {
-    if (fsm_ctx.initialized) {
-        ESP_LOGW(TAG, "FSM already initialized");
-        return ESP_ERR_INVALID_STATE;
-    }
+/**
+ * @brief Check if timeout has occurred for current state
+ * 
+ * @param[in] timeout_ms Timeout duration in milliseconds
+ * @return true if timeout occurred, false otherwise
+ * 
+ * @note Handles 64-bit timer overflow correctly
+ */
+static bool check_timeout(uint64_t timeout_ms) {
+    uint64_t current_ms = get_current_time_ms();
+    uint64_t elapsed_ms;
 
-    if (queue_handle == NULL) {
-        ESP_LOGE(TAG, "Queue handle cannot be NULL");
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    // Configura parâmetros (usa defaults se config for NULL)
-    if (config != NULL) {
-        fsm_ctx.config = *config;
+    if (current_ms >= last_event_timestamp_ms) {
+        elapsed_ms = current_ms - last_event_timestamp_ms;
     } else {
-        fsm_ctx.config.task_stack_size = FSM_STACK_SIZE;
-        fsm_ctx.config.task_priority = FSM_PRIORITY;
-        fsm_ctx.config.queue_timeout_ms = pdMS_TO_TICKS(FSM_TIMEOUT_MS);
-        fsm_ctx.config.mode_timeout_ms = FSM_MODE_TIMEOUT_MS;
+        // Handle extremely rare 64-bit counter overflow
+        elapsed_ms = (UINT64_MAX - last_event_timestamp_ms) + current_ms + 1;
     }
 
-    fsm_ctx.event_queue = queue_handle;
+    return elapsed_ms > timeout_ms;
+}
+
+/**
+ * @brief Set OTA flag and reboot device
+ */
+static void trigger_ota_mode(void) {
+    ESP_LOGI(TAG, "Triggering OTA mode...");
+    ota_data_t ota_data = {.ota_mode_enabled = true};
+    esp_err_t err = nvs_manager_save_ota_data(&ota_data);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save OTA flag to NVS. Error: %s", esp_err_to_name(err));
+        // Even if saving fails, we might want to send a visual error feedback.
+        // For now, we'll just log the error.
+    } else {
+        ESP_LOGI(TAG, "OTA flag set, rebooting device into OTA mode.");
+        esp_restart();
+    }
+}
+
+/**
+ * @brief Send LED command to output queue
+ * 
+ * @param[in] cmd LED command type
+ * @param[in] timestamp Command timestamp
+ * @param[in] value Command parameter value
+ * 
+ * @note This function blocks indefinitely until the command is queued
+ */
+static void send_led_command(led_cmd_type_t cmd, uint32_t timestamp, int16_t value, uint8_t param_idx) {
+    led_command_t out = {.cmd = cmd, .timestamp = timestamp, .value = value, .param_idx = param_idx};
+    xQueueSend(qOutput, &out, portMAX_DELAY);
+}
+
+/**
+ * @brief Process button events
+ * 
+ * @param[in] button_evt Button event from integrated queue
+ * @param[in] timestamp Event timestamp
+ * @return true if event was processed, false otherwise
+ * 
+ * @note This function handles state transitions based on button events
+ */
+static bool process_button_event(const button_event_t *button_evt, uint32_t timestamp) {
+    switch (fsm_state) {
+    case MODE_OFF:
+        switch (button_evt->type) {
+        case BUTTON_CLICK:
+        case BUTTON_LONG_CLICK:
+        case BUTTON_DOUBLE_CLICK:
+            fsm_state = MODE_DISPLAY;
+            send_led_command(LED_CMD_TURN_ON, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_OFF -> MODE_DISPLAY (Button Press)");
+            return true;
+        case BUTTON_VERY_LONG_CLICK:
+            fsm_state = MODE_OTA;
+            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_OFF -> MODE_OTA (Very Long Press)");
+            trigger_ota_mode();
+            return true;
+        default:
+            return false;
+        }
+
+    case MODE_DISPLAY:
+        switch (button_evt->type) {
+        case BUTTON_CLICK:
+            fsm_state = MODE_OFF;
+            send_led_command(LED_CMD_TURN_OFF, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_OFF (button click)");
+            return true;
+        case BUTTON_DOUBLE_CLICK:
+            fsm_state = MODE_EFFECT_SELECT;
+            send_led_command(LED_CMD_ENTER_EFFECT_SELECT, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_EFFECT_COLOR, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SELECT");
+            return true;
+        case BUTTON_LONG_CLICK:
+            fsm_state = MODE_EFFECT_SETUP;
+            send_led_command(LED_CMD_ENTER_EFFECT_SETUP, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_EFFECT_SETUP");
+            return true;
+        case BUTTON_VERY_LONG_CLICK:
+            fsm_state = MODE_SYSTEM_SETUP;
+            led_controller_enter_system_setup();
+            send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_DISPLAY -> MODE_SYSTEM_SETUP");
+            return true;
+        default:
+            return false;
+        }
+
+    case MODE_EFFECT_SELECT:
+        switch (button_evt->type) {
+        case BUTTON_CLICK:
+            fsm_state = MODE_DISPLAY;
+            uint8_t selected_effect_index = led_controller_get_effect_index();
+            send_led_command(LED_CMD_SET_EFFECT, timestamp, selected_effect_index, 0);
+            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (effect selected)");
+            return true;
+        case BUTTON_DOUBLE_CLICK:
+            send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0, 0);
+            fsm_state = MODE_DISPLAY;
+            ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (cancelled)");
+            return true;
+        case BUTTON_TIMEOUT:
+            fsm_state = MODE_DISPLAY;
+            send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_EFFECT_SELECT -> MODE_DISPLAY (timeout)");
+            return true;
+        default:
+            return false;
+        }
+
+    case MODE_EFFECT_SETUP:
+        switch (button_evt->type) {
+        case BUTTON_CLICK:
+            send_led_command(LED_CMD_NEXT_EFFECT_PARAM, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_EFFECT_COLOR, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_EFFECT_SETUP Next Param");
+            return true;
+        case BUTTON_DOUBLE_CLICK:
+            send_led_command(LED_CMD_CANCEL_CONFIG, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0, 0);
+            fsm_state = MODE_DISPLAY;
+            ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (cancelled)");
+            return true;
+        case BUTTON_LONG_CLICK:
+            fsm_state = MODE_DISPLAY;
+            send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (saved)");
+            return true;
+        case BUTTON_VERY_LONG_CLICK:
+            fsm_state = MODE_DISPLAY;
+            send_led_command(LED_CMD_SYNC_AND_SAVE_STATIC_CONFIG, timestamp, 0, 0);
+            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (sync and saved)");
+            return true;
+        case BUTTON_TIMEOUT:
+            fsm_state = MODE_DISPLAY;
+            send_led_command(LED_CMD_SAVE_CONFIG, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_EFFECT_SETUP -> MODE_DISPLAY (timeout)");
+            return true;
+        default:
+            return false;
+        }
+
+    case MODE_SYSTEM_SETUP:
+        switch (button_evt->type) {
+        case BUTTON_CLICK:
+            led_controller_next_system_param();
+            send_led_command(LED_CMD_FEEDBACK_BLUE, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_SYSTEM_SETUP Next Param");
+            return true;
+        case BUTTON_DOUBLE_CLICK:
+            led_controller_cancel_system_config();
+            send_led_command(LED_CMD_FEEDBACK_RED, timestamp, 0, 0);
+            fsm_state = MODE_DISPLAY;
+            ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (cancelled)");
+            return true;
+        case BUTTON_LONG_CLICK:
+            fsm_state = MODE_DISPLAY;
+            led_controller_save_system_config();
+            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_SYSTEM_SETUP -> MODE_DISPLAY (saved)");
+            return true;
+        case BUTTON_VERY_LONG_CLICK:
+            led_controller_factory_reset();
+            send_led_command(LED_CMD_FEEDBACK_GREEN, timestamp, 0, 0);
+            ESP_LOGI(TAG, "MODE_SYSTEM_SETUP: Performed factory reset");
+            return true;
+        default:
+            return false;
+        }
+
+    default:
+        switch (button_evt->type) {
+        case BUTTON_NONE_CLICK:
+        case BUTTON_ERROR:
+            send_led_command(LED_CMD_BUTTON_ERROR, timestamp, 0, 0);
+            return true;
+        default:
+            return false;
+        }
+    }
+}
+
+/**
+ * @brief Process encoder events
+ * 
+ * @param[in] encoder_evt Encoder event from integrated queue
+ * @param[in] timestamp Event timestamp
+ * @return true if event was processed, false otherwise
+ */
+static bool process_encoder_event(const encoder_event_t *encoder_evt, uint32_t timestamp) {
+    if (encoder_evt->steps == 0) {
+        return false;
+    }
+
+    int16_t steps = (int16_t)encoder_evt->steps;
+
+    switch (fsm_state) {
+    case MODE_DISPLAY: {
+        bool limit_hit = false;
+        uint8_t new_brightness = led_controller_inc_brightness(steps, &limit_hit);
+        send_led_command(LED_CMD_SET_BRIGHTNESS, timestamp, new_brightness, 0);
+        if (limit_hit) {
+            send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0, 0);
+        }
+        ESP_LOGD(TAG, "Brightness set to: %d", new_brightness);
+        break;
+    }
+
+    case MODE_EFFECT_SELECT: {
+        uint8_t new_effect_idx = led_controller_inc_effect(steps);
+        send_led_command(LED_CMD_SET_EFFECT, timestamp, new_effect_idx, 0);
+        ESP_LOGD(TAG, "Effect selection preview: %d", new_effect_idx);
+        break;
+    }
+
+    case MODE_EFFECT_SETUP: {
+        bool limit_hit = false;
+        int16_t new_param_val = led_controller_inc_effect_param(steps, &limit_hit);
+        uint8_t param_idx = led_controller_get_current_param_index();
+        send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp, new_param_val, param_idx);
+        if (limit_hit) {
+            send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0, 0);
+        }
+        ESP_LOGD(TAG, "Effect param %d set to: %u", param_idx, new_param_val);
+        break;
+    }
+
+    case MODE_SYSTEM_SETUP: {
+        bool limit_hit = false;
+        led_controller_inc_system_param(steps, &limit_hit);
+        if (limit_hit) {
+            send_led_command(LED_CMD_FEEDBACK_LIMIT, timestamp, 0, 0);
+        }
+        ESP_LOGD(TAG, "System parameter adjustment: %d", steps);
+        break;
+    }
+
+    case MODE_OFF:
+    default:
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * @brief Process touch events
+ * 
+ * @param[in] touch_evt Touch event from integrated queue
+ * @param[in] timestamp Event timestamp
+ * @return true if event was processed, false otherwise
+ */
+static bool process_touch_event(const touch_event_t *touch_evt, uint32_t timestamp) {
+    // In display mode, a simple press cycles to the next effect
+    if (fsm_state == MODE_DISPLAY && touch_evt->type == TOUCH_PRESS) {
+        uint8_t new_effect_idx = led_controller_inc_effect(1);
+        send_led_command(LED_CMD_SET_EFFECT, timestamp, new_effect_idx, 0);
+        ESP_LOGI(TAG, "Touch press cycled to next effect: %d", new_effect_idx);
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * @brief Process ESPNOW events
+ * 
+ * @param[in] espnow_evt ESPNOW event from integrated queue
+ * @param[in] timestamp Event timestamp
+ * @return true if event was processed, false otherwise
+ * 
+ * @note Only processes events when compiled as SLAVE with ESP_NOW_ENABLED
+ */
+static bool process_espnow_event(const espnow_event_t *espnow_evt, uint32_t timestamp) {
+#if ESP_NOW_ENABLED && IS_SLAVE
+    ESP_LOGD(TAG, "Processing ESPNOW event from " MACSTR, MAC2STR(espnow_evt->mac_addr));
+
+    // Forward received command to LED controller
+    const led_command_t *cmd = &espnow_evt->msg.cmd;
+
+    // Slave should not be in setup modes - snap back to display mode
+    if (fsm_state != MODE_DISPLAY && fsm_state != MODE_OFF) {
+        fsm_state = MODE_DISPLAY;
+        ESP_LOGW(TAG, "Slave was in setup state, snapping back to MODE_DISPLAY");
+    }
+
+    send_led_command(cmd->cmd, cmd->timestamp, cmd->value, cmd->param_idx);
+    return true;
+#else
+    return false; // Not a slave, ignore ESP-NOW events
+#endif
+}
+
+/**
+ * @brief Process switch events
+ * 
+ * @param[in] switch_evt Switch event from integrated queue
+ * @param[in] timestamp Event timestamp
+ * @return true if event was processed, false otherwise
+ * 
+ * @note Master: controls ESP-NOW sending, Slave: controls strip mode
+ */
+static bool process_switch_event(const switch_event_t *switch_evt, uint32_t timestamp) {
+#if IS_MASTER
+    // On master, switch controls ESP-NOW sending
+    bool sending_enabled = switch_evt->is_closed;
+    espnow_controller_set_master_enabled(sending_enabled);
+
+    if (sending_enabled) {
+        ESP_LOGI(TAG, "Switch: ESP-NOW Master sending ENABLED. Syncing slaves...");
+
+        // Synchronize all slaves with current state
+        if (led_controller_is_on()) {
+            send_led_command(LED_CMD_TURN_ON, timestamp, 0, 0);
+        } else {
+            send_led_command(LED_CMD_TURN_OFF, timestamp, 0, 0);
+        }
+
+        uint8_t effect_idx = led_controller_get_effect_index();
+        send_led_command(LED_CMD_SET_EFFECT, timestamp, effect_idx, 0);
+
+        uint8_t brightness = led_controller_get_brightness();
+        send_led_command(LED_CMD_SET_BRIGHTNESS, timestamp, brightness, 0);
+
+        uint8_t num_params = 0;
+        effect_param_t *params = led_controller_get_effect_params(&num_params);
+        if (params && num_params > 0) {
+            for (uint8_t i = 0; i < num_params; i++) {
+                send_led_command(LED_CMD_SET_EFFECT_PARAM, timestamp, params[i].value, i);
+            }
+        }
+    }
+#else
+    // On slave, switch controls strip mode
+    int16_t mode_value = switch_evt->is_closed ? 0 : 1;
+    send_led_command(LED_CMD_SET_STRIP_MODE, timestamp, mode_value, 0);
+    ESP_LOGI(TAG, "Switch event processed, strip mode set to %d", mode_value);
+#endif
+    return true;
+}
+
+/**
+ * @brief Main FSM task function
+ * 
+ * @param[in] pv Unused parameter
+ * 
+ * @note This task processes input events and manages state transitions
+ * @warning Task priority should be appropriate for real-time response
+ */
+static void fsm_task(void *pv) {
+    integrated_event_t integrated_evt;
+    bool event_processed = false;
+    const TickType_t waitTicks = pdMS_TO_TICKS(100);
     
-    // Inicializa estado inicial
-    fsm_ctx.current_state = MODE_DISPLAY;
-    fsm_ctx.previous_state = MODE_DISPLAY;
-    fsm_ctx.state_entry_time = fsm_get_current_time_ms();
-    
-    // Inicializa dados do sistema com valores padrão
-    fsm_ctx.current_effect = 0;
-    fsm_ctx.global_brightness = 128;  // 50% de brilho inicial
-    fsm_ctx.led_strip_on = true;
-    fsm_ctx.setup_param_index = 0;
-    fsm_ctx.setup_effect_index = 0;
-    fsm_ctx.setup_has_changes = false;
-    
-    // Limpa estatísticas
-    memset(&fsm_ctx.stats, 0, sizeof(fsm_stats_t));
-    fsm_ctx.stats.current_state = fsm_ctx.current_state;
-
-    // Cria a task da FSM
-    BaseType_t result = xTaskCreate(
-        fsm_task,
-        "fsm_task",
-        fsm_ctx.config.task_stack_size,
-        NULL,
-        fsm_ctx.config.task_priority,
-        &fsm_ctx.fsm_task_handle
-    );
-
-    if (result != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create FSM task");
-        return ESP_ERR_NO_MEM;
+    if (last_event_timestamp_ms == 0) {
+        last_event_timestamp_ms = get_current_time_ms();
     }
-
-    fsm_ctx.initialized = true;
-    fsm_ctx.running = true;
-
-    // Inicializa display dos LEDs
-    fsm_update_led_display();
-
-    ESP_LOGI(TAG, "FSM initialized successfully in state %" PRIu8, fsm_ctx.current_state);
-    return ESP_OK;
-}
-
-esp_err_t fsm_deinit(void) {
-    if (!fsm_ctx.initialized) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    fsm_ctx.running = false;
-
-    // Aguarda a task terminar
-    if (fsm_ctx.fsm_task_handle != NULL) {
-        vTaskDelete(fsm_ctx.fsm_task_handle);
-        fsm_ctx.fsm_task_handle = NULL;
-    }
-
-    fsm_ctx.initialized = false;
-    ESP_LOGI(TAG, "FSM deinitialized");
-    return ESP_OK;
-}
-
-bool fsm_is_running(void) {
-    return fsm_ctx.initialized && fsm_ctx.running;
-}
-
-fsm_state_t fsm_get_current_state(void) {
-    return fsm_ctx.current_state;
-}
-
-uint8_t fsm_get_current_effect(void) {
-    return fsm_ctx.current_effect;
-}
-
-uint8_t fsm_get_global_brightness(void) {
-    return fsm_ctx.global_brightness;
-}
-
-bool fsm_is_led_strip_on(void) {
-    return fsm_ctx.led_strip_on;
-}
-
-esp_err_t fsm_get_stats(fsm_stats_t *stats) {
-    if (stats == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    
-    fsm_ctx.stats.current_state = fsm_ctx.current_state;
-    fsm_ctx.stats.time_in_current_state = fsm_get_current_time_ms() - fsm_ctx.state_entry_time;
-    *stats = fsm_ctx.stats;
-    return ESP_OK;
-}
-
-void fsm_reset_stats(void) {
-    memset(&fsm_ctx.stats, 0, sizeof(fsm_stats_t));
-    fsm_ctx.stats.current_state = fsm_ctx.current_state;
-    ESP_LOGI(TAG, "Statistics reset");
-}
-
-esp_err_t fsm_force_state(fsm_state_t new_state) {
-    if (new_state >= MODE_SYSTEM_SETUP + 1) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    
-    ESP_LOGW(TAG, "Forcing state transition from %" PRIu8 " to %" PRIu8, fsm_ctx.current_state, new_state);
-    return fsm_transition_to_state(new_state);
-}
-
-// Task principal da FSM
-static void fsm_task(void *pvParameters) {
-    integrated_event_t event;
-    uint32_t current_time;
 
     ESP_LOGI(TAG, "FSM task started");
 
-    while (fsm_ctx.running) {
-        // Espera por eventos na queue
-        if (xQueueReceive(fsm_ctx.event_queue, &event, fsm_ctx.config.queue_timeout_ms) == pdTRUE) {
-            fsm_ctx.stats.events_processed++;
-            
-            esp_err_t ret = fsm_process_integrated_event(&event);
-            if (ret != ESP_OK) {
-                ESP_LOGW(TAG, "Error processing event: %s", esp_err_to_name(ret));
+    while (1) {
+        if (xQueueReceive(qInput, &integrated_evt, waitTicks) == pdTRUE) {
+            event_processed = false;
+
+            // Process event based on source
+            switch (integrated_evt.source) {
+            case EVENT_SOURCE_BUTTON:
+                event_processed = process_button_event(&integrated_evt.data.button, integrated_evt.timestamp);
+                break;
+
+            case EVENT_SOURCE_ENCODER:
+                event_processed = process_encoder_event(&integrated_evt.data.encoder, integrated_evt.timestamp);
+                break;
+
+            case EVENT_SOURCE_TOUCH:
+                event_processed = process_touch_event(&integrated_evt.data.touch, integrated_evt.timestamp);
+                break;
+
+            case EVENT_SOURCE_ESPNOW:
+                event_processed = process_espnow_event(&integrated_evt.data.espnow, integrated_evt.timestamp);
+                break;
+
+            case EVENT_SOURCE_SWITCH:
+                event_processed = process_switch_event(&integrated_evt.data.switch_evt, integrated_evt.timestamp);
+                break;
+
+            default:
+                ESP_LOGW(TAG, "Unknown event source: %d", integrated_evt.source);
+                break;
+            }
+
+            if (event_processed) {
+                last_event_timestamp_ms = get_current_time_ms();
             }
         } else {
-            // Timeout na queue - verifica timeouts do sistema
-            fsm_ctx.stats.queue_timeouts++;
+            // Check for timeout in timed states
+            fsm_state_t current_state = fsm_get_state();
+            bool timeout = false;
+
+            if (current_state == MODE_EFFECT_SELECT && check_timeout(TIMEOUT_EFFECT_SELECT_MS)) {
+                timeout = true;
+            } else if (current_state == MODE_EFFECT_SETUP && check_timeout(TIMEOUT_EFFECT_SETUP_MS)) {
+                timeout = true;
+            } else if (current_state == MODE_SYSTEM_SETUP && check_timeout(TIMEOUT_SYSTEM_SETUP_MS)) {
+                led_controller_save_system_config();
+                timeout = true;
+            }
+
+            if (timeout) {
+                if (current_state != MODE_SYSTEM_SETUP) {
+                    send_led_command(LED_CMD_SAVE_CONFIG, get_current_time_ms(), 0, 0);
+                }
+                fsm_state = MODE_DISPLAY;
+                send_led_command(LED_CMD_FEEDBACK_GREEN, get_current_time_ms(), 0, 0);
+                ESP_LOGI(TAG, "Timeout in state %d -> MODE_DISPLAY (auto-save)", current_state);
+                last_event_timestamp_ms = get_current_time_ms();
+            }
         }
-
-        // Verifica timeout de modo (volta para DISPLAY se ficar muito tempo em outros modos)
-        current_time = fsm_get_current_time_ms();
-        fsm_check_mode_timeout(current_time);
-    }
-
-    ESP_LOGI(TAG, "FSM task terminated");
-    vTaskDelete(NULL);
-}
-
-// Processa evento integrado
-static esp_err_t fsm_process_integrated_event(const integrated_event_t *event) {
-    if (event == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    esp_err_t ret = ESP_OK;
-
-    // Processa evento baseado na fonte
-    switch (event->source) {
-        case EVENT_SOURCE_BUTTON:
-            ret = fsm_process_button_event(&event->data.button, event->timestamp);
-            fsm_ctx.stats.button_events++;
-            break;
-
-        case EVENT_SOURCE_ENCODER:
-            ret = fsm_process_encoder_event(&event->data.encoder, event->timestamp);
-            fsm_ctx.stats.encoder_events++;
-            break;
-
-        case EVENT_SOURCE_ESPNOW:
-            ret = fsm_process_espnow_event(&event->data.espnow, event->timestamp);
-            fsm_ctx.stats.espnow_events++;
-            break;
-
-        default:
-            ESP_LOGW(TAG, "Unknown event source: %" PRIu8, event->source);
-            fsm_ctx.stats.invalid_events++;
-            ret = ESP_ERR_INVALID_ARG;
-            break;
-    }
-
-    return ret;
-}
-
-// Processa eventos de botão baseado no estado atual
-static esp_err_t fsm_process_button_event(const button_event_t *button_event, uint32_t timestamp) {
-    if (button_event == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    ESP_LOGD(TAG, "Button event: %" PRIu8 " in state %" PRIu8, button_event->type, fsm_ctx.current_state);
-
-    switch (fsm_ctx.current_state) {
-        case MODE_DISPLAY:
-            switch (button_event->type) {
-                case BUTTON_CLICK:
-                    // Liga/desliga a fita LED
-                    fsm_ctx.led_strip_on = !fsm_ctx.led_strip_on;
-                    fsm_update_led_display();
-                    ESP_LOGI(TAG, "LED strip %s", fsm_ctx.led_strip_on ? "ON" : "OFF");
-                    break;
-                    
-                case BUTTON_DOUBLE_CLICK:
-                    // Entra no modo seleção de efeito
-                    fsm_transition_to_state(MODE_EFFECT_SELECT);
-                    break;
-                    
-                case BUTTON_LONG_CLICK:
-                    // Entra no setup do efeito atual
-                    fsm_ctx.setup_effect_index = fsm_ctx.current_effect;
-                    fsm_ctx.setup_param_index = 0;
-                    fsm_ctx.setup_has_changes = false;
-                    fsm_transition_to_state(MODE_EFFECT_SETUP);
-                    break;
-                    
-                case BUTTON_VERY_LONG_CLICK:
-                    // Entra no setup do sistema
-                    fsm_transition_to_state(MODE_SYSTEM_SETUP);
-                    break;
-                    
-                default:
-                    // Outros tipos de clique são ignorados neste estado
-                    break;
-            }
-            break;
-
-        case MODE_EFFECT_SELECT:
-            switch (button_event->type) {
-                case BUTTON_CLICK:
-                    // Seleciona o efeito atual e volta para exibição
-                    fsm_transition_to_state(MODE_DISPLAY);
-                    fsm_update_led_display();
-                    ESP_LOGI(TAG, "Effect %" PRIu8 " selected", fsm_ctx.current_effect);
-                    break;
-                    
-                case BUTTON_LONG_CLICK:
-                    // Cancela seleção e volta para exibição
-                    fsm_transition_to_state(MODE_DISPLAY);
-                    break;
-                    
-                default:
-                    break;
-            }
-            break;
-
-        case MODE_EFFECT_SETUP:
-            switch (button_event->type) {
-                case BUTTON_CLICK:
-                    // Salva parâmetro atual e vai para o próximo
-                    fsm_ctx.setup_param_index++;
-                    fsm_ctx.setup_has_changes = true;
-                    // TODO: Verificar se ainda há parâmetros para configurar
-                    // Se não há mais, salva e volta para exibição
-                    ESP_LOGI(TAG, "Setup param %" PRIu8 " saved, moving to next", fsm_ctx.setup_param_index - 1);
-                    break;
-                    
-                case BUTTON_LONG_CLICK:
-                    // Sai do setup e volta para exibição
-                    if (fsm_ctx.setup_has_changes) {
-                        // TODO: Salvar configurações na flash
-                        ESP_LOGI(TAG, "Setup changes saved");
-                    }
-                    fsm_transition_to_state(MODE_DISPLAY);
-                    break;
-                    
-                default:
-                    break;
-            }
-            break;
-
-        case MODE_SYSTEM_SETUP:
-            switch (button_event->type) {
-                case BUTTON_CLICK:
-                    // Navega pelos parâmetros do sistema
-                    ESP_LOGI(TAG, "System setup navigation");
-                    break;
-                    
-                case BUTTON_LONG_CLICK:
-                    // Sai do setup do sistema
-                    fsm_transition_to_state(MODE_DISPLAY);
-                    break;
-                    
-                default:
-                    break;
-            }
-            break;
-
-        default:
-            ESP_LOGW(TAG, "Unknown state in button processing: %" PRIu8, fsm_ctx.current_state);
-            fsm_ctx.stats.invalid_events++;
-            return ESP_ERR_INVALID_STATE;
-    }
-
-    return ESP_OK;
-}
-
-// Processa eventos de encoder baseado no estado atual
-static esp_err_t fsm_process_encoder_event(const encoder_event_t *encoder_event, uint32_t timestamp) {
-    if (encoder_event == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    ESP_LOGD(TAG, "Encoder event: %" PRId32 " steps in state %" PRIu8, encoder_event->steps, fsm_ctx.current_state);
-
-    switch (fsm_ctx.current_state) {
-        case MODE_DISPLAY:
-            // Ajusta brilho global
-            if (encoder_event->steps > 0) {
-                fsm_ctx.global_brightness = (fsm_ctx.global_brightness >= 254 - encoder_event->steps) ? 
-                                           254 : fsm_ctx.global_brightness + encoder_event->steps;
-            } else {
-                fsm_ctx.global_brightness = (fsm_ctx.global_brightness <= -encoder_event->steps) ? 
-                                           0 : fsm_ctx.global_brightness + encoder_event->steps;
-            }
-            fsm_update_led_display();
-            ESP_LOGD(TAG, "Brightness adjusted to %" PRIu8, fsm_ctx.global_brightness);
-            break;
-
-        case MODE_EFFECT_SELECT:
-            // Navega entre efeitos
-            if (encoder_event->steps > 0) {
-                fsm_ctx.current_effect++;
-                // TODO: Verificar limite máximo de efeitos
-            } else if (encoder_event->steps < 0 && fsm_ctx.current_effect > 0) {
-                fsm_ctx.current_effect--;
-            }
-            fsm_update_led_display();  // Mostra preview do efeito
-            ESP_LOGD(TAG, "Effect selection: %" PRIu8, fsm_ctx.current_effect);
-            break;
-
-        case MODE_EFFECT_SETUP:
-            // Ajusta parâmetro do efeito atual
-            // TODO: Implementar ajuste de parâmetros específicos do efeito
-            ESP_LOGD(TAG, "Adjusting effect parameter %" PRIu8 " by %" PRId32 " steps", 
-                     fsm_ctx.setup_param_index, encoder_event->steps);
-            break;
-
-        case MODE_SYSTEM_SETUP:
-            // Ajusta parâmetros do sistema
-            ESP_LOGD(TAG, "Adjusting system parameter %" PRId32 " steps", encoder_event->steps);
-            break;
-
-        default:
-            ESP_LOGW(TAG, "Unknown state in encoder processing: %" PRIu8, fsm_ctx.current_state);
-            fsm_ctx.stats.invalid_events++;
-            return ESP_ERR_INVALID_STATE;
-    }
-
-    return ESP_OK;
-}
-
-// Processa eventos ESP-NOW
-static esp_err_t fsm_process_espnow_event(const espnow_event_t *espnow_event, uint32_t timestamp) {
-    if (espnow_event == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    ESP_LOGD(TAG, "ESP-NOW event: %" PRIu16 " bytes from %02x:%02x:%02x:%02x:%02x:%02x",
-             espnow_event->data_len,
-             espnow_event->mac_addr[0], espnow_event->mac_addr[1], espnow_event->mac_addr[2],
-             espnow_event->mac_addr[3], espnow_event->mac_addr[4], espnow_event->mac_addr[5]);
-
-    // TODO: Implementar processamento de comandos ESP-NOW
-    // Pode incluir: controle remoto, sincronização entre dispositivos, etc.
-
-    return ESP_OK;
-}
-
-// Faz transição entre estados
-static esp_err_t fsm_transition_to_state(fsm_state_t new_state) {
-    if (new_state == fsm_ctx.current_state) {
-        return ESP_OK;  // Já está no estado desejado
-    }
-
-    ESP_LOGI(TAG, "State transition: %" PRIu8 " -> %" PRIu8, fsm_ctx.current_state, new_state);
-    
-    fsm_ctx.previous_state = fsm_ctx.current_state;
-    fsm_ctx.current_state = new_state;
-    fsm_ctx.state_entry_time = fsm_get_current_time_ms();
-    fsm_ctx.stats.state_transitions++;
-
-    // Ações específicas na entrada de cada estado
-    switch (new_state) {
-        case MODE_DISPLAY:
-            // Volta ao modo normal de exibição
-            fsm_update_led_display();
-            break;
-            
-        case MODE_EFFECT_SELECT:
-            // Mostra preview do efeito atual
-            fsm_update_led_display();
-            break;
-            
-        case MODE_EFFECT_SETUP:
-            // Inicia setup do efeito
-            ESP_LOGI(TAG, "Starting effect setup for effect %" PRIu8, fsm_ctx.setup_effect_index);
-            break;
-            
-        case MODE_SYSTEM_SETUP:
-            // Inicia setup do sistema
-            ESP_LOGI(TAG, "Starting system setup");
-            break;
-            
-        default:
-            ESP_LOGW(TAG, "Unknown state in transition: %" PRIu8, new_state);
-            return ESP_ERR_INVALID_ARG;
-    }
-
-    return ESP_OK;
-}
-
-// Verifica timeout de modo (volta para DISPLAY se ficar muito tempo em outros estados)
-static void fsm_check_mode_timeout(uint32_t current_time) {
-    if (fsm_ctx.current_state == MODE_DISPLAY) {
-        return;  // Não há timeout no modo display
-    }
-
-    uint32_t time_in_state = current_time - fsm_ctx.state_entry_time;
-    if (time_in_state > fsm_ctx.config.mode_timeout_ms) {
-        ESP_LOGI(TAG, "Mode timeout in state %" PRIu8 ", returning to display", fsm_ctx.current_state);
-        fsm_transition_to_state(MODE_DISPLAY);
     }
 }
 
-// Atualiza display dos LEDs baseado no estado atual
-static void fsm_update_led_display(void) {
-    // TODO: Implementar chamadas para o LED controller
-    // led_controller_set_effect(fsm_ctx.current_effect);
-    // led_controller_set_brightness(fsm_ctx.global_brightness);
-    // led_controller_set_power(fsm_ctx.led_strip_on);
-    
-    ESP_LOGD(TAG, "LED display updated - Effect: %" PRIu8 ", Brightness: %" PRIu8 ", Power: %s",
-             fsm_ctx.current_effect, fsm_ctx.global_brightness,
-             fsm_ctx.led_strip_on ? "ON" : "OFF");
+/**
+ * @brief Initialize the FSM module
+ * 
+ * @param[in] inputQueue Queue for integrated input events
+ * @param[in] outputQueue Queue for LED commands
+ * 
+ * @note This function must be called before any other FSM functions
+ * @warning Queues must be properly initialized before calling
+ */
+void fsm_init(QueueHandle_t inputQueue, QueueHandle_t outputQueue) {
+    if (!inputQueue || !outputQueue) {
+        ESP_LOGE(TAG, "Invalid queue parameters");
+        return;
+    }
+
+    qInput = inputQueue;
+    qOutput = outputQueue;
+    last_event_timestamp_ms = get_current_time_ms();
+
+    BaseType_t result = xTaskCreate(fsm_task, "FSM", FSM_STACK_SIZE, NULL, FSM_TASK_PRIORITY, NULL);
+    if (result != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create FSM task");
+        return;
+    }
+
+    ESP_LOGI(TAG, "FSM initialized successfully in state MODE_OFF");
 }
 
-// Obtém timestamp atual em millisegundos
-static uint32_t fsm_get_current_time_ms(void) {
-    return (uint32_t)(esp_timer_get_time() / 1000);
+/**
+ * @brief Get current FSM state
+ * 
+ * @return Current FSM state
+ */
+fsm_state_t fsm_get_state(void) { 
+    return fsm_state; 
+}
+
+/**
+ * @brief Set the initial state of the FSM
+ * 
+ * @param[in] state The state to set as the initial state
+ * 
+ * @note This function resets the timeout timer for the new state
+ */
+void fsm_set_initial_state(fsm_state_t state) {
+    fsm_state = state;
+    last_event_timestamp_ms = get_current_time_ms();
+    ESP_LOGI(TAG, "FSM initial state set to: %d", state);
 }

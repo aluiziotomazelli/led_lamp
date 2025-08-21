@@ -25,6 +25,7 @@ set(COMPONENTS
     encoder
     input_integrator
     touch
+    espnow_controller
 )
 
 # Configuração definitiva
@@ -36,4 +37,4 @@ set(EXTRA_COMPONENT_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/components/touch
 )
 
-project(app-template)
+project(led_lamp)

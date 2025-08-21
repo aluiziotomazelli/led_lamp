@@ -1,114 +1,102 @@
+/**
+ * @file fsm.h
+ * @brief Finite State Machine for LED control system
+ * @author Your Name
+ * @version 1.0
+ */
+
 #pragma once
 
+// FreeRTOS components
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "freertos/queue.h"
-#include "esp_log.h"
-#include "esp_err.h"
-#include "input_integrator.h"
-#include <stdint.h>
 
+// ESP-IDF system
+#include "esp_err.h"
+
+// System includes
+#include <stdint.h>
+#include <stdbool.h>
+
+/**
+ * @brief FSM state enumeration
+ */
 typedef enum {
-    MODE_OFF,	
-    MODE_DISPLAY,          ///< Modo exibição - mostra efeito ativo
-    MODE_EFFECT_SELECT,    ///< Modo seleção de efeito
-    MODE_EFFECT_SETUP,     ///< Modo configuração do efeito atual
-    MODE_SYSTEM_SETUP      ///< Modo configuração do sistema
+    MODE_OFF,           ///< System is turned off
+    MODE_DISPLAY,       ///< Normal display mode
+    MODE_EFFECT_SELECT, ///< Effect selection mode
+    MODE_EFFECT_SETUP,  ///< Effect parameter setup mode
+    MODE_SYSTEM_SETUP,  ///< System configuration mode
+    MODE_OTA,           ///< OTA update mode
 } fsm_state_t;
 
 /**
- * @brief Configurações da FSM
+ * @brief LED command types
+ */
+typedef enum {
+    LED_CMD_TURN_OFF,        	///< Turn LEDs off
+    LED_CMD_TURN_ON,         	///< Turn LEDs on with fade
+    LED_CMD_SET_EFFECT,      	///< Set current effect directly (value = effect_index)
+    LED_CMD_SET_BRIGHTNESS,     ///< Set brightness directly (value = brightness)
+    LED_CMD_SET_EFFECT_PARAM,   ///< Set an effect parameter directly (value = param_val, param_idx = index)
+    LED_CMD_NEXT_EFFECT_PARAM, 	///< Go to next effect parameter (value = step)
+    LED_CMD_INC_SYSTEM_PARAM,	///< Increment system parameter (value = step)
+    LED_CMD_NEXT_SYSTEM_PARAM,	///< Go to next system parameter (value = step)
+    LED_CMD_SAVE_CONFIG,      	///< Save current configuration locally
+    LED_CMD_SYNC_AND_SAVE_STATIC_CONFIG, ///< Save static config and sync to slaves
+    LED_CMD_CANCEL_CONFIG,      	///< Cancel current configuration
+    LED_CMD_ENTER_EFFECT_SETUP,    ///< Enter effect setup mode
+    LED_CMD_ENTER_EFFECT_SELECT,   ///< Enter effect selection mode
+    LED_CMD_SET_STRIP_MODE,        ///< Set the strip mode (0: Full, 1: Center)
+
+    // --- Feedback Commands ---
+    LED_CMD_FEEDBACK_GREEN,        ///< Play a green confirmation blink
+    LED_CMD_FEEDBACK_RED,          ///< Play a red cancellation blink
+    LED_CMD_FEEDBACK_BLUE,         ///< Play a blue info blink
+    LED_CMD_FEEDBACK_EFFECT_COLOR, ///< Play a blink with the effect's base color
+    LED_CMD_FEEDBACK_LIMIT,        ///< Play a blink indicating a parameter limit was hit
+
+    LED_CMD_BUTTON_ERROR           ///< Cancel current configuration
+} led_cmd_type_t;
+
+/**
+ * @brief LED command structure
  */
 typedef struct {
-    uint32_t task_stack_size;       ///< Tamanho da stack da task (default: 4096)
-    UBaseType_t task_priority;      ///< Prioridade da task (default: 5)
-    TickType_t queue_timeout_ms;    ///< Timeout para receber da queue (default: 100ms)
-    uint32_t mode_timeout_ms;       ///< Timeout para voltar ao modo display (default: 30000ms)
-} fsm_mode_t;
+    led_cmd_type_t cmd;     ///< Command type
+    uint64_t timestamp;     ///< Timestamp when command was generated
+    int16_t value;          ///< Step value or fixed value
+    uint8_t param_idx;      ///< Index of the parameter to modify
+} led_command_t;
 
 /**
- * @brief Inicializa a FSM
+ * @brief Initialize the FSM module
  * 
- * @param queue_handle Handle da queue de eventos integrados
- * @param config Configurações da FSM (pode ser NULL para usar defaults)
- * @return esp_err_t ESP_OK se inicializado com sucesso
- */
-esp_err_t fsm_init(QueueHandle_t queue_handle, const fsm_mode_t *config);
-
-/**
- * @brief Para a FSM (para cleanup)
+ * @param[in] inputQueue Queue for integrated input events (integrated_event_t)
+ * @param[in] outputQueue Queue for LED commands (led_command_t)
  * 
- * @return esp_err_t ESP_OK se parado com sucesso
+ * @note This function must be called before any other FSM functions
+ * @warning Queues must be properly initialized before calling this function
  */
-esp_err_t fsm_deinit(void);
+void fsm_init(QueueHandle_t inputQueue, QueueHandle_t outputQueue);
 
 /**
- * @brief Verifica se a FSM está inicializada e rodando
+ * @brief Get current FSM state
  * 
- * @return true se inicializada e rodando
- */
-bool fsm_is_running(void);
-
-/**
- * @brief Obtém o estado atual da FSM
+ * @return Current FSM state
  * 
- * @return fsm_state_t Estado atual
+ * @note Useful for debugging and monitoring system state
  */
-fsm_state_t fsm_get_current_state(void);
+fsm_state_t fsm_get_state(void);
 
 /**
- * @brief Obtém o efeito atualmente selecionado
+ * @brief Sets the initial state of the FSM
+ *
+ * This should be called once at startup, after fsm_init() and after
+ * loading the desired state from a persistent source.
+ *
+ * @param[in] state The state to set as the initial state
  * 
- * @return uint8_t Índice do efeito atual
+ * @note This function resets the timeout timer for the new state
  */
-uint8_t fsm_get_current_effect(void);
-
-/**
- * @brief Obtém o brilho global atual
- * 
- * @return uint8_t Brilho atual (0-254)
- */
-uint8_t fsm_get_global_brightness(void);
-
-/**
- * @brief Verifica se a fita LED está ligada
- * 
- * @return true se ligada, false se desligada
- */
-bool fsm_is_led_strip_on(void);
-
-/**
- * @brief Estatísticas da FSM (para debug)
- */
-typedef struct {
-    uint32_t events_processed;      ///< Total de eventos processados
-    uint32_t button_events;         ///< Eventos de botão processados
-    uint32_t encoder_events;        ///< Eventos de encoder processados
-    uint32_t espnow_events;         ///< Eventos ESP-NOW processados
-    uint32_t state_transitions;     ///< Número de transições de estado
-    uint32_t queue_timeouts;        ///< Timeouts na queue
-    uint32_t invalid_events;        ///< Eventos inválidos para estado atual
-    fsm_state_t current_state;      ///< Estado atual
-    uint32_t time_in_current_state; ///< Tempo no estado atual (ms)
-} fsm_stats_t;
-
-/**
- * @brief Obtém estatísticas da FSM
- * 
- * @param stats Ponteiro para estrutura de estatísticas
- * @return esp_err_t ESP_OK se sucesso
- */
-esp_err_t fsm_get_stats(fsm_stats_t *stats);
-
-/**
- * @brief Reseta estatísticas da FSM
- */
-void fsm_reset_stats(void);
-
-/**
- * @brief Força transição para um estado específico (para debug/teste)
- * 
- * @param new_state Estado desejado
- * @return esp_err_t ESP_OK se transição válida
- */
-esp_err_t fsm_force_state(fsm_state_t new_state);
+void fsm_set_initial_state(fsm_state_t state);

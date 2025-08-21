@@ -1,10 +1,38 @@
-#include "button.h"
+/**
+ * @file button.c
+ * @brief Button driver implementation with state machine for click detection
+ * 
+ * @details This file implements a finite state machine for detecting single, double,
+ * long, and very long button clicks with debouncing for both press and release events.
+ * 
+ * @author Your Name
+ * @date 2024-03-15
+ * @version 1.0
+ */
+
+// System includes
+#include <stdint.h>
+#include <stdbool.h>
+
+// ESP-IDF drivers
+#include "driver/gpio.h"
+#include "hal/gpio_types.h"
+
+// FreeRTOS components
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
+
+// Set log level for this module, must come before esp_log.h
 #define LOG_LOCAL_LEVEL ESP_LOG_INFO
+// ESP-IDF system services
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "freertos/task.h"
-#include "hal/gpio_types.h"
+
+// Project specific headers
+#include "button.h"
 #include "project_config.h"
+
 
 static const char *TAG = "Button";
 
@@ -12,11 +40,11 @@ static const char *TAG = "Button";
  * @brief Button state machine states
  */
 typedef enum {
-    BUTTON_WAIT_FOR_PRESS,         ///< Waiting for initial press
-    BUTTON_DEBOUNCE_PRESS,        ///< Debouncing press event
-    BUTTON_WAIT_FOR_RELEASE,      ///< Monitoring button release
-    BUTTON_DEBOUNCE_RELEASE,      ///< Debouncing release event
-    BUTTON_WAIT_FOR_DOUBLE,       ///< Checking for double click
+    BUTTON_WAIT_FOR_PRESS,          ///< Waiting for initial press
+    BUTTON_DEBOUNCE_PRESS,          ///< Debouncing press event
+    BUTTON_WAIT_FOR_RELEASE,        ///< Monitoring button release
+    BUTTON_DEBOUNCE_RELEASE,        ///< Debouncing release event
+    BUTTON_WAIT_FOR_DOUBLE,         ///< Checking for double click
     BUTTON_TIMEOUT_WAIT_FOR_RELEASE ///< Timeout waiting for release
 } button_state_t;
 
@@ -24,22 +52,22 @@ typedef enum {
  * @brief Complete button instance structure
  */
 struct button_s {
-    gpio_num_t pin;               ///< GPIO pin number
-    button_state_t state;         ///< Current state machine state
-    uint32_t last_time_ms;        ///< Last event timestamp
-    uint32_t press_start_time_ms; ///< Press start timestamp
-    bool first_click;             ///< First click in double-click sequence
+    gpio_num_t pin;                 ///< GPIO pin number
+    button_state_t state;           ///< Current state machine state
+    uint32_t last_time_ms;          ///< Last event timestamp
+    uint32_t press_start_time_ms;   ///< Press start timestamp
+    bool first_click;               ///< First click in double-click sequence
 
-    bool active_low;              ///< Active low configuration
-    uint32_t debounce_press_ms;   ///< Press debounce duration
-    uint32_t debounce_release_ms; ///< Release debounce duration
-    uint32_t double_click_ms;     ///< Double click interval
-    uint32_t long_click_ms;       ///< Long click duration
-    uint32_t very_long_click_ms;  ///< Very long click duration
-    uint32_t timeout_ms;          ///< Press timeout duration
+    bool active_low;                ///< Active low configuration
+    uint32_t debounce_press_ms;     ///< Press debounce duration
+    uint32_t debounce_release_ms;   ///< Release debounce duration
+    uint32_t double_click_ms;       ///< Double click interval
+    uint32_t long_click_ms;         ///< Long click duration
+    uint32_t very_long_click_ms;    ///< Very long click duration
+    uint32_t timeout_ms;            ///< Press timeout duration
 
-    QueueHandle_t output_queue;   ///< Event output queue
-    TaskHandle_t task_handle;     ///< Associated task handle
+    QueueHandle_t output_queue;     ///< Event output queue
+    TaskHandle_t task_handle;       ///< Associated task handle
 };
 
 /**
@@ -52,8 +80,17 @@ static uint32_t get_current_time_ms() {
 
 /**
  * @brief Main button state machine logic
+ * 
  * @param btn Button instance
  * @return Detected click type
+ * 
+ * @note This function implements a 6-state finite state machine:
+ * 1. BUTTON_WAIT_FOR_PRESS - Waiting for initial press
+ * 2. BUTTON_DEBOUNCE_PRESS - Debouncing press event
+ * 3. BUTTON_WAIT_FOR_RELEASE - Monitoring button release
+ * 4. BUTTON_DEBOUNCE_RELEASE - Debouncing release event
+ * 5. BUTTON_WAIT_FOR_DOUBLE - Checking for double click
+ * 6. BUTTON_TIMEOUT_WAIT_FOR_RELEASE - Timeout waiting for release
  */
 static button_click_type_t button_get_click(button_t *btn) {
     uint32_t now = get_current_time_ms();
@@ -61,8 +98,10 @@ static button_click_type_t button_get_click(button_t *btn) {
     uint8_t released_level = btn->active_low ? 1 : 0;
 
     switch (btn->state) {
+    // Step 1: Wait for the button to be pressed
     case BUTTON_WAIT_FOR_PRESS:
         if (gpio_get_level(btn->pin) == pressed_level) {
+            // Button pressed, start debounce timer and move to next state
             btn->press_start_time_ms = now;
             btn->state = BUTTON_DEBOUNCE_PRESS;
             ESP_LOGD("FSM", "STARTING DEBOUNCE (Pin: %d, Level: %d)", 
@@ -70,12 +109,16 @@ static button_click_type_t button_get_click(button_t *btn) {
         }
         break;
 
+    // Step 2: Debounce the button press to filter out noise
     case BUTTON_DEBOUNCE_PRESS:
         if (now - btn->press_start_time_ms > btn->debounce_press_ms) {
+            // Debounce time has passed. Check if button is still pressed
             if (gpio_get_level(btn->pin) == pressed_level) {
+                // Still pressed: valid press, wait for release
                 btn->state = BUTTON_WAIT_FOR_RELEASE;
                 ESP_LOGD("FSM", "WAIT_FOR_RELEASE (Pin: %d)", btn->pin);
             } else {
+                // Not pressed anymore: it was a glitch, go back to waiting
                 btn->state = BUTTON_WAIT_FOR_PRESS;
                 ESP_LOGD("FSM", "Premature release, back to WAIT_FOR_PRESS (Pin: %d)",
                         btn->pin);
@@ -83,58 +126,75 @@ static button_click_type_t button_get_click(button_t *btn) {
         }
         break;
 
+    // Step 3: Wait for the button to be released
     case BUTTON_WAIT_FOR_RELEASE:
         if (gpio_get_level(btn->pin) == released_level) {
+            // Button released. Check how long it was pressed
             uint32_t duration = now - btn->press_start_time_ms;
 
             if (duration > btn->very_long_click_ms) {
+                // Held for a very long time
                 btn->state = BUTTON_WAIT_FOR_PRESS;
                 return BUTTON_VERY_LONG_CLICK;
             } else if (duration > btn->long_click_ms) {
+                // Held for a long time
                 btn->state = BUTTON_WAIT_FOR_PRESS;
                 return BUTTON_LONG_CLICK;
             } else {
+                // Short press. Start release debounce and check for double click
                 btn->last_time_ms = now;
                 btn->state = BUTTON_DEBOUNCE_RELEASE;
             }
         } else if (now - btn->press_start_time_ms > btn->timeout_ms) {
+            // Button held down for too long (timeout)
             btn->state = BUTTON_TIMEOUT_WAIT_FOR_RELEASE;
             btn->last_time_ms = now;
             ESP_LOGD("FSM", "TIMEOUT WAIT FOR RELEASE");
         }
         break;
 
+    // Step 4: Debounce the button release
     case BUTTON_DEBOUNCE_RELEASE:
         if (now - btn->last_time_ms > btn->debounce_release_ms) {
+            // Release confirmed. Now check for a potential double click
             if (gpio_get_level(btn->pin) == released_level) {
                 btn->state = BUTTON_WAIT_FOR_DOUBLE;
                 ESP_LOGD("FSM", "DEBOUNCE RELEASED (Pin: %d)", btn->pin);
             } else {
+                // If pressed again during debounce, proceed to double click check
                 btn->state = BUTTON_WAIT_FOR_DOUBLE;
                 ESP_LOGD("FSM", "Pressed during DEBOUNCE_RELEASE (Pin: %d)", btn->pin);
             }
         }
         break;
 
+    // Step 5: Wait for a potential second click
     case BUTTON_WAIT_FOR_DOUBLE:
+        // Check if a second press occurs within the double click window
         if (gpio_get_level(btn->pin) == pressed_level && !btn->first_click) {
+            // Second press detected, confirming a double click sequence
             btn->last_time_ms = now;
-            btn->first_click = true;
-            btn->state = BUTTON_DEBOUNCE_PRESS;
+            btn->first_click = true; // Flag that we are in a double click
+            btn->state = BUTTON_DEBOUNCE_PRESS; // Restart debounce for the second click
             ESP_LOGD("FSM", "Second click detected (Pin: %d)", btn->pin);
         } else if (now - btn->last_time_ms > btn->double_click_ms) {
+            // No second click occurred in time
             btn->state = BUTTON_WAIT_FOR_PRESS;
             if (btn->first_click) {
+                // If we were in a double click sequence, it's now complete
                 btn->first_click = false;
                 return BUTTON_DOUBLE_CLICK;
             } else {
+                // Otherwise, it was just a single click
                 return BUTTON_CLICK;
             }
         }
         break;
 
+    // Step 6: Handle button release after a timeout
     case BUTTON_TIMEOUT_WAIT_FOR_RELEASE:
         if (gpio_get_level(btn->pin) == released_level) {
+            // Button finally released after a timeout
             if (now - btn->last_time_ms > btn->debounce_release_ms) {
                 btn->last_time_ms = now;
                 btn->state = BUTTON_WAIT_FOR_PRESS;
@@ -142,7 +202,9 @@ static button_click_type_t button_get_click(button_t *btn) {
                 return BUTTON_TIMEOUT;
             }
         } else {
+            // If still held, check for an error condition (held way too long)
             btn->last_time_ms = now;
+            // Double timeout period for error detection (2x normal timeout)
             if (now - btn->press_start_time_ms > 2 * btn->timeout_ms) {
                 btn->state = BUTTON_WAIT_FOR_PRESS;
                 ESP_LOGD("FSM", "BUTTON ERROR");
@@ -157,7 +219,11 @@ static button_click_type_t button_get_click(button_t *btn) {
 
 /**
  * @brief Button task main function
+ * 
  * @param param Button instance passed as parameter
+ * 
+ * @note This task processes button events when notified by the ISR.
+ * It disables interrupts during processing to prevent re-entrancy.
  */
 static void button_task(void *param) {
     button_t *btn = (button_t *)param;
@@ -201,7 +267,11 @@ static void button_task(void *param) {
 
 /**
  * @brief Button interrupt service routine
+ * 
  * @param arg Button instance passed as argument
+ * 
+ * @note This ISR runs in IRAM for fast execution and notifies the button task.
+ * It uses DRAM logging to avoid flash access during interrupt handling.
  */
 static void IRAM_ATTR button_isr_handler(void *arg) {
     button_t *btn = (button_t *)arg;
@@ -218,9 +288,13 @@ static void IRAM_ATTR button_isr_handler(void *arg) {
 
 /**
  * @brief Create a new button instance
+ * 
  * @param config Button configuration
  * @param output_queue Event output queue
  * @return button_t* Button handle, NULL on error
+ * 
+ * @note The output queue must be created beforehand with adequate size
+ * @warning Do not call this function from an ISR
  */
 button_t *button_create(const button_config_t *config,
                        QueueHandle_t output_queue) {
@@ -248,7 +322,7 @@ button_t *button_create(const button_config_t *config,
     btn->double_click_ms = config->double_click_ms;
     btn->long_click_ms = config->long_click_ms;
     btn->very_long_click_ms = config->very_long_click_ms;
-    btn->timeout_ms = config->very_long_click_ms * 2;
+    btn->timeout_ms = config->very_long_click_ms * 2; // Timeout is 2x very_long time
 
     // Configure GPIO
     gpio_config_t io_conf = {
@@ -267,7 +341,7 @@ button_t *button_create(const button_config_t *config,
         return NULL;
     }
 
-    // Install ISR service
+    // Install ISR service (ignores error if already installed)
     esp_err_t err = gpio_install_isr_service(0);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
         ESP_LOGE(TAG, "Failed to install ISR service: %s",
@@ -296,7 +370,11 @@ button_t *button_create(const button_config_t *config,
 
 /**
  * @brief Delete button instance and free resources
+ * 
  * @param btn Button handle to delete
+ * 
+ * @note This function does not delete the event queue
+ * @warning Ensure no tasks are using the button before deletion
  */
 void button_delete(button_t *btn) {
     if (btn) {

@@ -1,151 +1,71 @@
 #include "button.h"
 #include "encoder.h"
-#include "esp_log_level.h"
-
 #include "esp_log.h"
+#include "esp_log_level.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include "input_integrator.h" // For integrated_event_t, init_queue_manager, integrator_task
-#include "project_config.h" // For queue sizes and pin definitions
+#include "input_integrator.h"
+#include "project_config.h"
 #include "touch.h"
-#include <inttypes.h> // For PRIu32
+#include "switch.h"
+#include <inttypes.h>
 #include <stdio.h>
 
-// Define Global Variables
+#include "esp_system.h"
+#include "fsm.h" // FSM incremental
+#include "led_controller.h"
+#include "led_driver.h"
+#include "espnow_controller.h"
+#include "nvs_flash.h"
+#include "nvs_manager.h"
+#include "ota_updater.h"
+
 static const char *TAG = "main";
 
+// Filas globais
 QueueHandle_t button_event_queue;
 QueueHandle_t encoder_event_queue;
-QueueHandle_t espnow_event_queue; // Though not actively used for sending in
-								  // this test, it's part of integrator
+QueueHandle_t espnow_event_queue;
 QueueHandle_t touch_event_queue;
+QueueHandle_t switch_event_queue;
 QueueHandle_t integrated_event_queue;
+QueueHandle_t led_cmd_queue; // Saída da FSM para o LED Controller
+QueueHandle_t led_strip_queue; // Saída do LED Controller para o driver de LED
 
 queue_manager_t queue_manager;
 
-// Define stack sizes for tasks - these were previously hardcoded and might be a
-// source of issues if too small
-#define TASK_STACK_SIZE_INTEGRATOR 2048
-#define TASK_STACK_SIZE_HANDLER 2048
-
-// Opcional: cria
-// Implement integrated_event_handler_task
-static void integrated_event_handler_task(void *pvParameters) {
-	integrated_event_t event;
-	
-	// Inicializa o LED (GPIO2)
-    const int LED_GPIO = 2;
-    gpio_reset_pin(LED_GPIO);
-    gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(LED_GPIO, 0); // Inicia desligado
-    
-	while (1) {
-		if (xQueueReceive(integrated_event_queue, &event, portMAX_DELAY) ==
-			pdTRUE) {
-			switch (event.source) {
-			case EVENT_SOURCE_BUTTON:
-				ESP_LOGI(TAG,
-						 "BUTTON - Pin: %d, Type: %d, "
-						 "Timestamp: %" PRIu32,
-						 event.data.button.pin, event.data.button.type,
-						 event.timestamp);
-				break;
-			case EVENT_SOURCE_ENCODER:
-				ESP_LOGI(TAG,
-						 "ENCODER - Steps: %" PRId32
-						 ", Timestamp: %" PRIu32,
-						 event.data.encoder.steps, event.timestamp);
-				break;
-			case EVENT_SOURCE_ESPNOW:
-				// Ensure ESPNOW data is handled safely, e.g. check data_len
-				// before printing
-				ESP_LOGI(TAG,
-						 "ESPNOW - MAC: "
-						 "%02x:%02x:%02x:%02x:%02x:%02x, DataLen: %d, "
-						 "Timestamp: %" PRIu32,
-						 event.data.espnow.mac_addr[0],
-						 event.data.espnow.mac_addr[1],
-						 event.data.espnow.mac_addr[2],
-						 event.data.espnow.mac_addr[3],
-						 event.data.espnow.mac_addr[4],
-						 event.data.espnow.mac_addr[5],
-						 event.data.espnow.data_len, event.timestamp);
-				// Example: if (event.data.espnow.data_len > 0) { ESP_LOGI(TAG,
-				// "  Data: %.*s", event.data.espnow.data_len,
-				// (char*)event.data.espnow.data); }
-				break;
-			case EVENT_SOURCE_TOUCH:
-				// Processamento específico para touch events
-				switch (event.data.touch.type) {
-				case TOUCH_PRESS:
-				
-				
-					ESP_LOGI(TAG,  
-							 "Touch press on pad %d (via integrator)",
-							 event.data.touch.pad);
-					// Sua lógica para toque simples aqui
-					static bool led_state = false;
-                    led_state = !led_state; // Alterna estado
-                    gpio_set_level(LED_GPIO, led_state);
-                    ESP_LOGI(TAG, "LED %s", led_state ? "LIGADO" : "DESLIGADO");
-					
-					break;
-
-				case TOUCH_HOLD:
-					ESP_LOGI(TAG,
-							 "Touch hold press on pad %d (via integrator)",
-							 event.data.touch.pad);
-					// Sua lógica para toque longo aqui (ex: aumentar brilho)
-					// --- NOVO: Piscar LED 3x para toque longo ---
-                    led_state = !led_state; // Alterna estado
-                    gpio_set_level(LED_GPIO, led_state);
-                    ESP_LOGI(TAG, "LED %s", led_state ? "LIGADO" : "DESLIGADO");
-					
-					break;
-//				case TOUCH_HOLD_REPEAT:
-//					ESP_LOGI("Integrated Event: TOUCH",
-//							 "Touch hold repeat on pad %d (via integrator)",
-//							 event.data.touch.pad);
-//					// Sua lógica para toque longo aqui (ex: aumentar brilho)
-//					break;
-
-				case TOUCH_ERROR:
-					ESP_LOGW(TAG,
-							 "Touch error on pad %d (via integrator)",
-							 event.data.touch.pad);
-					break;
-
-				default:
-					ESP_LOGW(TAG, "Unknown touch type %d on pad %d",
-							 event.data.touch.type, event.data.touch.pad);
-					break;
-				}
-
-				// Log padrão do integrator também
-				ESP_LOGI(TAG,
-						 "TOUCH - Pad: %d, Type: %d, "
-						 "Timestamp: %" PRIu32,
-						 event.data.touch.pad, event.data.touch.type,
-						 event.timestamp);
-				break;
-
-			default:
-				ESP_LOGW(TAG,
-						 "UNKNOWN SOURCE (%d), Timestamp: "
-						 "%" PRIu32,
-						 event.source, event.timestamp);
-				break;
-			}
-		}
-		vTaskDelay(pdMS_TO_TICKS(10)); // Small delay
-	}
-}
-
+// -----------------------------------------------------------------------------
+// Função principal
+// -----------------------------------------------------------------------------
 void app_main(void) {
+    // Initialize NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    // Check for OTA mode
+    ota_data_t ota_data;
+    nvs_manager_load_ota_data(&ota_data);
+
+    if (ota_data.ota_mode_enabled) {
+        ESP_LOGI(TAG, "OTA mode enabled. Starting OTA updater...");
+        ota_updater_start();
+        ESP_LOGI(TAG, "OTA process started. Halting main execution.");
+        // Halt main execution while OTA task runs
+        while(1) {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+
+    ESP_LOGI(TAG, "Normal boot sequence.");
+
 	esp_log_level_set("Touch", ESP_LOG_DEBUG);
 
-	// Create Queues
+	// Criação das filas
 	button_event_queue =
 		xQueueCreate(BUTTON_QUEUE_SIZE, sizeof(button_event_t));
 	configASSERT(button_event_queue != NULL);
@@ -156,27 +76,37 @@ void app_main(void) {
 	configASSERT(encoder_event_queue != NULL);
 	ESP_LOGI(TAG, "Encoder event queue created (size: %d)", ENCODER_QUEUE_SIZE);
 
-	touch_event_queue =
-		xQueueCreate(TOUCH_QUEUE_SIZE, sizeof(touch_event_t));
+	touch_event_queue = xQueueCreate(TOUCH_QUEUE_SIZE, sizeof(touch_event_t));
 	configASSERT(touch_event_queue != NULL);
-	ESP_LOGI(TAG, "Touch button event queue created (size: %d)",
-			 TOUCH_QUEUE_SIZE);
+	ESP_LOGI(TAG, "Touch event queue created (size: %d)", TOUCH_QUEUE_SIZE);
+
+    switch_event_queue = xQueueCreate(SWITCH_QUEUE_SIZE, sizeof(switch_event_t));
+	configASSERT(switch_event_queue != NULL);
+	ESP_LOGI(TAG, "Switch event queue created (size: %d)", SWITCH_QUEUE_SIZE);
 
 	espnow_event_queue =
 		xQueueCreate(ESPNOW_QUEUE_SIZE, sizeof(espnow_event_t));
 	configASSERT(espnow_event_queue != NULL);
 	ESP_LOGI(TAG, "ESP-NOW event queue created (size: %d)", ESPNOW_QUEUE_SIZE);
 
+    // Initialize ESP-NOW controller
+#if ESP_NOW_ENABLED
+    espnow_controller_init(espnow_event_queue);
+#endif
+
 	UBaseType_t integrated_queue_len = BUTTON_QUEUE_SIZE + ENCODER_QUEUE_SIZE +
-									   ESPNOW_QUEUE_SIZE +
-									   TOUCH_QUEUE_SIZE;
+									   ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE + SWITCH_QUEUE_SIZE;
 	integrated_event_queue =
 		xQueueCreate(integrated_queue_len, sizeof(integrated_event_t));
 	configASSERT(integrated_event_queue != NULL);
-	ESP_LOGI(TAG, "Integrated event queue created (size: %du)",
-			 integrated_queue_len);
+	ESP_LOGI(TAG, "Integrated event queue created (size: %lu)",
+			 (unsigned long)integrated_queue_len);
 
-	// Initialize Button
+	led_cmd_queue = xQueueCreate(LED_CMD_QUEUE_SIZE, sizeof(led_command_t));
+	configASSERT(led_cmd_queue != NULL);
+	ESP_LOGI(TAG, "LED command queue created (size: %d)", LED_CMD_QUEUE_SIZE);
+
+	// Inicializa botão
 	button_config_t btn_cfg = {.pin = BUTTON1_PIN,
 							   .active_low = true,
 							   .debounce_press_ms = DEBOUNCE_PRESS_MS,
@@ -188,12 +118,11 @@ void app_main(void) {
 	configASSERT(button_handle != NULL);
 	ESP_LOGI(TAG, "Button initialized on pin %d", BUTTON1_PIN);
 
-	// Initialize Encoder
+	// Inicializa encoder
 	encoder_config_t enc_cfg = {.pin_a = ENCODER_PIN_A,
 								.pin_b = ENCODER_PIN_B,
 								.half_step_mode = false,
-								.acceleration_enabled =
-									true, // Keep it simple for testing
+								.acceleration_enabled = true,
 								.accel_gap_ms = ENC_ACCEL_GAP,
 								.accel_max_multiplier = MAX_ACCEL_MULTIPLIER};
 	encoder_handle_t encoder_handle =
@@ -202,44 +131,84 @@ void app_main(void) {
 	ESP_LOGI(TAG, "Encoder initialized on pins A: %d, B: %d", ENCODER_PIN_A,
 			 ENCODER_PIN_B);
 
-// Initialize Touch
-touch_config_t touch_cfg = {
-        .pad = TOUCH_PAD1_PIN,
-        .threshold_percent = TOUCH_THRESHOLD_PERCENT,
-        .debounce_press_ms = TOUCH_DEBOUNCE_PRESS_MS,
-        .debounce_release_ms = TOUCH_DEBOUNCE_RELEASE_MS,
-        .hold_time_ms = TOUCH_HOLD_TIME_MS,
-        .hold_repeat_interval_ms = TOUCH_HOLD_REPEAT_TIME_MS,
-        .recalibration_interval_min = TOUCH_RECALIBRATION_INTERVAL_MIN,
-        .enable_hold_repeat = true
-    };
-
-	touch_t *touch_handle =
-		touch_create(&touch_cfg, touch_event_queue);
+	// Inicializa touch
+	touch_config_t touch_cfg = {
+		.pad = TOUCH_PAD1_PIN,
+		.threshold_percent = TOUCH_THRESHOLD_PERCENT,
+		.debounce_press_ms = TOUCH_DEBOUNCE_PRESS_MS,
+		.debounce_release_ms = TOUCH_DEBOUNCE_RELEASE_MS,
+		.hold_time_ms = TOUCH_HOLD_TIME_MS,
+		.hold_repeat_interval_ms = TOUCH_HOLD_REPEAT_TIME_MS,
+		.recalibration_interval_min = TOUCH_RECALIBRATION_INTERVAL_MIN,
+		.enable_hold_repeat = true};
+	touch_t *touch_handle = touch_create(&touch_cfg, touch_event_queue);
 	configASSERT(touch_handle != NULL);
 	ESP_LOGI(TAG, "Touch button initialized on pad %d", TOUCH_PAD1_PIN);
 
-	// Initialize Input Integrator
-	queue_manager = init_queue_manager(
-		button_event_queue, encoder_event_queue, espnow_event_queue,
-		touch_event_queue, integrated_event_queue);
+    // Inicializa switch
+    switch_config_t switch_cfg = {
+        .pin = SWITCH_PIN_1,
+        .active_low = true, // Assumes the switch pulls the pin to GND when closed
+        .debounce_ms = 50
+    };
+    switch_t switch_handle = switch_create(&switch_cfg, switch_event_queue);
+    configASSERT(switch_handle != NULL);
+    ESP_LOGI(TAG, "Switch created on pin %d", SWITCH_PIN_1);
+
+	// Inicializa integrador de inputs
+	queue_manager = init_queue_manager(button_event_queue, encoder_event_queue,
+									   espnow_event_queue, touch_event_queue,
+                                       switch_event_queue,
+									   integrated_event_queue);
 	configASSERT(queue_manager.queue_set != NULL);
 	ESP_LOGI(TAG, "Input integrator initialized.");
 
-	// Create Tasks
+	// Inicializa FSM incremental
+	fsm_init(integrated_event_queue, led_cmd_queue);
+
+    // Inicializa o LED Controller real
+    led_strip_queue = led_controller_init(led_cmd_queue);
+    configASSERT(led_strip_queue != NULL);
+    ESP_LOGI(TAG, "Real LED Controller initialized.");
+
+    // Load data from NVS and apply it
+    ESP_LOGI(TAG, "Loading configuration from NVS...");
+    volatile_data_t v_data;
+    static_data_t s_data;
+    esp_err_t volatile_err = nvs_manager_load_volatile_data(&v_data);
+    esp_err_t static_err = nvs_manager_load_static_data(&s_data);
+
+    // If data was not found, it means defaults were loaded. We should save
+    // them now to "heal" the NVS.
+    if (volatile_err == ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGI(TAG, "Volatile data was not found, saving defaults to NVS.");
+        nvs_manager_save_volatile_data(&v_data);
+    }
+    if (static_err == ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGI(TAG, "Static data was not found, saving defaults to NVS.");
+        nvs_manager_save_static_data(&s_data);
+    }
+
+    led_controller_apply_nvs_data(&v_data, &s_data);
+
+    // Synchronize FSM state with loaded data
+    if (v_data.is_on) {
+        fsm_set_initial_state(MODE_DISPLAY);
+    } else {
+        fsm_set_initial_state(MODE_OFF);
+    }
+    ESP_LOGI(TAG, "NVS configuration loaded and applied.");
+
+    // Inicializa o LED Driver
+    led_driver_init(led_strip_queue);
+    ESP_LOGI(TAG, "LED Driver initialized.");
+
+	// Criação das tasks
 	BaseType_t task_created;
-	task_created =
-		xTaskCreate(integrator_task, "integrator_task",
-					TASK_STACK_SIZE_INTEGRATOR, &queue_manager, 5, NULL);
+	task_created = xTaskCreate(integrator_task, "integrator_task",
+							   INTEGRATOR_TASK_STACK_SIZE, &queue_manager,
+							   INTEGRATOR_TASK_PRIORITY, NULL);
 	configASSERT(task_created == pdPASS);
 
-	task_created = xTaskCreate(integrated_event_handler_task,
-							   "integrated_event_handler_task",
-							   TASK_STACK_SIZE_HANDLER, NULL, 4, NULL);
-	configASSERT(task_created == pdPASS);
-
-	ESP_LOGI(TAG, "Tasks created (integrator stack: %d, handler stack: %d).",
-			 TASK_STACK_SIZE_INTEGRATOR, TASK_STACK_SIZE_HANDLER);
-	ESP_LOGI(TAG, "Test main setup complete. Monitoring events...");
-
+	ESP_LOGI(TAG, "System initialized. Monitoring events...");
 }

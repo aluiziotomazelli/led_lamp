@@ -1,7 +1,20 @@
+/**
+ * @file touch.h
+ * @brief Touch sensor driver with advanced gesture detection
+ * @author Your Name
+ * @version 1.0
+ */
+
 #pragma once
+
+// System includes
 #include <stdint.h>
 #include <stdbool.h>
+
+// ESP-IDF drivers
 #include "driver/touch_pad.h"
+
+// FreeRTOS components
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
@@ -42,14 +55,22 @@ typedef struct touch_s touch_t;
 
 /**
  * @brief Create a new touch button instance
- * @param config Pointer to configuration structure
- * @param output_queue FreeRTOS queue for event output
- * @return Pointer to new touch instance, NULL on failure
+ * 
+ * @param[in] config Pointer to configuration structure
+ * @param[in] output_queue FreeRTOS queue for event output
+ * @return touch_t* Pointer to new touch instance, NULL on failure
+ * 
+ * @note The output queue must be created before calling this function
+ * @warning Touch pads require proper hardware configuration and calibration
  */
 touch_t* touch_create(const touch_config_t* config, QueueHandle_t output_queue);
 
 /**
  * @brief Delete a touch button instance and free resources
- * @param touch_handle Pointer to touch instance to delete
+ * 
+ * @param[in] touch_handle Pointer to touch instance to delete
+ * 
+ * @note This function does not delete the event queue
+ * @warning Ensure no tasks are using the touch instance before deletion
  */
 void touch_delete(touch_t* touch_handle);
