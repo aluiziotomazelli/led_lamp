@@ -33,8 +33,6 @@ QueueHandle_t integrated_event_queue;
 QueueHandle_t led_cmd_queue; // Saída da FSM para o LED Controller
 QueueHandle_t led_strip_queue; // Saída do LED Controller para o driver de LED
 
-queue_manager_t queue_manager;
-
 // -----------------------------------------------------------------------------
 // Função principal
 // -----------------------------------------------------------------------------
@@ -156,11 +154,11 @@ void app_main(void) {
     ESP_LOGI(TAG, "Switch created on pin %d", SWITCH_PIN_1);
 
 	// Inicializa integrador de inputs
-	init_queue_manager(&queue_manager, button_event_queue, encoder_event_queue,
+	esp_err_t integrator_status = init_queue_manager(button_event_queue, encoder_event_queue,
 									   espnow_event_queue, touch_event_queue,
                                        switch_event_queue,
 									   integrated_event_queue);
-	configASSERT(queue_manager.queue_set != NULL);
+	configASSERT(integrator_status == ESP_OK);
 	ESP_LOGI(TAG, "Input integrator initialized.");
 
 	// Inicializa FSM incremental
