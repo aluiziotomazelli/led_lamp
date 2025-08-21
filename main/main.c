@@ -156,7 +156,7 @@ void app_main(void) {
     ESP_LOGI(TAG, "Switch created on pin %d", SWITCH_PIN_1);
 
 	// Inicializa integrador de inputs
-	queue_manager = init_queue_manager(button_event_queue, encoder_event_queue,
+	init_queue_manager(&queue_manager, button_event_queue, encoder_event_queue,
 									   espnow_event_queue, touch_event_queue,
                                        switch_event_queue,
 									   integrated_event_queue);
@@ -202,13 +202,6 @@ void app_main(void) {
     // Inicializa o LED Driver
     led_driver_init(led_strip_queue);
     ESP_LOGI(TAG, "LED Driver initialized.");
-
-	// Criação das tasks
-	BaseType_t task_created;
-	task_created = xTaskCreate(integrator_task, "integrator_task",
-							   INTEGRATOR_TASK_STACK_SIZE, &queue_manager,
-							   INTEGRATOR_TASK_PRIORITY, NULL);
-	configASSERT(task_created == pdPASS);
 
 	ESP_LOGI(TAG, "System initialized. Monitoring events...");
 }

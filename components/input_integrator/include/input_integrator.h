@@ -79,7 +79,7 @@ typedef struct {
  * @note All input queues must be created before calling this function
  * @warning Queue sizes must be properly configured in project_config.h
  */
-queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
+void init_queue_manager(queue_manager_t *qm, QueueHandle_t btn_q, QueueHandle_t enc_q,
                                  QueueHandle_t espnow_q, QueueHandle_t touch_q,
                                  QueueHandle_t switch_q, QueueHandle_t int_q);
 

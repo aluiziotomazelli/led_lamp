@@ -138,23 +138,25 @@ void integrator_task(void *pvParameters) {
  * @note This function creates a queue set and adds all input queues to it
  * @warning All input queues must be valid and created before calling this function
  */
-queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
+void init_queue_manager(queue_manager_t *qm, QueueHandle_t btn_q, QueueHandle_t enc_q,
                                  QueueHandle_t espnow_q, QueueHandle_t touch_q,
                                  QueueHandle_t switch_q, QueueHandle_t int_q) {
-    queue_manager_t qm = {
-        .button_queue = btn_q,
-        .encoder_queue = enc_q,
-        .espnow_queue = espnow_q,
-        .touch_queue = touch_q,
-        .switch_queue = switch_q,
-        .integrated_queue = int_q,
-        .queue_set = NULL
-    };
+
+    configASSERT(qm != NULL);
+
+    // Initialize the queue manager structure
+    qm->button_queue = btn_q;
+    qm->encoder_queue = enc_q;
+    qm->espnow_queue = espnow_q;
+    qm->touch_queue = touch_q;
+    qm->switch_queue = switch_q;
+    qm->integrated_queue = int_q;
+    qm->queue_set = NULL;
 
     // Validate input queues
     if (!btn_q || !enc_q || !espnow_q || !touch_q || !switch_q || !int_q) {
         ESP_LOGE(TAG, "One or more invalid queues received");
-        return qm;
+        return;
     }
 
     // Calculate total queue size for the queue set
@@ -162,24 +164,35 @@ queue_manager_t init_queue_manager(QueueHandle_t btn_q, QueueHandle_t enc_q,
                             ESPNOW_QUEUE_SIZE + TOUCH_QUEUE_SIZE + SWITCH_QUEUE_SIZE;
 
     // Create queue set with sufficient capacity
-    qm.queue_set = xQueueCreateSet(queue_size);
-    if (qm.queue_set == NULL) {
+    qm->queue_set = xQueueCreateSet(queue_size);
+    if (qm->queue_set == NULL) {
         ESP_LOGE(TAG, "Failed to create queue set");
-        return qm;
+        return;
     }
 
     // Add all input queues to the queue set
-    if (xQueueAddToSet(btn_q, qm.queue_set) != pdPASS ||
-        xQueueAddToSet(enc_q, qm.queue_set) != pdPASS ||
-        xQueueAddToSet(espnow_q, qm.queue_set) != pdPASS ||
-        xQueueAddToSet(touch_q, qm.queue_set) != pdPASS ||
-        xQueueAddToSet(switch_q, qm.queue_set) != pdPASS) {
+    if (xQueueAddToSet(btn_q, qm->queue_set) != pdPASS ||
+        xQueueAddToSet(enc_q, qm->queue_set) != pdPASS ||
+        xQueueAddToSet(espnow_q, qm->queue_set) != pdPASS ||
+        xQueueAddToSet(touch_q, qm->queue_set) != pdPASS ||
+        xQueueAddToSet(switch_q, qm->queue_set) != pdPASS) {
         ESP_LOGE(TAG, "Failed to add queues to set");
-        vQueueDelete(qm.queue_set);
-        qm.queue_set = NULL;
-        return qm;
+        vQueueDelete(qm->queue_set);
+        qm->queue_set = NULL;
+        return;
+    }
+
+    // Create the integrator task
+	BaseType_t task_created = xTaskCreate(integrator_task, "integrator_task",
+							   INTEGRATOR_TASK_STACK_SIZE, qm,
+							   INTEGRATOR_TASK_PRIORITY, NULL);
+
+    if (task_created != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create integrator task");
+        vQueueDelete(qm->queue_set);
+        qm->queue_set = NULL;
+        return;
     }
 
     ESP_LOGI(TAG, "Queue manager initialized successfully with %d queue slots", queue_size);
-    return qm;
 }
