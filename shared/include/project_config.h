@@ -248,10 +248,10 @@ extern uint16_t g_led_offset_end;
 #define ESP_NOW_ENABLED  1
 
 /** @brief Device role: master (1 = master, 0 = not master) */
-#define IS_MASTER        1
+#define IS_MASTER        0
 
 /** @brief Device role: slave (1 = slave, 0 = not slave) */
-#define IS_SLAVE         0
+#define IS_SLAVE         1
 
 /** @brief Enable/disable feedback animations on slave device (1 = enable, 0 = disable) */
 #define SLAVE_ENABLE_FEEDBACK 0

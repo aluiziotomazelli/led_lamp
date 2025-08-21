@@ -1,5 +1,5 @@
 /**
- * @file candle_math.h
+ * @file candle_math_logic.h
  * @brief Candle Effect Mathematical Model and Configuration
  * 
  * @details This header provides the interface for a realistic candle flame simulation

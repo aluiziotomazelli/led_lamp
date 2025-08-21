@@ -1,8 +1,14 @@
 /**
- * OTA update via esp32 own server from:
- * https://github.com/Jeija/esp32-softap-ota/tree/master
-*/
-
+ * @file ota_updater.h
+ * @brief OTA update via ESP32's own server
+ * 
+ * @details Based on implementation from:
+ *          https://github.com/Jeija/esp32-softap-ota/tree/master
+ * 
+ * @author Your Name
+ * @date 2024-03-15
+ * @version 1.0
+ */
 
 #pragma once
 

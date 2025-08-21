@@ -1,7 +1,24 @@
+/**
+ * @file ota_updater.c
+ * @brief OTA update implementation with SoftAP and HTTP server
+ * 
+ * @details This file implements Over-the-Air firmware updates using ESP32's
+ *          SoftAP mode and embedded HTTP server for firmware file upload.
+ * 
+ * @author Your Name
+ * @date 2024-03-15
+ * @version 1.0
+ */
+
+// System includes
 #include <string.h>
+
+// FreeRTOS components
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+
+// ESP-IDF system services
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
@@ -11,16 +28,22 @@
 #include "esp_http_server.h"
 #include "esp_ota_ops.h"
 
+// LWIP networking
 #include "lwip/ip4_addr.h"
 
+// Project specific headers
 #include "ota_updater.h"
 #include "nvs_manager.h"
 #include "fsm.h"
 
+// External queue for LED command feedback
 extern QueueHandle_t led_cmd_queue;
 
 static const char *TAG = "OTA_UPDATER_AP";
 
+/**
+ * @brief Macro to get minimum of two values
+ */
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
 // Forward declarations for URI handlers
@@ -30,7 +53,9 @@ static esp_err_t update_post_handler(httpd_req_t *req);
 // HTTP server instance
 static httpd_handle_t server = NULL;
 
-// URI Handlers
+/**
+ * @brief Root URI handler configuration
+ */
 static const httpd_uri_t root = {
     .uri       = "/",
     .method    = HTTP_GET,
@@ -38,6 +63,9 @@ static const httpd_uri_t root = {
     .user_ctx  = NULL
 };
 
+/**
+ * @brief Update URI handler configuration
+ */
 static const httpd_uri_t update = {
     .uri       = "/update",
     .method    = HTTP_POST,
@@ -45,7 +73,13 @@ static const httpd_uri_t update = {
     .user_ctx  = NULL
 };
 
-
+/**
+ * @brief Starts the embedded web server
+ * 
+ * @return esp_err_t ESP_OK on success, ESP_FAIL on failure
+ * 
+ * @note Configures and starts HTTP server with URI handlers
+ */
 static esp_err_t start_webserver(void) {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.lru_purge_enable = true;
@@ -61,6 +95,12 @@ static esp_err_t start_webserver(void) {
     return ESP_FAIL;
 }
 
+/**
+ * @brief Initializes Wi-Fi in SoftAP mode with static IP
+ * 
+ * @note Configures access point with predefined SSID and password
+ *       Sets static IP address 192.168.4.1 for the AP interface
+ */
 static void wifi_init_softap(void) {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -104,7 +144,11 @@ static void wifi_init_softap(void) {
              "ESP32_Updater", "password");
 }
 
-// Embedded HTML for the update page
+/**
+ * @brief Embedded HTML for the OTA update web page
+ * 
+ * @note Contains form for file upload and JavaScript for AJAX submission
+ */
 const char* update_page_html =
     "<!DOCTYPE html><html><head><title>ESP32 OTA Update</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head>"
     "<body><h1>ESP32 Firmware Update</h1>"
@@ -138,6 +182,14 @@ const char* update_page_html =
     "});"
     "</script></body></html>";
 
+/**
+ * @brief Handler for root GET requests
+ * 
+ * @param req HTTP request structure
+ * @return esp_err_t ESP_OK on success
+ * 
+ * @note Serves the embedded HTML update page
+ */
 static esp_err_t root_get_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Serving root page.");
     httpd_resp_set_type(req, "text/html");
@@ -145,6 +197,15 @@ static esp_err_t root_get_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+/**
+ * @brief Handler for firmware update POST requests
+ * 
+ * @param req HTTP request structure
+ * @return esp_err_t ESP_OK on success, ESP_FAIL on error
+ * 
+ * @note Handles firmware binary upload, writes to OTA partition,
+ *       validates, and sets boot partition before rebooting
+ */
 static esp_err_t update_post_handler(httpd_req_t *req) {
     char buf[1024];
     esp_ota_handle_t update_handle = 0;
@@ -224,7 +285,14 @@ static esp_err_t update_post_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
-
+/**
+ * @brief Starts the SoftAP OTA update process
+ * 
+ * @return esp_err_t ESP_OK on success, ESP_FAIL on failure
+ * 
+ * @note Clears OTA flag, initializes Wi-Fi in AP mode, starts web server,
+ *       and provides visual feedback via LED queue
+ */
 esp_err_t ota_updater_start(void) {
     ESP_LOGI(TAG, "Starting SoftAP OTA Updater...");
 

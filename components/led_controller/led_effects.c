@@ -109,7 +109,7 @@ effect_t *effects[] = {
     &effect_candle_math,
     &effect_christmas_twinkle,
     &effect_random_twinkle,
-//    &effect_breathing // Added breathing here, was missing from original list
+    &effect_breathing // Added breathing here, was missing from original list
 };
 
 const uint8_t effects_count = sizeof(effects) / sizeof(effects[0]);

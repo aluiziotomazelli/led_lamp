@@ -1,8 +1,8 @@
 #==============================================================================
-# LED Controller Component
+# OTA Updater Component
 #
-# Description: High-level LED strip controller with animation support
-#              and color management
+# Description: Over-the-Air firmware update functionality via SoftAP
+#              with embedded web server for firmware upload
 #
 # Author: Your Name
 # Date: 2024-03-15
@@ -26,11 +26,11 @@ idf_component_register(
     # Required components (dependencies)
     REQUIRES 
         nvs_manager         # Non-volatile storage management
-    	esp_http_server 
-    	esp_wifi 
-    	nvs_flash 
-    	esp_event
-    	app_update
+    	esp_http_server     # HTTP server for OTA updates
+    	esp_wifi            # Wi-Fi functionality for SoftAP
+    	nvs_flash           # Non-volatile storage
+    	esp_event           # Event loop handling
+    	app_update          # Application update functionality
         shared              # Shared project utilities and definitions
 )
 
