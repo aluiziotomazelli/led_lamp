@@ -1,43 +1,100 @@
 led_lamp/
-├── CMakeLists.txt
-├── sdkconfig
-├── main/
-│   ├── CMakeLists.txt
-│   ├── led_lamp.c (main)      		# Inicialização do sistema (app_main)
-│   ├── fsm.c / fsm.h          		# Máquina de estados do sistema
-│   ├── input_handler.c / .h   		# Lógica de interpretação de entradas
 ├── components/
-│   ├── encoder/
-│   │   ├── include/
-│   │   │   ├── encoder.h
-│   │   ├── CMakeLists.txt
-│   │   ├── encoder.c          		# Task do encoder rotativo
 │   ├── button/
 │   │   ├── include/
 │   │   │   ├── button.h
+│   │   ├── button.c
 │   │   ├── CMakeLists.txt
-│   │   ├── button.c           		# Task do botão com debounce
+│   ├── encoder/
+│   │   ├── include/
+│   │   │   ├── encoder.h
+│   │   ├── encoder.c
+│   │   ├── CMakeLists.txt
+│   ├── espnow_controller/
+│   │   ├── include/
+│   │   │   ├── espnow_controller.h
+│   │   ├── espnow_controller.c
+│   │   ├── CMakeLists.txt
+│   ├── fsm/
+│   │   ├── include/
+│   │   │   ├── fsm.h
+│   │   ├── fsm.c
+│   │   ├── CMakeLists.txt
+│   ├── input_integrator/
+│   │   ├── include/
+│   │   │   ├── input_integrator.h
+│   │   ├── input_integrator.c
+│   │   ├── CMakeLists.txt
+│   ├── led_controller/
+│   │   ├── effects/
+│   │   │	├── include/
+│   │   │	│	├── breathing.h
+│   │   │	│	├── candle.h
+│   │   │	│	├── candle_math.h
+│   │   │	│	├── candle_math_logic.h
+│   │   │	│	├── christmas_tree.h
+│   │   │	│	├── christmas_twinkle.h
+│   │   │	│	├── random_twinkle.h
+│   │   │	│	├── static_color.h
+│   │   │	│	└── white_temp.h
+│   │   │	├── breathing.c
+│   │   │	├── candle.c
+│   │   │	├── candle_math.c
+│   │   │	├── candle_math_logic.c
+│   │   │	├── christmas_tree.c
+│   │   │	├── christmas_twinkle.c
+│   │   │	├── include/
+│   │   │	├── random_twinkle.c
+│   │   │	├── static_color.c
+│   │   │	└── white_temp.c
+│   │   ├── include/
+│   │   │   ├── Hsv2rgb.h
+│   │   │   ├── led_controller.h
+│   │   │   ├── led_effects.h
+│   │   │   ├── table.h
+│   │   ├── led_controller.c
+│   │   ├── led_effects.c
+│   │   ├── CMakeLists.txt
 │   ├── led_driver/
 │   │   ├── include/
 │   │   │   ├── led_driver.h
+│   │   ├── led_driver.c
 │   │   ├── CMakeLists.txt
-│   │   ├── led_driver.c       		# Interface com led_strip (SPI)
-│   ├── effect_manager/
+│   ├── nvs_manager/
 │   │   ├── include/
-│   │   │   ├── effect_manager.h
-│   │   ├── effects/
-│   │   │   ├── static_color.c
-│   │   │   ├── static_color.h
-│   │   │   ├── candle.c
-│   │   │   ├── candle.h
+│   │   │   ├── nvs_manager.h
+│   │   ├── nvs_manager.c
 │   │   ├── CMakeLists.txt
-│   │   ├── effect_manager.c       	# Geração de efeitos e controle
-│   ├── effect_param/
-│   │   ├── CMakeLists.txt
-│   │   ├── effect_param.c / .h    	# Ajustes de parâmetros dos efeitos
-│   ├── system_config/
+│   ├── ota_updater/
 │   │   ├── include/
-│   │   │   ├── system_config.h
+│   │   │   ├── ota_updater.h
+│   │   ├── ota_updater.c
 │   │   ├── CMakeLists.txt
-│   │   ├── system_config.c        	# Brilho, estado ligado, NVS
-
+│   ├── switch/
+│   │   ├── include/
+│   │   │   ├── switch.h
+│   │   ├── switch.c
+│   │   ├── CMakeLists.txt
+│   ├── touch/
+│   │   ├── include/
+│   │   │   ├── touch.h
+│   │   ├── touch.c
+│   │   ├── CMakeLists.txt
+├── main/
+│   ├── main.c
+│   ├── CMakeLists.txt
+│   ├── CMakeLists.txt
+├── managed_components/
+│   ├── expressif__led_strip/
+│   │   ├── ...
+├── shared/
+│   ├── include/
+│   │   ├── project_config.h
+│   ├── CMakeLists.txt
+├── CMakeLists.txt
+├── LISTA_EFEITOS.md
+├── MANUAL_USUARIO.md
+├── README.md
+├── directory_struture.txt
+├── fluxograma.txt
+├── idf_component.yml
