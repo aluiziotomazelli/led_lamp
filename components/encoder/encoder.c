@@ -299,7 +299,7 @@ encoder_handle_t encoder_create(const encoder_config_t *config,
 
     // Create processing task with medium priority
     if (xTaskCreate(encoder_task, "encoder_task", ENCODER_TASK_STACK_SIZE,
-                   enc, 10, &enc->task_handle) != pdPASS) {
+                   enc, ENCODER_TASK_PRIORITY, &enc->task_handle) != pdPASS) {
         ESP_LOGE(TAG, "Task creation failed for encoder processing");
         gpio_isr_handler_remove(enc->pin_a);
         gpio_isr_handler_remove(enc->pin_b);
