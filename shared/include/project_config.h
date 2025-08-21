@@ -21,22 +21,22 @@
 // ==================================================
 // GPIO Pin Configuration
 // ==================================================
-#define BUTTON1_PIN          23 // Physical button GPIO pin number
-#define ENCODER_PIN_A        17 // Rotary encoder channel A GPIO pin number
-#define ENCODER_PIN_B        16 // Rotary encoder channel B GPIO pin number
+#define BUTTON1_PIN          23 			// Physical button GPIO pin number
+#define ENCODER_PIN_A        17 			// Rotary encoder channel A GPIO pin number
+#define ENCODER_PIN_B        16 			// Rotary encoder channel B GPIO pin number
 #define TOUCH_PAD1_PIN       TOUCH_PAD_NUM0 // Touch button pad number (GPIO4)
-#define SWITCH_PIN_1         32 // Mode switch GPIO pin number
+#define SWITCH_PIN_1         32 			// Mode switch GPIO pin number
 
 // ==================================================
 // Queue Configuration
 // ==================================================
-#define BUTTON_QUEUE_SIZE     5 // Button event queue size (number of events)
-#define ENCODER_QUEUE_SIZE   10 // Encoder event queue size (number of events)
-#define TOUCH_QUEUE_SIZE      5 // Touch event queue size (number of events)
-#define SWITCH_QUEUE_SIZE     5 // Switch event queue size (number of events)
-#define ESPNOW_QUEUE_SIZE    10 // ESPNOW message queue size (number of messages)
-#define LED_CMD_QUEUE_SIZE   10 // LED command queue size (number of commands)
-#define LED_STRIP_QUEUE_SIZE  3 // LED strip data queue size (number of frames)
+#define BUTTON_QUEUE_SIZE     5 	// Button event queue size (number of events)
+#define ENCODER_QUEUE_SIZE   10		// Encoder event queue size (number of events)
+#define TOUCH_QUEUE_SIZE      5  	// Touch event queue size (number of events)
+#define SWITCH_QUEUE_SIZE     5  	// Switch event queue size (number of events)
+#define ESPNOW_QUEUE_SIZE    10 	// ESPNOW message queue size (number of messages)
+#define LED_CMD_QUEUE_SIZE   10 	// LED command queue size (number of commands)
+#define LED_STRIP_QUEUE_SIZE  3 	// LED strip data queue size (number of frames)
 
 // ==================================================
 // Task Configuration
@@ -61,21 +61,21 @@
 #define ENCODER_TASK_PRIORITY       10 // Encoder task priority - Responsive input handling
 #define TOUCH_TASK_PRIORITY         10 // Touch task priority - Responsive input handling
 #define SWITCH_TASK_PRIORITY        10 // Switch task priority - Responsive input handling
-#define INTEGRATOR_TASK_PRIORITY    8  // Input integrator task priority - Bridges inputs to the FSM
-#define FSM_TASK_PRIORITY           7  // Finite State Machine task priority - Main application logic
-#define LED_CTRL_TASK_PRIORITY      7  // LED controller task priority - Handles commands from the FSM
-#define ESPNOW_TASK_PRIORITY        6  // ESPNOW task priority (non-critical)
+#define INTEGRATOR_TASK_PRIORITY     8 // Input integrator task priority - Bridges inputs to the FSM
+#define FSM_TASK_PRIORITY            7 // Finite State Machine task priority - Main application logic
+#define LED_CTRL_TASK_PRIORITY       7 // LED controller task priority - Handles commands from the FSM
+#define ESPNOW_TASK_PRIORITY         6 // ESPNOW task priority (non-critical)
 
 // ==================================================
 // Touch Button Configuration
 // ==================================================
-#define TOUCH_THRESHOLD_PERCENT          60   // Touch activation threshold (% of baseline value)
-#define TOUCH_DEBOUNCE_PRESS_MS          20   // Press debounce time in milliseconds
-#define TOUCH_DEBOUNCE_RELEASE_MS        20   // Release debounce time in milliseconds
-#define TOUCH_HOLD_TIME_MS              1000  // Time to trigger hold event in milliseconds
-#define TOUCH_HOLD_REPEAT_TIME_MS       200   // Interval between hold repeat events in milliseconds
-#define TOUCH_SAMPLE_INTERVAL           100   // Touch sampling interval in milliseconds
-#define TOUCH_RECALIBRATION_INTERVAL_MIN 1    // Auto-recalibration interval in minutes
+#define TOUCH_THRESHOLD_PERCENT           60   	// Touch activation threshold (% of baseline value)
+#define TOUCH_DEBOUNCE_PRESS_MS           20   	// Press debounce time in milliseconds
+#define TOUCH_DEBOUNCE_RELEASE_MS         20   	// Release debounce time in milliseconds
+#define TOUCH_HOLD_TIME_MS              1000  	// Time to trigger hold event in milliseconds
+#define TOUCH_HOLD_REPEAT_TIME_MS        200   	// Interval between hold repeat events in milliseconds
+#define TOUCH_SAMPLE_INTERVAL            100   	// Touch sampling interval in milliseconds
+#define TOUCH_RECALIBRATION_INTERVAL_MIN   1	// Auto-recalibration interval in minutes
 
 // ==================================================
 // Physical Button Configuration
@@ -95,24 +95,19 @@
 // ==================================================
 // Finite State Machine Configuration
 // ==================================================
-#define FSM_TIMEOUT_MS         100 // Default FSM state timeout in milliseconds
-#define FSM_MODE_TIMEOUT_MS   30000 // Mode change timeout duration in milliseconds
+#define FSM_TIMEOUT_MS          100 	// Default FSM state timeout in milliseconds
+#define FSM_MODE_TIMEOUT_MS   30000 	// Mode change timeout duration in milliseconds
 
 // ==================================================
 // LED Controller Configuration
 // ==================================================
-#define NUM_LEDS 48 // Number of LEDs in the strip
-#define LED_RENDER_INTERVAL_MS 10 // LED render interval in milliseconds
+#define NUM_LEDS 				48 	// Number of LEDs in the strip
+#define LED_RENDER_INTERVAL_MS 	10 	// LED render interval in milliseconds
 
 // Default values for configurable parameters
-#define DEFAULT_MIN_BRIGHTNESS 20 // Default minimum brightness value (0-255)
+#define DEFAULT_MIN_BRIGHTNESS 	20 // Default minimum brightness value (0-255)
 #define DEFAULT_LED_OFFSET_BEGIN 0 // Default LED strip beginning offset
 #define DEFAULT_LED_OFFSET_END   0 // Default LED strip ending offset
-
-// Global configurable parameters (defined in led_controller.c)
-extern uint8_t g_min_brightness; // Global minimum brightness setting
-extern uint16_t g_led_offset_begin; // Global LED strip beginning offset
-extern uint16_t g_led_offset_end; // Global LED strip ending offset
 
 // ==================================================
 // LED Driver Configuration

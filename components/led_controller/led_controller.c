@@ -52,13 +52,13 @@ static const char *TAG = "LED_CTRL";
 //------------------------------------------------------------------------------
 
 /// @brief Global minimum brightness setting
-uint8_t g_min_brightness = DEFAULT_MIN_BRIGHTNESS;
+static uint8_t g_min_brightness = DEFAULT_MIN_BRIGHTNESS;
 
 /// @brief Global LED offset at beginning of strip
-uint16_t g_led_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
+static uint16_t g_led_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
 
 /// @brief Global LED offset at end of strip
-uint16_t g_led_offset_end = DEFAULT_LED_OFFSET_END;
+static uint16_t g_led_offset_end = DEFAULT_LED_OFFSET_END;
 
 //------------------------------------------------------------------------------
 // PRIVATE VARIABLES
