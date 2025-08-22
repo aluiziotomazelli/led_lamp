@@ -87,7 +87,7 @@ static esp_err_t configure_led_strip(void) {
     led_strip_config_t strip_config = {
         .strip_gpio_num = LED_STRIP_GPIO,
         .max_leds = NUM_LEDS,
-        .led_model = LED_MODEL_WS2812,
+        .led_model = LED_STRIP_TYPE,
         // My strip is GRB format
         .color_component_format = {
             .format = {

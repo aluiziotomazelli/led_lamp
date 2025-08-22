@@ -711,7 +711,7 @@ static void led_command_task(void *pv) {
 static void led_render_task(void *pv) {
     led_strip_t strip_data = {
         .pixels = pixel_buffer, .num_pixels = NUM_LEDS, .mode = COLOR_MODE_RGB};
-    const TickType_t tick_rate = pdMS_TO_TICKS(LED_RENDER_INTERVAL_MS); // ~33 FPS
+    const TickType_t tick_rate = pdMS_TO_TICKS(LED_RENDER_INTERVAL_MS); 
     static bool was_running_feedback = false;
 
     while (1) {
@@ -788,6 +788,9 @@ static void led_render_task(void *pv) {
 
         // Always send the current buffer to the driver
         xQueueOverwrite(q_strip_out, &strip_data);
+
+//         Send buffer to queue
+//        xQueueSend(q_strip_out, &strip_data, 0);
 
         // Wait for a notification or timeout
         ulTaskNotifyTake(pdTRUE, tick_rate);

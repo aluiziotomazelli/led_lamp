@@ -36,7 +36,7 @@
 #define SWITCH_QUEUE_SIZE     5  	// Switch event queue size (number of events)
 #define ESPNOW_QUEUE_SIZE    10 	// ESPNOW message queue size (number of messages)
 #define LED_CMD_QUEUE_SIZE   10 	// LED command queue size (number of commands)
-#define LED_STRIP_QUEUE_SIZE  3 	// LED strip data queue size (number of frames)
+#define LED_STRIP_QUEUE_SIZE  1 	// LED strip data queue size (number of frames)
 
 // ==================================================
 // Task Configuration
@@ -101,8 +101,10 @@
 // ==================================================
 // LED Controller Configuration
 // ==================================================
-#define NUM_LEDS 				48 	// Number of LEDs in the strip
+// Fita ws2811 com 82 pixel no oratório
+#define NUM_LEDS 				82 	// Number of LEDs in the strip
 #define LED_RENDER_INTERVAL_MS 	10 	// LED render interval in milliseconds
+#define LED_STRIP_TYPE			LED_MODEL_WS2811
 
 // Default values for configurable parameters
 #define DEFAULT_MIN_BRIGHTNESS 	20 // Default minimum brightness value (0-255)
@@ -128,7 +130,7 @@
 #define ESP_NOW_ENABLED  1 // Enable/disable ESP-NOW functionality (1 = enable, 0 = disable)
 #define IS_MASTER        0 // Device role: master (1 = master, 0 = not master)
 #define IS_SLAVE         1 // Device role: slave (1 = slave, 0 = not slave)
-#define SLAVE_ENABLE_FEEDBACK 0 // Enable/disable feedback animations on slave device (1 = enable, 0 = disable)
+#define SLAVE_ENABLE_FEEDBACK 1 // Enable/disable feedback animations on slave device (1 = enable, 0 = disable)
 
 /**
  * @brief Array of slave MAC addresses for master device
