@@ -119,6 +119,9 @@ static uint8_t current_param_index = 0;
 /// @brief Flag to force render
 static bool needs_render = true;
 
+/// @brief Flag to indicate system setup mode is active
+static bool is_in_system_setup = false;
+
 /// @brief Temporary storage for parameters in setup mode
 static effect_param_t *temp_params = NULL;
 
@@ -810,7 +813,7 @@ static void led_render_task(void *pv) {
         strip_data.mode = current_effect->color_mode;
 
         // Determine if we need to re-calculate the effect
-        bool should_run_effect = needs_render || current_effect->is_dynamic;
+        bool should_run_effect = (needs_render || current_effect->is_dynamic) && !is_in_system_setup;
 
         if (should_run_effect) {
             if (current_brightness > 0) {
@@ -866,6 +869,7 @@ static void led_render_task(void *pv) {
  * @brief Enter system setup mode
  */
 void led_controller_enter_system_setup(void) {
+    is_in_system_setup = true;
     // Copy current global values to temporary variables for editing
     temp_offset_begin = g_led_offset_begin;
     temp_offset_end = g_led_offset_end;
@@ -889,6 +893,7 @@ void led_controller_enter_system_setup(void) {
  * @brief Save system configuration
  */
 void led_controller_save_system_config(void) {
+    is_in_system_setup = false;
     // Copy temporary values to global variables
     g_led_offset_begin = temp_offset_begin;
     g_led_offset_end = temp_offset_end;
@@ -907,6 +912,7 @@ void led_controller_save_system_config(void) {
  * @brief Cancel system configuration changes
  */
 void led_controller_cancel_system_config(void) {
+    is_in_system_setup = false;
     // Discard temporary values and revert any live preview
     led_offset = g_led_offset_begin;
     active_num_leds = NUM_LEDS - (g_led_offset_begin + g_led_offset_end);
