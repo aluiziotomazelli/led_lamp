@@ -220,10 +220,12 @@ void led_driver_init(QueueHandle_t input_queue) {
         return;
     }
 
-    // Create the driver task
-    BaseType_t task_created = xTaskCreate(led_driver_task, "LED_DRV_T",
+    // Pin the driver task to Core 1. This is a hard real-time task that drives the RMT
+    // peripheral. Pinning it to the application core (Core 1) prevents jitter from the
+    // Wi-Fi stack and other system tasks running on Core 0.
+    BaseType_t task_created = xTaskCreatePinnedToCore(led_driver_task, "LED_DRV_T",
                                         LED_DRIVER_TASK_STACK_SIZE, NULL,
-                                        LED_DRIVER_TASK_PRIORITY, NULL);
+                                        LED_DRIVER_TASK_PRIORITY, NULL, 1);
 
     if (task_created != pdPASS) {
         ESP_LOGE(TAG, "Failed to create LED driver task");

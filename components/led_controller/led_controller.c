@@ -695,9 +695,10 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
         return NULL;
     }
 
-    // Create the rendering task
-    BaseType_t result = xTaskCreate(led_render_task, "LED_RENDER_T", LED_RENDER_STACK_SIZE,
-                                   NULL, LED_RENDER_TASK_PRIORITY, &render_task_handle);
+    // Pin the rendering task to Core 1 for performance and cache efficiency.
+    // This keeps it on the same core as the driver task, reducing context switching.
+    BaseType_t result = xTaskCreatePinnedToCore(led_render_task, "LED_RENDER_T", LED_RENDER_STACK_SIZE,
+                                   NULL, LED_RENDER_TASK_PRIORITY, &render_task_handle, 1);
     if (result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create LED render task");
         vQueueDelete(q_strip_out);
