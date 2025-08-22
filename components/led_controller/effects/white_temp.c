@@ -42,25 +42,37 @@ void run_white_temp(const effect_param_t *params, uint8_t num_params,
     rgb_t rgb;
 
     // Select RGB values based on temperature index
-    // Predefined values represent different white color temperatures
+    // Predefined values represent different white color temperatures from warm to cool
     switch (temp_index) {
-    case 0: // Very warm white (2200K-2700K equivalent)
+    case 0: // Deepest warm white (candlelight)
+        rgb = (rgb_t){255, 120, 0};
+        break;
+    case 1: // Very warm white
         rgb = (rgb_t){255, 130, 30};
         break;
-    case 1: // Warm white (3000K equivalent)
+    case 2: // Warm white
         rgb = (rgb_t){255, 140, 50};
         break;
-    case 2: // Neutral white (3500K-4000K equivalent)
+    case 3: // Warm-neutral white
+        rgb = (rgb_t){255, 160, 80};
+        break;
+    case 4: // Neutral white
         rgb = (rgb_t){255, 197, 143};
         break;
-    case 3: // Cool white (4500K-5000K equivalent)
+    case 5: // Cool-neutral white
         rgb = (rgb_t){255, 214, 170};
         break;
-    case 4: // Very cool white (5500K-6000K equivalent)
+    case 6: // Cool white
+        rgb = (rgb_t){255, 240, 220};
+        break;
+    case 7: // Pure white
         rgb = (rgb_t){255, 255, 255};
         break;
-    case 5: // Ice cold white (6500K+ equivalent, bluish tint)
+    case 8: // Ice cold white
         rgb = (rgb_t){201, 226, 255};
+        break;
+    case 9: // Deep cool white (bluish)
+        rgb = (rgb_t){180, 210, 255};
         break;
     default: // Fallback to neutral white if index is out of range
         rgb = (rgb_t){255, 197, 143};
