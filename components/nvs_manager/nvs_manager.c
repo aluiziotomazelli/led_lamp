@@ -84,9 +84,9 @@ static void load_static_defaults(static_data_t *data) {
     data->min_brightness = DEFAULT_MIN_BRIGHTNESS;
     data->led_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
     data->led_offset_end = DEFAULT_LED_OFFSET_END;
-    data->correction_r = 255; // Default: no correction
-    data->correction_g = 255; // Default: no correction
-    data->correction_b = 255; // Default: no correction
+    data->correction_r = DEFAULT_RED_CORRECTION;
+    data->correction_g = DEFAULT_GREEN_CORRECTION;
+    data->correction_b = DEFAULT_BLUE_CORRECTION;
 
     // Load default parameters for each effect
     for (uint8_t i = 0; i < effects_count && i < NVS_NUM_EFFECTS; i++) {

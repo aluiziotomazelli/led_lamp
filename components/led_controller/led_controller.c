@@ -61,13 +61,13 @@ static uint16_t g_led_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
 static uint16_t g_led_offset_end = DEFAULT_LED_OFFSET_END;
 
 /// @brief Global color correction for red channel
-static uint8_t g_correction_r = 255;
+static uint8_t g_correction_r = DEFAULT_RED_CORRECTION;
 
 /// @brief Global color correction for green channel
-static uint8_t g_correction_g = 255;
+static uint8_t g_correction_g = DEFAULT_GREEN_CORRECTION;
 
 /// @brief Global color correction for blue channel
-static uint8_t g_correction_b = 255;
+static uint8_t g_correction_b = DEFAULT_BLUE_CORRECTION;
 
 //------------------------------------------------------------------------------
 // PRIVATE VARIABLES
@@ -152,13 +152,13 @@ static uint16_t temp_offset_end = 0;
 static uint8_t temp_min_brightness = 0;
 
 /// @brief Temporary red color correction value
-static uint8_t temp_correction_r = 255;
+static uint8_t temp_correction_r = DEFAULT_RED_CORRECTION;
 
 /// @brief Temporary green color correction value
-static uint8_t temp_correction_g = 255;
+static uint8_t temp_correction_g = DEFAULT_GREEN_CORRECTION;
 
 /// @brief Temporary blue color correction value
-static uint8_t temp_correction_b = 255;
+static uint8_t temp_correction_b = DEFAULT_BLUE_CORRECTION;
 
 /// @brief Input command queue handle
 static QueueHandle_t q_commands_in = NULL;
@@ -1007,7 +1007,9 @@ void led_controller_inc_system_param(int16_t steps, bool *limit_hit) {
     }
 
     // Live preview
-    if (current_sys_param >= SYS_PARAM_CORR_R) {
+    if (current_sys_param == SYS_PARAM_MIN_BRIGHTNESS) {
+        fill_solid_color(apply_brightness((rgb_t){255, 255, 255}, temp_min_brightness));
+    } else if (current_sys_param >= SYS_PARAM_CORR_R) {
         fill_solid_color((rgb_t){255, 255, 255});
     } else {
         show_param_indicator(current_sys_param, master_brightness);

@@ -36,6 +36,7 @@ idf_component_register(
     
     # Required components (dependencies)
     REQUIRES 
+        led_controller
         fsm                 # Finite State Machine for command processing
         esp_timer           # Timer services for timing measurements
         freertos            # FreeRTOS for tasks, queues, and notifications

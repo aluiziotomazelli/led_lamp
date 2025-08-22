@@ -110,6 +110,9 @@
 #define DEFAULT_MIN_BRIGHTNESS 	20 // Default minimum brightness value (0-255)
 #define DEFAULT_LED_OFFSET_BEGIN 0 // Default LED strip beginning offset
 #define DEFAULT_LED_OFFSET_END   0 // Default LED strip ending offset
+#define DEFAULT_RED_CORRECTION 		255
+#define DEFAULT_GREEN_CORRECTION 	255
+#define DEFAULT_BLUE_CORRECTION 	255
 
 // ==================================================
 // LED Driver Configuration
