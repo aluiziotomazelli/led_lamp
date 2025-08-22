@@ -33,6 +33,7 @@
 
 // Project specific headers
 #include "led_controller.h"
+#include "led_driver.h"
 #include "fsm.h"
 #include "hsv2rgb.h"
 #include "project_config.h"
@@ -778,85 +779,80 @@ static void led_command_task(void *pv) {
 static void led_render_task(void *pv) {
     led_strip_t strip_data = {
         .pixels = pixel_buffer, .num_pixels = NUM_LEDS, .mode = COLOR_MODE_RGB};
-    const TickType_t tick_rate = pdMS_TO_TICKS(LED_RENDER_INTERVAL_MS); 
+    const TickType_t tick_rate = pdMS_TO_TICKS(LED_RENDER_INTERVAL_MS);
     static bool was_running_feedback = false;
 
     while (1) {
+        // --- Feedback Animation Rendering ---
         bool is_running_feedback = run_feedback_animation();
-
         if (was_running_feedback && !is_running_feedback) {
             needs_render = true;
         }
         was_running_feedback = is_running_feedback;
 
-        // Prioritize feedback animations over all other rendering
         if (is_running_feedback) {
-            strip_data.mode = COLOR_MODE_RGB; // Feedback animations are always RGB
+            strip_data.mode = COLOR_MODE_RGB;
             xQueueOverwrite(q_strip_out, &strip_data);
-            // Use a shorter delay for smooth animation, but still allow notifications
-            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(16)); // ~60 FPS for feedback
-            continue; // Skip the rest of the loop
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(16));
+            continue;
         }
 
-        // Stateless fade logic: gradually move current_brightness to its target
-        uint8_t target_brightness = is_on ? master_brightness : 0;
-        if (current_brightness != target_brightness) {
-            if (current_brightness < target_brightness) {
-                current_brightness++;
+        // --- System Setup Mode Rendering ---
+        if (is_in_system_setup) {
+            strip_data.mode = COLOR_MODE_RGB;
+            if (current_sys_param == SYS_PARAM_MIN_BRIGHTNESS) {
+                fill_solid_color(apply_brightness((rgb_t){255, 255, 255}, temp_min_brightness));
+            } else if (current_sys_param >= SYS_PARAM_CORR_R) {
+                fill_solid_color((rgb_t){255, 255, 255});
             } else {
-                current_brightness--;
-            }
-            needs_render = true;
-        }
-
-        effect_t *current_effect = effects[current_effect_index];
-        strip_data.mode = current_effect->color_mode;
-
-        // Determine if we need to re-calculate the effect
-        bool should_run_effect = (needs_render || current_effect->is_dynamic) && !is_in_system_setup;
-
-        if (should_run_effect) {
-            if (current_brightness > 0) {
-                // Clear the entire buffer to black first
-                memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
-
-                if (current_effect->run) {
-                    // Define the active region for the effect
-                    color_t *effect_buffer = pixel_buffer + led_offset;
-                    current_effect->run(current_effect->params,
-                                      current_effect->num_params,
-                                      current_brightness,
-                                      esp_timer_get_time() / 1000,
-                                      effect_buffer, active_num_leds);
-                }
-
-                // Apply brightness
-                if (strip_data.mode == COLOR_MODE_HSV) {
-                    for (uint16_t i = 0; i < NUM_LEDS; i++) {
-                        uint8_t v = (pixel_buffer[i].hsv.v * current_brightness) / 255;
-                        pixel_buffer[i].hsv.v = v;
-                    }
-                } else { // It's RGB
-                    for (uint16_t i = 0; i < NUM_LEDS; i++) {
-                        pixel_buffer[i].rgb = apply_brightness(pixel_buffer[i].rgb, current_brightness);
-                    }
-                }
-            } else {
-                // If the strip is off or brightness is 0, render black once
-                memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
-                strip_data.mode = COLOR_MODE_RGB;
+                show_param_indicator(current_sys_param, master_brightness);
             }
         }
+        // --- Normal Effect Rendering ---
+        else {
+            uint8_t target_brightness = is_on ? master_brightness : 0;
+            if (current_brightness != target_brightness) {
+                if (current_brightness < target_brightness) current_brightness++;
+                else current_brightness--;
+                needs_render = true;
+            }
 
-        // Always reset the flag after checking it for a cycle
+            effect_t *current_effect = effects[current_effect_index];
+            strip_data.mode = current_effect->color_mode;
+
+            bool should_run_effect = needs_render || current_effect->is_dynamic;
+
+            if (should_run_effect) {
+                if (current_brightness > 0) {
+                    memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
+                    if (current_effect->run) {
+                        color_t *effect_buffer = pixel_buffer + led_offset;
+                        current_effect->run(current_effect->params, current_effect->num_params,
+                                          current_brightness, esp_timer_get_time() / 1000,
+                                          effect_buffer, active_num_leds);
+                    }
+                    if (strip_data.mode == COLOR_MODE_HSV) {
+                        for (uint16_t i = 0; i < NUM_LEDS; i++) {
+                            uint8_t v = (pixel_buffer[i].hsv.v * current_brightness) / 255;
+                            pixel_buffer[i].hsv.v = v;
+                        }
+                    } else {
+                        for (uint16_t i = 0; i < NUM_LEDS; i++) {
+                            pixel_buffer[i].rgb = apply_brightness(pixel_buffer[i].rgb, current_brightness);
+                        }
+                    }
+                } else {
+                    memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
+                    strip_data.mode = COLOR_MODE_RGB;
+                }
+            }
+        }
+
         if (needs_render) {
             needs_render = false;
         }
 
-        // Always send the current buffer to the driver
         xQueueOverwrite(q_strip_out, &strip_data);
-
-        // Wait for a notification or timeout
         ulTaskNotifyTake(pdTRUE, tick_rate);
     }
 }
@@ -881,9 +877,7 @@ void led_controller_enter_system_setup(void) {
     current_sys_param = SYS_PARAM_MIN_BRIGHTNESS;
     ESP_LOGI(TAG, "Entering system setup.");
 
-    // Set the strip to solid white for calibration preview
-    fill_solid_color((rgb_t){255, 255, 255});
-    needs_render = true; // Force render
+    needs_render = true;
     if (render_task_handle) {
         xTaskNotifyGive(render_task_handle);
     }
@@ -1004,15 +998,6 @@ void led_controller_inc_system_param(int16_t steps, bool *limit_hit) {
 
     default:
         break;
-    }
-
-    // Live preview
-    if (current_sys_param == SYS_PARAM_MIN_BRIGHTNESS) {
-        fill_solid_color(apply_brightness((rgb_t){255, 255, 255}, temp_min_brightness));
-    } else if (current_sys_param >= SYS_PARAM_CORR_R) {
-        fill_solid_color((rgb_t){255, 255, 255});
-    } else {
-        show_param_indicator(current_sys_param, master_brightness);
     }
 
     needs_render = true;
