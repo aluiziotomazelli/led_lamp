@@ -92,9 +92,9 @@ static esp_err_t configure_led_strip(void) {
         // My strip is GRB format
         .color_component_format = {
             .format = {
-                .r_pos = 1,  // red is the second byte in the color data
-                .g_pos = 0,  // green is the first byte in the color data  
-                .b_pos = 2,  // blue is the third byte in the color data
+                .b_pos = 0,
+                .r_pos = 1,
+                .g_pos = 2,  
                 .num_components = 3,  // total 3 color components
             },
         },
@@ -107,7 +107,7 @@ static esp_err_t configure_led_strip(void) {
     led_strip_rmt_config_t rmt_config = {
         .clk_src = RMT_CLK_SRC_DEFAULT,
         .resolution_hz = 10 * 1000 * 1000, // 10MHz resolution
-        .flags.with_dma = true,
+//        .flags.with_dma = true,
     };
 
     // Create the LED strip object
