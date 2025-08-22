@@ -26,6 +26,7 @@
 #define ENCODER_PIN_B        16 			// Rotary encoder channel B GPIO pin number
 #define TOUCH_PAD1_PIN       TOUCH_PAD_NUM0 // Touch button pad number (GPIO4)
 #define SWITCH_PIN_1         32 			// Mode switch GPIO pin number
+#define RELAY_PIN            2              // Optional: GPIO for the power relay
 
 // ==================================================
 // Queue Configuration
@@ -119,6 +120,11 @@
 // ==================================================
 #define LED_STRIP_GPIO              13 // GPIO pin for LED strip data line
 #define LED_STRIP_SPI_HOST          SPI2_HOST // SPI host for LED strip communication
+
+// ==================================================
+// Relay Controller Configuration
+// ==================================================
+#define RELAY_OFF_DELAY_MS   3000           // Delay in ms to turn off the relay
 
 // ==================================================
 // ESP-NOW Configuration

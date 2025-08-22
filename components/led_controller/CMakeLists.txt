@@ -44,6 +44,7 @@ idf_component_register(
         nvs_manager         # Non-volatile storage management
         ota_updater
         shared              # Shared project utilities and definitions
+        relay_controller    # Optional relay controller for power management
 )
 
 #------------------------------------------------------------------------------

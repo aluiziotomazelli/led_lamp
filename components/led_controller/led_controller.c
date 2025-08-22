@@ -39,6 +39,7 @@
 #include "project_config.h"
 #include "nvs_manager.h"
 #include "ota_updater.h"
+#include "relay_controller.h"
 #include <string.h>
 
 // Conditional includes
@@ -402,6 +403,7 @@ static void handle_command(const led_command_t *cmd) {
 
     switch (cmd->cmd) {
     case LED_CMD_TURN_ON:
+        relay_controller_on(); // Turn on power immediately
         is_on = true;
         ESP_LOGI(TAG, "LEDs ON");
         trigger_volatile_save();
@@ -411,6 +413,7 @@ static void handle_command(const led_command_t *cmd) {
         break;
 
     case LED_CMD_TURN_OFF:
+        relay_controller_off(); // Start the delayed-off timer
         is_on = false;
         ESP_LOGI(TAG, "LEDs OFF");
         trigger_volatile_save();
