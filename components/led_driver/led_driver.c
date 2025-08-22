@@ -33,6 +33,7 @@
 // External components
 #include "hsv2rgb.h"
 #include "led_strip.h"
+#include "led_strip_rmt.h"
 
 static const char *TAG = "LED_DRIVER";
 
@@ -60,7 +61,7 @@ static uint16_t g_correction_b = 140;  ///< Blue channel correction
  * 
  * @return `ESP_OK` on success, or an error code on failure
  * 
- * @note Sets up GPIO, LED model, and SPI backend for WS2812 strip
+ * @note Sets up GPIO, LED model, and RMT backend for WS2811 strip
  */
 static esp_err_t configure_led_strip(void);
 
@@ -102,19 +103,17 @@ static esp_err_t configure_led_strip(void) {
         }
     };
 
-    // Backend configuration for SPI
-    led_strip_spi_config_t spi_config = {
-        .clk_src = SPI_CLK_SRC_DEFAULT,
-        .spi_bus = LED_STRIP_SPI_HOST,
-        .flags = {
-            .with_dma = true,  // Use DMA for efficient data transfer
-        }
+    // Backend configuration for RMT
+    led_strip_rmt_config_t rmt_config = {
+        .clk_src = RMT_CLK_SRC_DEFAULT,
+        .resolution_hz = 10 * 1000 * 1000, // 10MHz resolution
+        .flags.with_dma = true,
     };
 
     // Create the LED strip object
-    esp_err_t err = led_strip_new_spi_device(&strip_config, &spi_config, &led_strip_handle);
+    esp_err_t err = led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to create SPI LED strip object: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Failed to create RMT LED strip object: %s", esp_err_to_name(err));
         return err;
     }
 
