@@ -60,6 +60,15 @@ static uint16_t g_led_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
 /// @brief Global LED offset at end of strip
 static uint16_t g_led_offset_end = DEFAULT_LED_OFFSET_END;
 
+/// @brief Global color correction for red channel
+static uint8_t g_correction_r = 255;
+
+/// @brief Global color correction for green channel
+static uint8_t g_correction_g = 255;
+
+/// @brief Global color correction for blue channel
+static uint8_t g_correction_b = 255;
+
 //------------------------------------------------------------------------------
 // PRIVATE VARIABLES
 //------------------------------------------------------------------------------
@@ -118,14 +127,17 @@ static uint8_t temp_effect_index = 255;
 
 /// @brief System parameter enumeration for setup mode
 typedef enum {
+    SYS_PARAM_MIN_BRIGHTNESS,    ///< Minimum brightness parameter
     SYS_PARAM_OFFSET_BEGIN,      ///< LED offset at beginning parameter
     SYS_PARAM_OFFSET_END,        ///< LED offset at end parameter
-    SYS_PARAM_MIN_BRIGHTNESS,    ///< Minimum brightness parameter
+    SYS_PARAM_CORR_R,            ///< Red color correction parameter
+    SYS_PARAM_CORR_G,            ///< Green color correction parameter
+    SYS_PARAM_CORR_B,            ///< Blue color correction parameter
     SYS_PARAM_COUNT              ///< Total number of system parameters
 } system_param_t;
 
 /// @brief Current system parameter being edited
-static system_param_t current_sys_param = SYS_PARAM_OFFSET_BEGIN;
+static system_param_t current_sys_param = SYS_PARAM_MIN_BRIGHTNESS;
 
 /// @brief Temporary offset begin value
 static uint16_t temp_offset_begin = 0;
@@ -135,6 +147,15 @@ static uint16_t temp_offset_end = 0;
 
 /// @brief Temporary minimum brightness value
 static uint8_t temp_min_brightness = 0;
+
+/// @brief Temporary red color correction value
+static uint8_t temp_correction_r = 255;
+
+/// @brief Temporary green color correction value
+static uint8_t temp_correction_g = 255;
+
+/// @brief Temporary blue color correction value
+static uint8_t temp_correction_b = 255;
 
 /// @brief Input command queue handle
 static QueueHandle_t q_commands_in = NULL;
@@ -297,6 +318,43 @@ static void fill_solid_color(rgb_t color) {
     for (uint16_t i = 0; i < NUM_LEDS; i++) {
         pixel_buffer[i].rgb = color;
     }
+}
+
+/**
+ * @brief Show a specific color on a single LED as a parameter indicator
+ *
+ * @param param The system parameter to indicate
+ * @param brightness The brightness of the indicator
+ */
+static void show_param_indicator(system_param_t param, uint8_t brightness) {
+    // Clear buffer first
+    memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
+
+    rgb_t indicator_color = {0, 0, 0};
+    switch (param) {
+        case SYS_PARAM_MIN_BRIGHTNESS:
+            indicator_color = (rgb_t){255, 255, 255}; // White
+            break;
+        case SYS_PARAM_OFFSET_BEGIN:
+            indicator_color = (rgb_t){255, 140, 0}; // Orange
+            break;
+        case SYS_PARAM_OFFSET_END:
+            indicator_color = (rgb_t){255, 0, 255}; // Magenta
+            break;
+        case SYS_PARAM_CORR_R:
+            indicator_color = (rgb_t){255, 0, 0}; // Red
+            break;
+        case SYS_PARAM_CORR_G:
+            indicator_color = (rgb_t){0, 255, 0}; // Green
+            break;
+        case SYS_PARAM_CORR_B:
+            indicator_color = (rgb_t){0, 0, 255}; // Blue
+            break;
+        default:
+            break; // Off for others
+    }
+
+    pixel_buffer[0].rgb = apply_brightness(indicator_color, brightness);
 }
 
 /**
@@ -573,6 +631,9 @@ void led_controller_apply_nvs_data(const volatile_data_t *v_data, const static_d
     g_min_brightness = s_data->min_brightness;
     g_led_offset_begin = s_data->led_offset_begin;
     g_led_offset_end = s_data->led_offset_end;
+    g_correction_r = s_data->correction_r;
+    g_correction_g = s_data->correction_g;
+    g_correction_b = s_data->correction_b;
 
     // Apply effect parameters
     for (uint8_t i = 0; i < effects_count && i < NVS_NUM_EFFECTS; i++) {
@@ -617,6 +678,9 @@ static void trigger_static_save(void) {
     s_data.min_brightness = g_min_brightness;
     s_data.led_offset_begin = g_led_offset_begin;
     s_data.led_offset_end = g_led_offset_end;
+    s_data.correction_r = g_correction_r;
+    s_data.correction_g = g_correction_g;
+    s_data.correction_b = g_correction_b;
 
     for (uint8_t i = 0; i < effects_count && i < NVS_NUM_EFFECTS; i++) {
         for (uint8_t j = 0; j < effects[i]->num_params && j < NVS_MAX_PARAMS_PER_EFFECT; j++) {
@@ -656,7 +720,7 @@ QueueHandle_t led_controller_init(QueueHandle_t cmd_queue) {
         return NULL;
     }
 
-    q_strip_out = xQueueCreate(LED_STRIP_QUEUE_SIZE, sizeof(led_strip_t));
+    q_strip_out = xQueueCreate(1, sizeof(led_strip_t)); // Hardcode to 1 to guarantee correctness for xQueueOverwrite
     if (!q_strip_out) {
         ESP_LOGE(TAG, "Failed to create output queue");
         free(pixel_buffer);
@@ -789,9 +853,6 @@ static void led_render_task(void *pv) {
         // Always send the current buffer to the driver
         xQueueOverwrite(q_strip_out, &strip_data);
 
-//         Send buffer to queue
-//        xQueueSend(q_strip_out, &strip_data, 0);
-
         // Wait for a notification or timeout
         ulTaskNotifyTake(pdTRUE, tick_rate);
     }
@@ -809,8 +870,19 @@ void led_controller_enter_system_setup(void) {
     temp_offset_begin = g_led_offset_begin;
     temp_offset_end = g_led_offset_end;
     temp_min_brightness = g_min_brightness;
-    current_sys_param = SYS_PARAM_OFFSET_BEGIN;
+    temp_correction_r = g_correction_r;
+    temp_correction_g = g_correction_g;
+    temp_correction_b = g_correction_b;
+
+    current_sys_param = SYS_PARAM_MIN_BRIGHTNESS;
     ESP_LOGI(TAG, "Entering system setup.");
+
+    // Set the strip to solid white for calibration preview
+    fill_solid_color((rgb_t){255, 255, 255});
+    needs_render = true; // Force render
+    if (render_task_handle) {
+        xTaskNotifyGive(render_task_handle);
+    }
 }
 
 /**
@@ -821,8 +893,12 @@ void led_controller_save_system_config(void) {
     g_led_offset_begin = temp_offset_begin;
     g_led_offset_end = temp_offset_end;
     g_min_brightness = temp_min_brightness;
-    ESP_LOGI(TAG, "System config saved. Offsets: %d/%d, Min Brightness: %d",
-             g_led_offset_begin, g_led_offset_end, g_min_brightness);
+    g_correction_r = temp_correction_r;
+    g_correction_g = temp_correction_g;
+    g_correction_b = temp_correction_b;
+
+    ESP_LOGI(TAG, "System config saved. Offsets: %d/%d, Min Brightness: %d, Correction: %d/%d/%d",
+             g_led_offset_begin, g_led_offset_end, g_min_brightness, g_correction_r, g_correction_g, g_correction_b);
 
     trigger_static_save();
 }
@@ -834,6 +910,10 @@ void led_controller_cancel_system_config(void) {
     // Discard temporary values and revert any live preview
     led_offset = g_led_offset_begin;
     active_num_leds = NUM_LEDS - (g_led_offset_begin + g_led_offset_end);
+
+    // Re-apply the original color correction
+    led_driver_set_correction(g_correction_r, g_correction_g, g_correction_b);
+
     ESP_LOGI(TAG, "System config cancelled.");
     needs_render = true;
     if (render_task_handle) {
@@ -859,62 +939,73 @@ void led_controller_inc_system_param(int16_t steps, bool *limit_hit) {
     if (limit_hit)
         *limit_hit = false;
 
+    int32_t new_val;
+
     switch (current_sys_param) {
-    case SYS_PARAM_OFFSET_BEGIN: {
-        int32_t new_offset = (int32_t)temp_offset_begin + steps;
-        if (new_offset < 0) {
-            new_offset = 0;
-            if (limit_hit)
-                *limit_hit = true;
-        }
-        if (new_offset + temp_offset_end >= NUM_LEDS) {
-            new_offset = NUM_LEDS - temp_offset_end - 1;
-            if (limit_hit)
-                *limit_hit = true;
-        }
-        temp_offset_begin = (uint16_t)new_offset;
+    case SYS_PARAM_OFFSET_BEGIN:
+        new_val = (int32_t)temp_offset_begin + steps;
+        if (new_val < 0) { new_val = 0; if (limit_hit) *limit_hit = true; }
+        if (new_val + temp_offset_end >= NUM_LEDS) { new_val = NUM_LEDS - temp_offset_end - 1; if (limit_hit) *limit_hit = true; }
+        temp_offset_begin = (uint16_t)new_val;
+        led_offset = temp_offset_begin;
+        active_num_leds = NUM_LEDS - (temp_offset_begin + temp_offset_end);
         ESP_LOGI(TAG, "Temp offset begin: %d", temp_offset_begin);
         break;
-    }
-    case SYS_PARAM_OFFSET_END: {
-        int32_t new_offset = (int32_t)temp_offset_end + steps;
-        if (new_offset < 0) {
-            new_offset = 0;
-            if (limit_hit)
-                *limit_hit = true;
-        }
-        if (temp_offset_begin + new_offset >= NUM_LEDS) {
-            new_offset = NUM_LEDS - temp_offset_begin - 1;
-            if (limit_hit)
-                *limit_hit = true;
-        }
-        temp_offset_end = (uint16_t)new_offset;
+
+    case SYS_PARAM_OFFSET_END:
+        new_val = (int32_t)temp_offset_end + steps;
+        if (new_val < 0) { new_val = 0; if (limit_hit) *limit_hit = true; }
+        if (temp_offset_begin + new_val >= NUM_LEDS) { new_val = NUM_LEDS - temp_offset_begin - 1; if (limit_hit) *limit_hit = true; }
+        temp_offset_end = (uint16_t)new_val;
+        active_num_leds = NUM_LEDS - (temp_offset_begin + temp_offset_end);
         ESP_LOGI(TAG, "Temp offset end: %d", temp_offset_end);
         break;
-    }
-    case SYS_PARAM_MIN_BRIGHTNESS: {
-        int32_t new_brightness = (int32_t)temp_min_brightness + steps;
-        if (new_brightness < 0) {
-            new_brightness = 0;
-            if (limit_hit)
-                *limit_hit = true;
-        }
-        if (new_brightness > 255) {
-            new_brightness = 255;
-            if (limit_hit)
-                *limit_hit = true;
-        }
-        temp_min_brightness = (uint8_t)new_brightness;
+
+    case SYS_PARAM_MIN_BRIGHTNESS:
+        new_val = (int32_t)temp_min_brightness + steps;
+        if (new_val < 0) { new_val = 0; if (limit_hit) *limit_hit = true; }
+        if (new_val > 255) { new_val = 255; if (limit_hit) *limit_hit = true; }
+        temp_min_brightness = (uint8_t)new_val;
         ESP_LOGI(TAG, "Temp min brightness: %d", temp_min_brightness);
         break;
-    }
+
+    case SYS_PARAM_CORR_R:
+        new_val = (int32_t)temp_correction_r + steps;
+        if (new_val < 0) { new_val = 0; if (limit_hit) *limit_hit = true; }
+        if (new_val > 255) { new_val = 255; if (limit_hit) *limit_hit = true; }
+        temp_correction_r = (uint8_t)new_val;
+        led_driver_set_correction(temp_correction_r, temp_correction_g, temp_correction_b);
+        ESP_LOGI(TAG, "Temp correction R: %d", temp_correction_r);
+        break;
+
+    case SYS_PARAM_CORR_G:
+        new_val = (int32_t)temp_correction_g + steps;
+        if (new_val < 0) { new_val = 0; if (limit_hit) *limit_hit = true; }
+        if (new_val > 255) { new_val = 255; if (limit_hit) *limit_hit = true; }
+        temp_correction_g = (uint8_t)new_val;
+        led_driver_set_correction(temp_correction_r, temp_correction_g, temp_correction_b);
+        ESP_LOGI(TAG, "Temp correction G: %d", temp_correction_g);
+        break;
+
+    case SYS_PARAM_CORR_B:
+        new_val = (int32_t)temp_correction_b + steps;
+        if (new_val < 0) { new_val = 0; if (limit_hit) *limit_hit = true; }
+        if (new_val > 255) { new_val = 255; if (limit_hit) *limit_hit = true; }
+        temp_correction_b = (uint8_t)new_val;
+        led_driver_set_correction(temp_correction_r, temp_correction_g, temp_correction_b);
+        ESP_LOGI(TAG, "Temp correction B: %d", temp_correction_b);
+        break;
+
     default:
         break;
     }
 
-    // Live preview for offsets
-    led_offset = temp_offset_begin;
-    active_num_leds = NUM_LEDS - (temp_offset_begin + temp_offset_end);
+    // Live preview
+    if (current_sys_param >= SYS_PARAM_CORR_R) {
+        fill_solid_color((rgb_t){255, 255, 255});
+    } else {
+        show_param_indicator(current_sys_param, master_brightness);
+    }
 
     needs_render = true;
     if (render_task_handle) {

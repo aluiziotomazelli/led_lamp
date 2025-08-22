@@ -47,6 +47,9 @@ typedef struct {
     uint8_t min_brightness;                 ///< Minimum brightness level for effects
     uint16_t led_offset_begin;              ///< Number of LEDs to skip at the start
     uint16_t led_offset_end;                ///< Number of LEDs to skip at the end
+    uint8_t correction_r;                   ///< Red channel color correction
+    uint8_t correction_g;                   ///< Green channel color correction
+    uint8_t correction_b;                   ///< Blue channel color correction
 
     // Per-effect settings
     int16_t effect_params[NVS_NUM_EFFECTS][NVS_MAX_PARAMS_PER_EFFECT]; ///< Storage for each parameter's value

@@ -29,6 +29,7 @@
 #include "led_driver.h"
 #include "led_controller.h"   // For led_strip_t
 #include "project_config.h"   // For hardware pin definitions
+#include "nvs_manager.h"      // For loading settings
 
 // External components
 #include "hsv2rgb.h"
@@ -48,9 +49,9 @@ static led_strip_handle_t led_strip_handle;
 static QueueHandle_t q_pixels_in = NULL;
 
 /// @brief Global color correction values for white balance
-static uint16_t g_correction_r = 255;  ///< Red channel correction
-static uint16_t g_correction_g = 200;  ///< Green channel correction  
-static uint16_t g_correction_b = 140;  ///< Blue channel correction
+static uint16_t g_correction_r;  ///< Red channel correction
+static uint16_t g_correction_g;  ///< Green channel correction
+static uint16_t g_correction_b;  ///< Blue channel correction
 
 //------------------------------------------------------------------------------
 // PRIVATE FUNCTION DECLARATIONS
@@ -92,9 +93,9 @@ static esp_err_t configure_led_strip(void) {
         // My strip is GRB format
         .color_component_format = {
             .format = {
-                .b_pos = 0,
-                .r_pos = 1,
-                .g_pos = 2,  
+                .b_pos = 0, // blue is the first byte
+                .r_pos = 1, // red is the second byte
+                .g_pos = 2, // green is the third byte
                 .num_components = 3,  // total 3 color components
             },
         },
@@ -107,7 +108,7 @@ static esp_err_t configure_led_strip(void) {
     led_strip_rmt_config_t rmt_config = {
         .clk_src = RMT_CLK_SRC_DEFAULT,
         .resolution_hz = 10 * 1000 * 1000, // 10MHz resolution
-//        .flags.with_dma = true,
+        .flags.with_dma = false, // DMA not supported on this hardware
     };
 
     // Create the LED strip object
@@ -202,6 +203,15 @@ void led_driver_init(QueueHandle_t input_queue) {
     }
     q_pixels_in = input_queue;
 
+    // Load static data to get color correction values
+    static_data_t static_data;
+    esp_err_t load_err = nvs_manager_load_static_data(&static_data);
+    if (load_err != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to load static data, using defaults for correction. Error: %s", esp_err_to_name(load_err));
+        // Defaults are loaded by the manager, so we can proceed
+    }
+    led_driver_set_correction(static_data.correction_r, static_data.correction_g, static_data.correction_b);
+
     // Configure the hardware for the LED strip
     esp_err_t config_status = configure_led_strip();
     if (config_status != ESP_OK) {
@@ -211,8 +221,8 @@ void led_driver_init(QueueHandle_t input_queue) {
     }
 
     // Create the driver task
-    BaseType_t task_created = xTaskCreate(led_driver_task, "LED_DRV_T", 
-                                        LED_DRIVER_TASK_STACK_SIZE, NULL, 
+    BaseType_t task_created = xTaskCreate(led_driver_task, "LED_DRV_T",
+                                        LED_DRIVER_TASK_STACK_SIZE, NULL,
                                         LED_DRIVER_TASK_PRIORITY, NULL);
 
     if (task_created != pdPASS) {
