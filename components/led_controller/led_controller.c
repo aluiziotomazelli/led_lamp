@@ -324,42 +324,6 @@ static void fill_solid_color(rgb_t color) {
     }
 }
 
-/**
- * @brief Show a specific color on a single LED as a parameter indicator
- *
- * @param param The system parameter to indicate
- * @param brightness The brightness of the indicator
- */
-static void show_param_indicator(system_param_t param, uint8_t brightness) {
-    // Clear buffer first
-    memset(pixel_buffer, 0, sizeof(color_t) * NUM_LEDS);
-
-    rgb_t indicator_color = {0, 0, 0};
-    switch (param) {
-        case SYS_PARAM_MIN_BRIGHTNESS:
-            indicator_color = (rgb_t){255, 255, 255}; // White
-            break;
-        case SYS_PARAM_OFFSET_BEGIN:
-            indicator_color = (rgb_t){255, 140, 0}; // Orange
-            break;
-        case SYS_PARAM_OFFSET_END:
-            indicator_color = (rgb_t){255, 0, 255}; // Magenta
-            break;
-        case SYS_PARAM_CORR_R:
-            indicator_color = (rgb_t){255, 0, 0}; // Red
-            break;
-        case SYS_PARAM_CORR_G:
-            indicator_color = (rgb_t){0, 255, 0}; // Green
-            break;
-        case SYS_PARAM_CORR_B:
-            indicator_color = (rgb_t){0, 0, 255}; // Blue
-            break;
-        default:
-            break; // Off for others
-    }
-
-    pixel_buffer[0].rgb = apply_brightness(indicator_color, brightness);
-}
 
 /**
  * @brief Run feedback animation
@@ -797,20 +761,22 @@ static void led_render_task(void *pv) {
             continue;
         }
 
-        // --- System Setup Mode Rendering ---
+        // --- Preview Rendering Logic ---
+        bool special_preview_drawn = false;
         if (is_in_system_setup) {
             strip_data.mode = COLOR_MODE_RGB;
             if (current_sys_param == SYS_PARAM_MIN_BRIGHTNESS) {
                 fill_solid_color(apply_brightness((rgb_t){255, 255, 255}, temp_min_brightness));
+                special_preview_drawn = true;
             } else if (current_sys_param >= SYS_PARAM_CORR_R) {
                 fill_solid_color((rgb_t){255, 255, 255});
-            } else {
-                show_param_indicator(current_sys_param, master_brightness);
+                special_preview_drawn = true;
             }
         }
+
         // --- Normal Effect Rendering ---
-        else {
-            uint8_t target_brightness = is_on ? master_brightness : 0;
+        if (!special_preview_drawn) {
+             uint8_t target_brightness = is_on ? master_brightness : 0;
             if (current_brightness != target_brightness) {
                 if (current_brightness < target_brightness) current_brightness++;
                 else current_brightness--;
