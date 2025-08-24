@@ -15,6 +15,7 @@
 
 // FreeRTOS components
 #include "freertos/FreeRTOS.h"
+#include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
@@ -296,7 +297,7 @@ static esp_err_t update_post_handler(httpd_req_t *req) {
  */
 esp_err_t ota_updater_start(void) {
     ESP_LOGI(TAG, "Starting SoftAP OTA Updater...");
-
+    
     // Send red feedback to the user
     if (led_cmd_queue != NULL) {
         led_command_t ota_feedback_cmd = {

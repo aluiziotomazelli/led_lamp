@@ -70,6 +70,7 @@
 // ==================================================
 // Touch Button Configuration
 // ==================================================
+#define TOUCH_IS_USED					   0
 #define TOUCH_THRESHOLD_PERCENT           60   	// Touch activation threshold (% of baseline value)
 #define TOUCH_DEBOUNCE_PRESS_MS           20   	// Press debounce time in milliseconds
 #define TOUCH_DEBOUNCE_RELEASE_MS         20   	// Release debounce time in milliseconds
@@ -106,6 +107,20 @@
 #define NUM_LEDS 				82 	// Number of LEDs in the strip
 #define LED_RENDER_INTERVAL_MS 	10 	// LED render interval in milliseconds
 #define LED_STRIP_TYPE			LED_MODEL_WS2811
+//Led color position
+//WS2812 GRB / WS2811 BRG
+#define LED_STRIP_BLUE_POS		0
+#define LED_STRIP_RED_POS		1
+#define LED_STRIP_GREEN_POS		2 
+
+// Default values for configurable parameters
+#define DEFAULT_MIN_BRIGHTNESS 	20 // Default minimum brightness value (0-255)
+#define DEFAULT_LED_OFFSET_BEGIN 0 // Default LED strip beginning offset
+#define DEFAULT_LED_OFFSET_END   0 // Default LED strip ending offset
+#define DEFAULT_RED_CORRECTION 		255
+#define DEFAULT_GREEN_CORRECTION 	255
+#define DEFAULT_BLUE_CORRECTION 	255
+
 
 // Default values for configurable parameters
 #define DEFAULT_MIN_BRIGHTNESS 	20 // Default minimum brightness value (0-255)

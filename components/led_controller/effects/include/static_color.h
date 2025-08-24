@@ -36,7 +36,7 @@ static effect_param_t params_static_color[] = {
      .max_value = 255,
      .step = 5,
      .is_wrap = false,
-     .default_value = 230},
+     .default_value = 255},
 };
 
 /**
