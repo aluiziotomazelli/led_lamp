@@ -1,8 +1,8 @@
 #==============================================================================
-# LED Controller Component
+# Button Driver Component
 #
-# Description: High-level LED strip controller with animation support
-#              and color management
+# Description: Button driver with advanced click detection (single, double, long)
+#              using finite state machine and debouncing
 #
 # Author: Your Name
 # Date: 2024-03-15
@@ -16,34 +16,18 @@
 # Register this component with the ESP-IDF build system
 idf_component_register(
     # Source files for this component
-    SRCS
-        "led_controller.c"
-        "led_effects.c"
-        "effects/breathing.c"
-        "effects/candle.c"
-        "effects/candle_math.c"
-        "effects/candle_math_logic.c"
-        "effects/christmas_tree.c"
-        "effects/christmas_twinkle.c"
-        "effects/random_twinkle.c"
-        "effects/static_color.c"
-        "effects/white_temp.c"
+    SRCS "relay_controller.c"
     
     # Public include directories (visible to other components)
-    INCLUDE_DIRS
-        "include"
-        "effects/include"
+    INCLUDE_DIRS "include"
     
     # Required components (dependencies)
     REQUIRES 
-        fsm                 # Finite State Machine for command processing
-        esp_timer           # Timer services for timing measurements
-        freertos            # FreeRTOS for tasks, queues, and notifications
-        driver              # ESP32 driver framework
-        nvs_manager         # Non-volatile storage management
-        ota_updater
-        relay_controller    # Optional relay controller for power management
-        shared              # Shared project utilities and definitions
+        esp_driver_gpio      # GPIO driver for button pin control
+        esp_timer            # Timer services for timing measurements
+        freertos             # FreeRTOS for tasks, queues, and notifications
+#        driver               # ESP32 driver framework
+        shared               # Shared project utilities and definitions
 )
 
 #------------------------------------------------------------------------------
@@ -53,7 +37,7 @@ idf_component_register(
 # Example of additional configuration options:
 # set(COMPONENT_ADD_INCLUDEDIRS "private_include")
 # set(COMPONENT_PRIV_REQUIRES some_private_dependency)
-# set(COMPONENT_EMBED_TXTFILES "config/controller_defaults.txt")
+# set(COMPONENT_EMBED_TXTFILES "config/button_defaults.txt")
 
 #==============================================================================
 # END OF FILE

@@ -20,6 +20,7 @@
 #include "nvs_flash.h"
 #include "nvs_manager.h"
 #include "ota_updater.h"
+#include "relay_controller.h"
 
 static const char *TAG = "main";
 
@@ -60,8 +61,11 @@ void app_main(void) {
     }
 
     ESP_LOGI(TAG, "Normal boot sequence.");
+    
+    // Initialize the relay controller (optional, will be a no-op if not used)
+    relay_controller_init();
 
-	esp_log_level_set("Touch", ESP_LOG_DEBUG);
+//	esp_log_level_set("*", ESP_LOG_DEBUG);
 
 	// Criação das filas
 	button_event_queue =
@@ -192,6 +196,7 @@ void app_main(void) {
     // Synchronize FSM state with loaded data
     if (v_data.is_on) {
         fsm_set_initial_state(MODE_DISPLAY);
+        relay_controller_init();
     } else {
         fsm_set_initial_state(MODE_OFF);
     }

@@ -26,6 +26,7 @@
 #define ENCODER_PIN_B        16 			// Rotary encoder channel B GPIO pin number
 #define TOUCH_PAD1_PIN       TOUCH_PAD_NUM0 // Touch button pad number (GPIO4)
 #define SWITCH_PIN_1         32 			// Mode switch GPIO pin number
+#define RELAY_PIN            27              // Optional: GPIO for the power relay
 
 // ==================================================
 // Queue Configuration
@@ -49,8 +50,8 @@
 #define ESPNOW_TASK_STACK_SIZE   	4096 // ESPNOW task stack size in bytes
 #define FSM_STACK_SIZE           	4096 // Finite State Machine task stack size in bytes
 #define INTEGRATOR_TASK_STACK_SIZE 	4096 // Input integrator task stack size in bytes
-#define LED_CTRL_STACK_SIZE			4069 // LED controller task stack size in bytes
-#define LED_RENDER_STACK_SIZE		4069 // LED render task stack size in bytes
+#define LED_CTRL_STACK_SIZE			4096 // LED controller task stack size in bytes
+#define LED_RENDER_STACK_SIZE		6144 // LED render task stack size in bytes
 #define LED_DRIVER_TASK_STACK_SIZE  4096 // LED driver task stack size in bytes
 #define SWITCH_TASK_STACK_SIZE   	2048 // Switch task stack size in bytes
 
@@ -116,6 +117,12 @@
 // ==================================================
 #define LED_STRIP_GPIO              13 // GPIO pin for LED strip data line
 #define LED_STRIP_SPI_HOST          SPI2_HOST // SPI host for LED strip communication
+
+
+// ==================================================
+// Relay Controller Configuration
+// ==================================================
+#define RELAY_OFF_DELAY_MS   3000           // Delay in ms to turn off the relay
 
 // ==================================================
 // ESP-NOW Configuration
