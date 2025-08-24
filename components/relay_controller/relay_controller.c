@@ -3,6 +3,7 @@
 #include "driver/gpio.h"
 #include "freertos/task.h"
 #include "freertos/timers.h"
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 
 static const char *TAG = "RELAY_CTRL";

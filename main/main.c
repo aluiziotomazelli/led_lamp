@@ -65,8 +65,6 @@ void app_main(void) {
     // Initialize the relay controller (optional, will be a no-op if not used)
     relay_controller_init();
 
-	esp_log_level_set("Touch", ESP_LOG_DEBUG);
-
 	// Criação das filas
 	button_event_queue =
 		xQueueCreate(BUTTON_QUEUE_SIZE, sizeof(button_event_t));
