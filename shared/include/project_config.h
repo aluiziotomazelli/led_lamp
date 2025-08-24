@@ -26,7 +26,7 @@
 #define ENCODER_PIN_B        16 			// Rotary encoder channel B GPIO pin number
 #define TOUCH_PAD1_PIN       TOUCH_PAD_NUM0 // Touch button pad number (GPIO4)
 #define SWITCH_PIN_1         32 			// Mode switch GPIO pin number
-#define RELAY_PIN            2              // Optional: GPIO for the power relay
+#define RELAY_PIN            27              // Optional: GPIO for the power relay
 
 // ==================================================
 // Queue Configuration

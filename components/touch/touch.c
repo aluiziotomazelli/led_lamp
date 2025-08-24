@@ -102,6 +102,7 @@ static void IRAM_ATTR touch_isr_handler(void *arg) {
     // Notify the touch task
     xTaskNotifyFromISR(touch_handle->task_handle, 0, eNoAction,
                       &xHigherPriorityTaskWoken);
+    ESP_DRAM_LOGV(TAG, "ISR triggered for pad %d", touch_handle->pad);
     
     if (xHigherPriorityTaskWoken) {
         portYIELD_FROM_ISR();
@@ -117,6 +118,9 @@ static void IRAM_ATTR touch_isr_handler(void *arg) {
  * @warning Calibration should not be performed during active touch events
  */
 static void touch_recalibrate(touch_t *touch_handle) {
+    ESP_LOGD(TAG, "Recalibration START for pad %d (Baseline: %d)",
+            touch_handle->pad, touch_handle->baseline);
+
     touch_handle->is_recalibrating = true;
     touch_pad_intr_disable();  // Disable interrupts during calibration
 
@@ -139,6 +143,9 @@ static void touch_recalibrate(touch_t *touch_handle) {
     touch_pad_set_thresh(touch_handle->pad, threshold);
     touch_handle->is_recalibrating = false;
     touch_pad_intr_enable();  // Re-enable interrupts
+
+    ESP_LOGD(TAG, "Recalibration COMPLETE for pad %d (New baseline: %d, Threshold: %d)",
+            touch_handle->pad, touch_handle->baseline, threshold);
 }
 
 /**
@@ -151,6 +158,8 @@ static void touch_recalibrate(touch_t *touch_handle) {
 static void recalibration_timer_callback(void *arg) {
     touch_t *touch_handle = (touch_t *)arg;
     if (!touch_handle->is_reading) {
+        ESP_LOGV(TAG, "Recalibration timer triggered for pad %d",
+                touch_handle->pad);
         touch_recalibrate(touch_handle);
     }
 }
@@ -180,6 +189,8 @@ static touch_event_type_t touch_get_event(touch_t *touch_handle) {
         if (is_pressed) {
             touch_handle->press_start_time_ms = now;
             touch_handle->state = TOUCH_DEBOUNCE_PRESS;
+            ESP_LOGD("FSM", "DEBOUNCE_PRESS (Pad: %" PRIu32 ")",
+                    (uint32_t)touch_handle->pad);
         }
         break;
 
@@ -187,8 +198,12 @@ static touch_event_type_t touch_get_event(touch_t *touch_handle) {
         if (now - touch_handle->press_start_time_ms > touch_handle->debounce_press_ms) {
             if (is_pressed) {
                 touch_handle->state = TOUCH_WAIT_FOR_RELEASE_OR_HOLD;
+                ESP_LOGD("FSM", "WAIT_FOR_RELEASE_OR_HOLD (Pad: %" PRIu32 ")",
+                        (uint32_t)touch_handle->pad);
             } else {
                 touch_handle->state = TOUCH_WAIT_FOR_PRESS;
+                ESP_LOGD("FSM", "Premature release, back to WAIT_FOR_PRESS (Pad: %" PRIu32 ")",
+                        (uint32_t)touch_handle->pad);
             }
         }
         break;
@@ -251,6 +266,7 @@ static void touch_task(void *param) {
         if (!processing && !touch_handle->is_recalibrating) {
             processing = true;
             touch_pad_intr_disable();
+            ESP_LOGD(TAG, "Processing touch event for pad %d", touch_handle->pad);
             touch_handle->is_reading = true;
         }
 
@@ -264,7 +280,10 @@ static void touch_task(void *param) {
                 };
 
                 if (xQueueSend(touch_handle->output_queue, &local_event,
-                              pdMS_TO_TICKS(10)) != pdPASS) {
+                              pdMS_TO_TICKS(10)) == pdPASS) {
+                    ESP_LOGD(TAG, "Touch pad %d: click %d sent to queue",
+                            local_event.pad, local_event.type);
+                } else {
                     ESP_LOGW(TAG, "Touch pad %d: FAILED to send click %d to queue",
                             local_event.pad, local_event.type);
                 }

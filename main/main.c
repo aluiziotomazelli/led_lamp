@@ -3,6 +3,7 @@
 #include "esp_log.h"
 #include "esp_log_level.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/projdefs.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "input_integrator.h"
@@ -194,6 +195,7 @@ void app_main(void) {
     // Synchronize FSM state with loaded data
     if (v_data.is_on) {
         fsm_set_initial_state(MODE_DISPLAY);
+        relay_controller_on();
     } else {
         fsm_set_initial_state(MODE_OFF);
     }

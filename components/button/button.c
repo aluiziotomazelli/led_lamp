@@ -104,6 +104,8 @@ static button_click_type_t button_get_click(button_t *btn) {
             // Button pressed, start debounce timer and move to next state
             btn->press_start_time_ms = now;
             btn->state = BUTTON_DEBOUNCE_PRESS;
+            ESP_LOGD("FSM", "STARTING DEBOUNCE (Pin: %d, Level: %d)", 
+                    btn->pin, pressed_level);
         }
         break;
 
@@ -114,9 +116,12 @@ static button_click_type_t button_get_click(button_t *btn) {
             if (gpio_get_level(btn->pin) == pressed_level) {
                 // Still pressed: valid press, wait for release
                 btn->state = BUTTON_WAIT_FOR_RELEASE;
+                ESP_LOGD("FSM", "WAIT_FOR_RELEASE (Pin: %d)", btn->pin);
             } else {
                 // Not pressed anymore: it was a glitch, go back to waiting
                 btn->state = BUTTON_WAIT_FOR_PRESS;
+                ESP_LOGD("FSM", "Premature release, back to WAIT_FOR_PRESS (Pin: %d)",
+                        btn->pin);
             }
         }
         break;
@@ -144,6 +149,7 @@ static button_click_type_t button_get_click(button_t *btn) {
             // Button held down for too long (timeout)
             btn->state = BUTTON_TIMEOUT_WAIT_FOR_RELEASE;
             btn->last_time_ms = now;
+            ESP_LOGD("FSM", "TIMEOUT WAIT FOR RELEASE");
         }
         break;
 
@@ -153,9 +159,11 @@ static button_click_type_t button_get_click(button_t *btn) {
             // Release confirmed. Now check for a potential double click
             if (gpio_get_level(btn->pin) == released_level) {
                 btn->state = BUTTON_WAIT_FOR_DOUBLE;
+                ESP_LOGD("FSM", "DEBOUNCE RELEASED (Pin: %d)", btn->pin);
             } else {
                 // If pressed again during debounce, proceed to double click check
                 btn->state = BUTTON_WAIT_FOR_DOUBLE;
+                ESP_LOGD("FSM", "Pressed during DEBOUNCE_RELEASE (Pin: %d)", btn->pin);
             }
         }
         break;
@@ -168,6 +176,7 @@ static button_click_type_t button_get_click(button_t *btn) {
             btn->last_time_ms = now;
             btn->first_click = true; // Flag that we are in a double click
             btn->state = BUTTON_DEBOUNCE_PRESS; // Restart debounce for the second click
+            ESP_LOGD("FSM", "Second click detected (Pin: %d)", btn->pin);
         } else if (now - btn->last_time_ms > btn->double_click_ms) {
             // No second click occurred in time
             btn->state = BUTTON_WAIT_FOR_PRESS;
@@ -189,6 +198,7 @@ static button_click_type_t button_get_click(button_t *btn) {
             if (now - btn->last_time_ms > btn->debounce_release_ms) {
                 btn->last_time_ms = now;
                 btn->state = BUTTON_WAIT_FOR_PRESS;
+                ESP_LOGD("FSM", "TIMEOUT RELEASED");
                 return BUTTON_TIMEOUT;
             }
         } else {
@@ -196,7 +206,8 @@ static button_click_type_t button_get_click(button_t *btn) {
             btn->last_time_ms = now;
             // Double timeout period for error detection (2x normal timeout)
             if (now - btn->press_start_time_ms > 2 * btn->timeout_ms) {
-                btn->state = BUTTON_WAIT_for_press;
+                btn->state = BUTTON_WAIT_FOR_PRESS;
+                ESP_LOGD("FSM", "BUTTON ERROR");
                 return BUTTON_ERROR;
             }
         }
@@ -224,6 +235,7 @@ static void button_task(void *param) {
         if (!processing) {
             processing = true;
             gpio_intr_disable(btn->pin);
+            ESP_LOGD(TAG, "Processing started");
         }
 
         do {
@@ -236,7 +248,10 @@ static void button_task(void *param) {
                 };
 
                 if (xQueueSend(btn->output_queue, &local_event,
-                              pdMS_TO_TICKS(10)) != pdPASS) {
+                              pdMS_TO_TICKS(10)) == pdPASS) {
+                    ESP_LOGD(TAG, "Button %d: click %d sent to queue", 
+                            btn->pin, click);
+                } else {
                     ESP_LOGW(TAG, "Button %d: click %d failed to send to queue",
                             btn->pin, click);
                 }
@@ -262,6 +277,7 @@ static void IRAM_ATTR button_isr_handler(void *arg) {
     button_t *btn = (button_t *)arg;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     
+    ESP_DRAM_LOGD(TAG, "ISR triggered for button on pin %d", btn->pin);
     xTaskNotifyFromISR(btn->task_handle, 0, eNoAction,
                       &xHigherPriorityTaskWoken);
 
