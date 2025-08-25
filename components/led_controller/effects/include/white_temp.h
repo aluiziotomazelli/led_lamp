@@ -25,10 +25,10 @@ static effect_param_t params_white_temp[] = {
      .type = PARAM_TYPE_VALUE,
      .value = 0,
      .min_value = 0,
-     .max_value = 5,
+     .max_value = 9,
      .step = 1,
      .is_wrap = false,
-     .default_value = 0},
+     .default_value = 4},
 };
 
 /**

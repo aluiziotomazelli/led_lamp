@@ -118,8 +118,8 @@
 #define DEFAULT_LED_OFFSET_BEGIN 0 // Default LED strip beginning offset
 #define DEFAULT_LED_OFFSET_END   0 // Default LED strip ending offset
 #define DEFAULT_RED_CORRECTION 		255
-#define DEFAULT_GREEN_CORRECTION 	255
-#define DEFAULT_BLUE_CORRECTION 	255
+#define DEFAULT_GREEN_CORRECTION 	210
+#define DEFAULT_BLUE_CORRECTION 	180
 
 
 // Default values for configurable parameters
