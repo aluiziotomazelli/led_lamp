@@ -206,7 +206,7 @@ void app_main(void) {
 	// Synchronize FSM state with loaded data
 	if (v_data.is_on) {
 		fsm_set_initial_state(MODE_DISPLAY);
-		relay_controller_init();
+		relay_controller_on();
 	} else {
 		fsm_set_initial_state(MODE_OFF);
 	}
