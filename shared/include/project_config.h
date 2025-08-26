@@ -146,8 +146,11 @@
 // Master MAC: (08:3a:f2:ac:50:dc)
 // 0x08, 0x3A, 0xF2, 0xAC, 0x50, 0xDC
 
+
 // Slave MAC: (84:cc:a8:7a:66:e0)
 // 0x84, 0xCC, 0xA8, 0x7A, 0x66, 0xE0
+// Slave MAC: (80:f3:da:42:94:30)
+// 0x80, 0xF3, 0xDA, 0x42, 0x94, 0x30
 
 #define ESP_NOW_ENABLED  1 // Enable/disable ESP-NOW functionality (1 = enable, 0 = disable)
 #define IS_MASTER        0 // Device role: master (1 = master, 0 = not master)
