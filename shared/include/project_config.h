@@ -70,7 +70,7 @@
 // ==================================================
 // Touch Button Configuration
 // ==================================================
-#define TOUCH_IS_USED					   0
+#define TOUCH_IS_USED					   1
 #define TOUCH_THRESHOLD_PERCENT           60   	// Touch activation threshold (% of baseline value)
 #define TOUCH_DEBOUNCE_PRESS_MS           20   	// Press debounce time in milliseconds
 #define TOUCH_DEBOUNCE_RELEASE_MS         20   	// Release debounce time in milliseconds
@@ -104,14 +104,14 @@
 // LED Controller Configuration
 // ==================================================
 // Fita ws2811 com 82 pixel no oratório
-#define NUM_LEDS 				82 	// Number of LEDs in the strip
+#define NUM_LEDS 				48 	// Number of LEDs in the strip
 #define LED_RENDER_INTERVAL_MS 	10 	// LED render interval in milliseconds
-#define LED_STRIP_TYPE			LED_MODEL_WS2811
+#define LED_STRIP_TYPE			LED_MODEL_WS2812
 //Led color position
 //WS2812 GRB / WS2811 BRG
-#define LED_STRIP_BLUE_POS		0
+#define LED_STRIP_GREEN_POS		0 
 #define LED_STRIP_RED_POS		1
-#define LED_STRIP_GREEN_POS		2 
+#define LED_STRIP_BLUE_POS		2
 
 // Default values for configurable parameters
 #define DEFAULT_MIN_BRIGHTNESS 	20 // Default minimum brightness value (0-255)
@@ -137,24 +137,19 @@
 // ==================================================
 // Relay Controller Configuration
 // ==================================================
+#define RELAY_IS_USED 			0
 #define RELAY_OFF_DELAY_MS   3000           // Delay in ms to turn off the relay
 
 // ==================================================
 // ESP-NOW Configuration
 // ==================================================
-// MAC addresses preserved as requested - used during compilation
-// Master MAC: (08:3a:f2:ac:50:dc)
-// 0x08, 0x3A, 0xF2, 0xAC, 0x50, 0xDC
-
-
-// Slave MAC: (84:cc:a8:7a:66:e0)
-// 0x84, 0xCC, 0xA8, 0x7A, 0x66, 0xE0
+// Master MAC: (80:f3:da:53:fc:89)
 // Slave MAC: (80:f3:da:42:94:30)
 // 0x80, 0xF3, 0xDA, 0x42, 0x94, 0x30
 
 #define ESP_NOW_ENABLED  1 // Enable/disable ESP-NOW functionality (1 = enable, 0 = disable)
-#define IS_MASTER        0 // Device role: master (1 = master, 0 = not master)
-#define IS_SLAVE         1 // Device role: slave (1 = slave, 0 = not slave)
+#define IS_MASTER        1 // Device role: master (1 = master, 0 = not master)
+#define IS_SLAVE         0 // Device role: slave (1 = slave, 0 = not slave)
 #define SLAVE_ENABLE_FEEDBACK 1 // Enable/disable feedback animations on slave device (1 = enable, 0 = disable)
 
 /**
@@ -164,7 +159,7 @@
  *       Replace with actual MAC addresses of slave devices.
  */
 static uint8_t slave_mac_addresses[][6] = {
-    {0x84, 0xCC, 0xA8, 0x7A, 0x66, 0xE0}
+    {0x80, 0xF3, 0xDA, 0x42, 0x94, 0x30}
 // Para mais slaves descomentar as linhas abaixo e troca pelo MAC real
 //    ,
 //    {0x7A, 0x8B, 0x9C, 0xAD, 0xBE, 0xCF}

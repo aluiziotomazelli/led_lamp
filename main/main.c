@@ -20,7 +20,10 @@
 #include "nvs_flash.h"
 #include "nvs_manager.h"
 #include "ota_updater.h"
+
+#if RELAY_IS_USED
 #include "relay_controller.h"
+#endif
 
 static const char *TAG = "main";
 
@@ -54,10 +57,12 @@ void app_main(void) {
 	if (ota_data.ota_mode_enabled) {
 		ESP_LOGI(TAG, "OTA mode enabled. Starting OTA updater...");
 
-		// Configure the GPIO pin for the relay
+// Configure the GPIO pin for the relay
+#if RELAY_IS_USED
 		gpio_reset_pin(RELAY_PIN);
 		gpio_set_direction(RELAY_PIN, GPIO_MODE_OUTPUT);
-		gpio_set_level(RELAY_PIN, 1); // Ensure relay is OFF initially
+		gpio_set_level(RELAY_PIN, 1); // Ensure relay is ON initially
+#endif
 
 		ota_updater_start();
 		ESP_LOGI(TAG, "OTA process started. Halting main execution.");
@@ -69,9 +74,10 @@ void app_main(void) {
 
 	ESP_LOGI(TAG, "Normal boot sequence.");
 
-	// Initialize the relay controller (optional, will be a no-op if not used)
+// Initialize the relay controller (optional, will be a no-op if not used)
+#if RELAY_IS_USED
 	relay_controller_init();
-
+#endif
 	//	esp_log_level_set("*", ESP_LOG_DEBUG);
 
 	// Criação das filas
@@ -132,7 +138,7 @@ void app_main(void) {
 	// Inicializa encoder
 	encoder_config_t enc_cfg = {.pin_a = ENCODER_PIN_A,
 								.pin_b = ENCODER_PIN_B,
-								.half_step_mode = true,
+								.half_step_mode = false,
 								.acceleration_enabled = true,
 								.accel_gap_ms = ENC_ACCEL_GAP,
 								.accel_max_multiplier = MAX_ACCEL_MULTIPLIER};
@@ -206,7 +212,9 @@ void app_main(void) {
 	// Synchronize FSM state with loaded data
 	if (v_data.is_on) {
 		fsm_set_initial_state(MODE_DISPLAY);
+#if RELAY_IS_USED
 		relay_controller_on();
+#endif 
 	} else {
 		fsm_set_initial_state(MODE_OFF);
 	}
