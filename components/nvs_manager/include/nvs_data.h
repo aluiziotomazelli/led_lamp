@@ -27,6 +27,16 @@
 #define NVS_MAX_PARAMS_PER_EFFECT 8          ///< Maximum parameters per effect (actual max is 6)
 
 /**
+ * @brief Version for the static data structure.
+ *
+ * @details Increment this version number whenever a breaking change is made to
+ *          the static_data_t structure. This will trigger the NVS manager to
+ *          reset the settings to default values upon the next boot, preventing
+ *          errors from schema mismatches.
+ */
+#define STATIC_DATA_FIRMWARE_VERSION 1
+
+/**
  * @brief Structure for data that changes frequently
  * 
  * @details This data is saved on a timer or specific volatile events
@@ -43,6 +53,9 @@ typedef struct {
  * @details This data is saved immediately upon modification through configuration menu
  */
 typedef struct {
+    // Data schema version
+    uint8_t data_version;                   ///< Version of this data structure
+
     // System-wide settings
     uint8_t min_brightness;                 ///< Minimum brightness level for effects
     uint16_t led_offset_begin;              ///< Number of LEDs to skip at the start

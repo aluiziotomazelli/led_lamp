@@ -80,7 +80,8 @@ static void load_volatile_defaults(volatile_data_t *data) {
  * @brief Load default values for static data
  */
 static void load_static_defaults(static_data_t *data) {
-    ESP_LOGI(TAG, "Loading default static data.");
+    ESP_LOGI(TAG, "Loading default static data (version: %d).", STATIC_DATA_FIRMWARE_VERSION);
+    data->data_version = STATIC_DATA_FIRMWARE_VERSION;
     data->min_brightness = DEFAULT_MIN_BRIGHTNESS;
     data->led_offset_begin = DEFAULT_LED_OFFSET_BEGIN;
     data->led_offset_end = DEFAULT_LED_OFFSET_END;
@@ -252,7 +253,11 @@ esp_err_t nvs_manager_save_static_data(const static_data_t *data) {
         return err;
     }
 
-    err = nvs_set_blob(nvs_handle, KEY_STATIC_DATA, data, sizeof(static_data_t));
+    // Create a mutable copy to set the firmware version
+    static_data_t data_to_save = *data;
+    data_to_save.data_version = STATIC_DATA_FIRMWARE_VERSION;
+
+    err = nvs_set_blob(nvs_handle, KEY_STATIC_DATA, &data_to_save, sizeof(static_data_t));
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Error writing static data to NVS: %s", esp_err_to_name(err));
     } else {
@@ -260,7 +265,7 @@ esp_err_t nvs_manager_save_static_data(const static_data_t *data) {
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Error committing static data to NVS: %s", esp_err_to_name(err));
         } else {
-            ESP_LOGI(TAG, "Static data saved successfully.");
+            ESP_LOGI(TAG, "Static data saved successfully (version: %d).", data_to_save.data_version);
         }
     }
 
@@ -290,12 +295,22 @@ esp_err_t nvs_manager_load_static_data(static_data_t *data) {
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         ESP_LOGW(TAG, "Static data not found in NVS. Loading defaults.");
         load_static_defaults(data);
-        // This is not an error condition, we just loaded defaults
-        err = ESP_OK;
+        // Save the defaults back to NVS so they exist for the next boot
+        nvs_manager_save_static_data(data);
+        err = ESP_OK; // This is not an error condition, we just loaded defaults
     } else if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Error reading static data from NVS: %s", esp_err_to_name(err));
-    } else {
-        ESP_LOGI(TAG, "Static data loaded successfully from NVS.");
+        ESP_LOGE(TAG, "Error reading static data from NVS: %s. Loading defaults.", esp_err_to_name(err));
+        load_static_defaults(data);
+    } else if (data->data_version != STATIC_DATA_FIRMWARE_VERSION) {
+        // Version mismatch, data is stale. Load defaults and save them.
+        ESP_LOGW(TAG, "NVS data version mismatch (found: %d, expected: %d). Loading defaults.",
+                 data->data_version, STATIC_DATA_FIRMWARE_VERSION);
+        load_static_defaults(data);
+        // Overwrite the old data in NVS with the new default structure
+        nvs_manager_save_static_data(data);
+    }
+    else {
+        ESP_LOGI(TAG, "Static data loaded successfully from NVS (version: %d).", data->data_version);
     }
 
     nvs_close(nvs_handle);
